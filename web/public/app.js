@@ -56,6 +56,7 @@ let idEdicao = null;
 // ── INICIAR ────────────────────────────────────────────────
 async function iniciarApp(){
   document.getElementById("nome-usuario").textContent = usuarioLogado;
+  document.getElementById("perfil-usuario").textContent = roleLogado === "recepcao" ? "Recepção" : "Financeiro";
   aplicarTema(localStorage.getItem("tema")||"light");
   // Mostra menu de usuários só para admin
   const res = await api("GET", "/api/users");
