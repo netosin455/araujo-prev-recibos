@@ -215,7 +215,7 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
 // ── ROTAS USUÁRIOS ─────────────────────────────────────────
 app.get("/api/users", auth, adminOnly, async (req, res) => {
   const users = await find(dbUsers, {});
-  res.json(users.map(u => ({ id: u._id, username: u.username, created_at: u.created_at })));
+  res.json(users.map(u => ({ id: u._id, username: u.username, role: u.role || "financeiro", created_at: u.created_at })));
 });
 
 app.post("/api/users", auth, adminOnly, async (req, res) => {
