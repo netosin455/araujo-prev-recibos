@@ -378,15 +378,17 @@ function renderHistorico(){
         <div class="recibo-meta">${esc(recibo.data)} · ${esc(recibo.municipio_uf)} · ${esc(recibo.emitido_por||"N/A")}${recibo.referencia?" · Ref: "+esc(recibo.referencia):""}</div>
       </div>
       <div class="recibo-actions">
-        <button class="btn-secondary btn-sm" data-action="detalhe">Ver</button>
+        <button class="btn-secondary btn-sm" data-action="detalhe">Detalhes</button>
+        <button class="btn-gold btn-sm" data-action="ver">👁 Ver</button>
         <button class="btn-secondary btn-sm" data-action="editar">Editar</button>
         <button class="btn-secondary btn-sm" data-action="duplicar">Duplicar</button>
-        <button class="btn-secondary btn-sm" data-action="reimprimir">📄 Reimprimir</button>
+        <button class="btn-secondary btn-sm" data-action="reimprimir">📄 Baixar</button>
         <button class="btn-danger btn-sm" data-action="excluir">🗑</button>
       </div>`;
     item.querySelectorAll("button").forEach(btn=>{
       btn.addEventListener("click",async()=>{
         if(btn.dataset.action==="detalhe") abrirDetalhe(recibo);
+        if(btn.dataset.action==="ver") abrirPDFRecibo(recibo);
         if(btn.dataset.action==="editar") editarRecibo(recibo);
         if(btn.dataset.action==="duplicar") duplicarRecibo(recibo);
         if(btn.dataset.action==="reimprimir") reimprimirRecibo(recibo);
@@ -400,6 +402,47 @@ function renderHistorico(){
     });
     grid.appendChild(item);
   });
+}
+
+function abrirPDFRecibo(r){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+  const W=doc.internal.pageSize.getWidth();
+  doc.setFillColor(26,26,26);doc.rect(0,0,W,24,"F");
+  doc.setTextColor(184,151,58);doc.setFontSize(14);doc.setFont("helvetica","bold");
+  doc.text("A ARAUJO SERVIÇOS LTDA ME",W/2,11,{align:"center"});
+  doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(200,200,200);
+  doc.text("A ARAUJO PREV",W/2,18,{align:"center"});
+  doc.setDrawColor(184,151,58);doc.setLineWidth(0.5);
+  doc.line(20,28,W-20,28);
+  doc.setTextColor(26,26,26);doc.setFontSize(11);doc.setFont("helvetica","bold");
+  const numRef=r.referencia?`Recibo Nº ${r.num}   |   Ref: ${r.referencia}`:`Recibo Nº ${r.num}`;
+  doc.text(numRef,W/2,36,{align:"center"});
+  doc.setFontSize(13);
+  doc.text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS",W/2,43,{align:"center"});
+  doc.setDrawColor(220,220,220);doc.setLineWidth(0.3);
+  doc.line(20,47,W-20,47);
+  const digits=(r.cpf||"").replace(/\D/g,"");
+  const labelDoc=digits.length>11?"CNPJ":"CPF";
+  const compl=r.complemento?` - ${r.complemento}`:"";
+  const corpo=`Recebemos do (a) senhor (a) ${r.nome}, residente e domiciliado(a) no Município de ${r.municipio_uf}, a importância de R$ ${r.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${compl}.`;
+  doc.setFontSize(10);doc.setFont("helvetica","normal");doc.setTextColor(26,26,26);
+  const linhas=doc.splitTextToSize(corpo,W-40);
+  doc.text(linhas,20,57);
+  const yApos=57+linhas.length*5+8;
+  doc.text("Por ser verdade, firmo o presente que segue datado e assinado.",20,yApos);
+  const yData=yApos+18;
+  doc.text(`${r.municipio_uf}, ${r.data}`,20,yData);
+  const yAssin=yData+36;
+  doc.line(20,yAssin,W/2-10,yAssin);
+  doc.setFontSize(9);
+  doc.text(`${labelDoc}: ${r.cpf}`,20,yAssin+5);
+  const yAssin2=yAssin+28;
+  doc.line(20,yAssin2,W/2-10,yAssin2);
+  doc.text(r.emitido_por||"Responsável",20,yAssin2+5);
+  const blob=doc.output("blob");
+  const url=URL.createObjectURL(blob);
+  window.open(url,"_blank");
 }
 
 async function reimprimirRecibo(r){
@@ -417,7 +460,7 @@ async function reimprimirRecibo(r){
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
   a.href=url;
-  a.download=`recibo_${r.num.replace("/","-")}.docx`;
+  a.download=`recibo_${r.num.replace("/","-")}_${(r.nome||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g,"_").toLowerCase()}.docx`;
   a.click();
   URL.revokeObjectURL(url);
   setStatus("","");
@@ -435,9 +478,11 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">Responsável</div><div class="detail-value">${esc(r.emitido_por||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Referência</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
-    <div style="margin-top:20px">
-      <button class="btn-primary" id="btn-reimprimir-modal">📄 Baixar Documento</button>
+    <div style="margin-top:20px;display:flex;gap:10px">
+      <button class="btn-gold" id="btn-ver-modal">👁 Ver PDF</button>
+      <button class="btn-primary" id="btn-reimprimir-modal">📄 Baixar .docx</button>
     </div>`;
+  document.getElementById("btn-ver-modal").onclick=()=>{ abrirPDFRecibo(r); fecharModal("modal-detalhe"); };
   document.getElementById("btn-reimprimir-modal").onclick=()=>{ reimprimirRecibo(r); fecharModal("modal-detalhe"); };
   document.getElementById("modal-detalhe").classList.add("active");
 }
@@ -563,7 +608,7 @@ function preencherFiltrosAnos(){
   const anoAtual=String(new Date().getFullYear());
   if(!anos.includes(anoAtual)) anos.unshift(anoAtual);
   anos.sort((a,b)=>b-a);
-  ["filtro-ano","rel-ano","rel-cliente-ano"].forEach(id=>{
+  ["filtro-ano","rel-ano","rel-cliente-ano","rel-resp-ano","rel-exec-ano"].forEach(id=>{
     const sel=document.getElementById(id);
     if(!sel) return;
     sel.innerHTML=`<option value="">Todos</option>`+anos.map(a=>`<option value="${esc(a)}" ${a===anoAtual?"selected":""}>${esc(a)}</option>`).join("");
@@ -813,6 +858,107 @@ function exportarPDFClientes(){
     styles:{fontSize:9},headStyles:{fillColor:[26,26,26],textColor:[184,151,58]},
   });
   doc.save(`clientes_araujo_${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
+// ── RELATÓRIO POR RESPONSÁVEL ──────────────────────────────
+function exportarExcelResponsaveis(){
+  const mes=document.getElementById("rel-resp-mes").value;
+  const ano=document.getElementById("rel-resp-ano").value;
+  const lista=historicoRecibos.filter(r=>{
+    const p=r.data?.split("/");if(!p)return false;
+    if(mes&&p[1]!==mes)return false;
+    if(ano&&p[2]!==ano)return false;
+    return true;
+  });
+  if(!lista.length)return alert("Nenhum dado para exportar.");
+  const mapa={};
+  lista.forEach(r=>{
+    const resp=r.emitido_por||"Sem responsável";
+    if(!mapa[resp])mapa[resp]={responsavel:resp,qtd:0,total:0};
+    mapa[resp].qtd++;
+    mapa[resp].total+=valorParaNumero(r.valor);
+  });
+  const ws=XLSX.utils.json_to_sheet(Object.values(mapa).map(r=>({
+    "Responsável":r.responsavel,"Qtd Recibos":r.qtd,"Total":"R$ "+formatarValor(r.total)
+  })));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Responsáveis");
+  XLSX.writeFile(wb,`responsaveis_araujo_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+function exportarPDFResponsaveis(){
+  const mes=document.getElementById("rel-resp-mes").value;
+  const ano=document.getElementById("rel-resp-ano").value;
+  const lista=historicoRecibos.filter(r=>{
+    const p=r.data?.split("/");if(!p)return false;
+    if(mes&&p[1]!==mes)return false;
+    if(ano&&p[2]!==ano)return false;
+    return true;
+  });
+  if(!lista.length)return alert("Nenhum dado.");
+  const mapa={};
+  lista.forEach(r=>{
+    const resp=r.emitido_por||"Sem responsável";
+    if(!mapa[resp])mapa[resp]={responsavel:resp,qtd:0,total:0};
+    mapa[resp].qtd++;
+    mapa[resp].total+=valorParaNumero(r.valor);
+  });
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  const W=doc.internal.pageSize.getWidth();
+  doc.setFillColor(26,26,26);doc.rect(0,0,W,18,"F");
+  doc.setTextColor(184,151,58);doc.setFontSize(13);doc.setFont("helvetica","bold");
+  doc.text("A ARAUJO SERVIÇOS LTDA ME",W/2,11,{align:"center"});
+  doc.setTextColor(26,26,26);doc.setFontSize(11);
+  doc.text("Relatório por Responsável",14,26);
+  doc.autoTable({
+    startY:32,
+    head:[["Responsável","Qtd Recibos","Total"]],
+    body:Object.values(mapa).map(r=>[r.responsavel,r.qtd,"R$ "+formatarValor(r.total)]),
+    styles:{fontSize:10},headStyles:{fillColor:[26,26,26],textColor:[184,151,58]},
+  });
+  doc.save(`responsaveis_araujo_${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
+// ── RESUMO EXECUTIVO ───────────────────────────────────────
+function exportarPDFExecutivo(){
+  const ano=document.getElementById("rel-exec-ano").value;
+  const lista=historicoRecibos.filter(r=>!ano||r.data?.split("/")[2]===ano);
+  if(!lista.length)return alert("Nenhum dado.");
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  const W=doc.internal.pageSize.getWidth();
+  // Cabeçalho
+  doc.setFillColor(26,26,26);doc.rect(0,0,W,24,"F");
+  doc.setTextColor(184,151,58);doc.setFontSize(14);doc.setFont("helvetica","bold");
+  doc.text("A ARAUJO SERVIÇOS LTDA ME",W/2,11,{align:"center"});
+  doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(200,200,200);
+  doc.text("A ARAUJO PREV",W/2,18,{align:"center"});
+  doc.setTextColor(26,26,26);doc.setFontSize(13);doc.setFont("helvetica","bold");
+  doc.text(`Resumo Executivo ${ano||"Geral"}`,W/2,34,{align:"center"});
+  // Totais
+  const totalGeral=lista.reduce((s,r)=>s+valorParaNumero(r.valor),0);
+  const ticketMedio=lista.length?totalGeral/lista.length:0;
+  doc.setFontSize(10);doc.setFont("helvetica","normal");
+  doc.text(`Total de recibos: ${lista.length}   |   Total faturado: R$ ${formatarValor(totalGeral)}   |   Ticket médio: R$ ${formatarValor(ticketMedio)}`,W/2,42,{align:"center"});
+  // Faturamento mensal
+  const mesesNomes=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  const porMes=mesesNomes.map((m,i)=>{
+    const mm=String(i+1).padStart(2,"0");
+    const sub=lista.filter(r=>r.data?.split("/")[1]===mm);
+    return [m,sub.length,"R$ "+formatarValor(sub.reduce((s,r)=>s+valorParaNumero(r.valor),0))];
+  }).filter(r=>r[1]>0);
+  doc.autoTable({startY:50,head:[["Mês","Qtd","Total"]],body:porMes,styles:{fontSize:9},headStyles:{fillColor:[26,26,26],textColor:[184,151,58]},tableWidth:80,margin:{left:14}});
+  // Top clientes
+  const mapaC={};
+  lista.forEach(r=>{if(!mapaC[r.nome])mapaC[r.nome]={nome:r.nome,total:0,qtd:0};mapaC[r.nome].total+=valorParaNumero(r.valor);mapaC[r.nome].qtd++;});
+  const topC=Object.values(mapaC).sort((a,b)=>b.total-a.total).slice(0,10);
+  doc.autoTable({startY:50,head:[["Top Clientes","Qtd","Total"]],body:topC.map(c=>[c.nome,c.qtd,"R$ "+formatarValor(c.total)]),styles:{fontSize:9},headStyles:{fillColor:[62,122,94],textColor:"white"},tableWidth:90,margin:{left:110}});
+  // Responsáveis
+  const mapaR={};
+  lista.forEach(r=>{const k=r.emitido_por||"-";if(!mapaR[k])mapaR[k]={resp:k,total:0,qtd:0};mapaR[k].total+=valorParaNumero(r.valor);mapaR[k].qtd++;});
+  doc.autoTable({startY:doc.lastAutoTable.finalY+14,head:[["Responsável","Qtd","Total"]],body:Object.values(mapaR).sort((a,b)=>b.total-a.total).map(r=>[r.resp,r.qtd,"R$ "+formatarValor(r.total)]),styles:{fontSize:9},headStyles:{fillColor:[26,26,26],textColor:[184,151,58]}});
+  doc.save(`executivo_araujo_${ano||"geral"}.pdf`);
 }
 
 // ── TECLADO ────────────────────────────────────────────────
