@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Araujo Prev — Gestão de Recibos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+
+    :root{
+      --gold:#b8973a;
+      --gold-light:#d4af5a;
+      --gold-pale:#f5edd6;
+      --dark:#1a1a1a;
+      --dark2:#2c2c2c;
+      --mid:#5a5a5a;
+      --muted:#9a9a9a;
+      --border:#e0d9cc;
+      --bg:#f7f4ef;
+      --card:#ffffff;
+      --success:#3d7a5e;
+      --error:#8b2e2e;
+      --sidebar-w:220px;
+      --shadow:0 2px 16px rgba(0,0,0,0.07);
+    }
+
+    body{
+      font-family:'Inter',sans-serif;
+      background:var(--bg);
+      color:var(--dark);
+      min-height:100vh;
+      display:flex;
+      font-size:13px;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar{
+      width:var(--sidebar-w);
+      background:var(--dark2);
+      display:flex;
+      flex-direction:column;
+      position:fixed;
+      top:0;left:0;bottom:0;
+      z-index:100;
+    }
+
+    .sidebar-logo{
+      padding:24px 20px 20px;
+      border-bottom:1px solid rgba(184,151,58,0.3);
+      text-align:center;
+    }
+
+    .sidebar-logo img{
+      width:120px;
+      height:auto;
+      object-fit:contain;
+      margin-bottom:10px;
+      display:block;
+      margin-left:auto;
+      margin-right:auto;
+    }
+
+    .sidebar-logo .firm-name{
+      color:var(--gold-light);
+      font-family:'Cormorant Garamond',serif;
+      font-size:13px;
+      font-weight:600;
+      letter-spacing:0.5px;
+      line-height:1.4;
+    }
+
+    .sidebar-logo .firm-sub{
+      color:rgba(255,255,255,0.35);
+      font-size:10px;
+      margin-top:3px;
+      letter-spacing:0.3px;
+    }
+
+    .sidebar-nav{flex:1;padding:20px 0}
+
+    .nav-section{
+      padding:0 16px 6px;
+      font-size:9px;
+      font-weight:600;
+      letter-spacing:1.5px;
+      color:rgba(255,255,255,0.2);
+      text-transform:uppercase;
+      margin-top:16px;
+    }
+
+    .nav-item{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:11px 20px;
+      color:rgba(255,255,255,0.5);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:500;
+      transition:all 0.2s;
+      border-left:2px solid transparent;
+      letter-spacing:0.2px;
+    }
+
+    .nav-item:hover{background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.85)}
+
+    .nav-item.active{
+      background:rgba(184,151,58,0.1);
+      color:var(--gold-light);
+      border-left-color:var(--gold);
+    }
+
+    .nav-item .icon{font-size:14px;width:18px;text-align:center}
+
+    .sidebar-footer{
+      padding:16px 20px;
+      border-top:1px solid rgba(255,255,255,0.06);
+      color:rgba(255,255,255,0.2);
+      font-size:10px;
+      text-align:center;
+    }
+
+    /* ── MAIN ── */
+    .main{margin-left:var(--sidebar-w);flex:1;min-height:100vh;display:flex;flex-direction:column}
+
+    .topbar{
+      background:var(--card);
+      border-bottom:1px solid var(--border);
+      padding:16px 32px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .topbar-title{
+      font-family:'Cormorant Garamond',serif;
+      font-size:20px;
+      font-weight:700;
+      color:var(--dark);
+      letter-spacing:0.3px;
+    }
+
+    .topbar-badge{
+      font-size:11px;
+      color:var(--gold);
+      font-weight:600;
+      background:var(--gold-pale);
+      padding:5px 14px;
+      border-radius:20px;
+      border:1px solid rgba(184,151,58,0.3);
+      letter-spacing:0.5px;
+    }
+
+    .content{flex:1;padding:32px;overflow-y:auto}
+
+    /* ── TELAS ── */
+    .screen{display:none}
+    .screen.active{display:block}
+
+    /* ── CARD ── */
+    .card{
+      background:var(--card);
+      border-radius:8px;
+      padding:28px 32px;
+      box-shadow:var(--shadow);
+      border:1px solid var(--border);
+      max-width:640px;
+    }
+
+    .card-title{
+      font-family:'Cormorant Garamond',serif;
+      font-size:18px;
+      font-weight:700;
+      color:var(--dark);
+      margin-bottom:24px;
+      padding-bottom:14px;
+      border-bottom:1px solid var(--border);
+    }
+
+    /* ── FORM ── */
+    .form-group{margin-bottom:16px}
+
+    label{
+      display:block;
+      font-size:10px;
+      font-weight:600;
+      color:var(--muted);
+      margin-bottom:5px;
+      text-transform:uppercase;
+      letter-spacing:0.8px;
+    }
+
+    input,select{
+      width:100%;
+      padding:10px 14px;
+      border:1px solid var(--border);
+      border-radius:6px;
+      font-size:13px;
+      font-family:'Inter',sans-serif;
+      transition:all 0.2s;
+      outline:none;
+      background:white;
+      color:var(--dark);
+    }
+
+    input:focus,select:focus{
+      border-color:var(--gold);
+      box-shadow:0 0 0 3px rgba(184,151,58,0.1);
+    }
+
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .form-row.three{grid-template-columns:1fr 1fr 1fr}
+
+    .btn-group{display:flex;gap:10px;margin-top:24px}
+
+    button{
+      padding:10px 20px;
+      border:none;
+      border-radius:6px;
+      font-size:12px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all 0.2s;
+      outline:none;
+      font-family:'Inter',sans-serif;
+      letter-spacing:0.3px;
+    }
+
+    .btn-primary{background:var(--dark);color:white;flex:1}
+    .btn-primary:hover:not(:disabled){background:var(--dark2);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+    .btn-primary:disabled{background:#aaa;cursor:not-allowed}
+
+    .btn-gold{background:var(--gold);color:white}
+    .btn-gold:hover{background:var(--gold-light)}
+
+    .btn-secondary{background:var(--bg);color:var(--mid);border:1px solid var(--border)}
+    .btn-secondary:hover{background:var(--border)}
+
+    .btn-danger{background:#fdf0f0;color:var(--error);border:1px solid #f0d0d0}
+    .btn-danger:hover{background:#fce0e0}
+
+    .btn-success{background:#edf7f2;color:var(--success);border:1px solid #c0e0d0}
+    .btn-success:hover{background:#d0f0e0}
+
+    .btn-sm{padding:5px 12px;font-size:11px}
+
+    .status{
+      margin-top:16px;padding:11px 16px;border-radius:6px;
+      font-size:12px;text-align:center;display:none;
+    }
+    .status.success{background:#edf7f2;color:var(--success);display:block;border-left:3px solid var(--success)}
+    .status.error{background:#fdf0f0;color:var(--error);display:block;border-left:3px solid var(--error)}
+    .status.loading{background:var(--gold-pale);color:var(--gold);display:block;border-left:3px solid var(--gold)}
+
+    /* ── HISTÓRICO ── */
+    .search-wrap{display:flex;gap:12px;margin-bottom:20px;align-items:center}
+
+    .search-box{position:relative;flex:1;max-width:400px}
+    .search-box input{padding-left:36px}
+    .search-box::before{content:"🔍";position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px}
+
+    .historico-grid{display:flex;flex-direction:column;gap:8px}
+
+    .recibo-item{
+      background:white;
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:14px 20px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      transition:all 0.2s;
+    }
+    .recibo-item:hover{box-shadow:var(--shadow);border-color:var(--gold-light)}
+
+    .recibo-num{font-size:10px;font-weight:700;color:var(--gold);letter-spacing:0.5px}
+    .recibo-nome{font-size:14px;font-weight:600;margin:3px 0;font-family:'Cormorant Garamond',serif}
+    .recibo-valor{font-size:13px;color:var(--success);font-weight:700}
+    .recibo-meta{font-size:11px;color:var(--muted);margin-top:3px}
+    .recibo-actions{display:flex;gap:6px}
+
+    .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+    .empty-state .icon{font-size:40px;margin-bottom:12px}
+
+    /* ── ADMIN ── */
+    .admin-tabs{
+      display:flex;gap:4px;margin-bottom:28px;
+      background:white;padding:4px;border-radius:8px;
+      box-shadow:var(--shadow);border:1px solid var(--border);
+      width:fit-content;
+    }
+
+    .admin-tab{
+      padding:8px 20px;border-radius:6px;font-size:12px;font-weight:600;
+      cursor:pointer;color:var(--muted);transition:all 0.2s;
+      border:none;background:none;font-family:'Inter',sans-serif;letter-spacing:0.3px;
+    }
+    .admin-tab.active{background:var(--dark);color:white}
+
+    .admin-panel{display:none}
+    .admin-panel.active{display:block}
+
+    .cards-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+
+    .dash-card{
+      background:white;border-radius:8px;padding:20px 22px;
+      box-shadow:var(--shadow);border:1px solid var(--border);
+      border-top:3px solid var(--gold);
+    }
+    .dash-card.green{border-top-color:var(--success)}
+    .dash-card.dark{border-top-color:var(--dark)}
+    .dash-card.red{border-top-color:var(--error)}
+
+    .dash-card .label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.8px}
+    .dash-card .value{font-size:22px;font-weight:700;color:var(--dark);margin-top:6px;font-family:'Cormorant Garamond',serif}
+    .dash-card .sub{font-size:11px;color:var(--muted);margin-top:4px}
+
+    .filtros{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end}
+    .filtros .form-group{margin-bottom:0}
+    .filtros select,.filtros input{width:auto;min-width:130px}
+
+    .table-wrap{background:white;border-radius:8px;box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden}
+
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    thead{background:#faf8f4}
+    th{padding:11px 16px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid var(--border)}
+    td{padding:11px 16px;border-bottom:1px solid var(--border);color:var(--dark)}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:#faf8f4}
+
+    .table-footer{
+      padding:12px 16px;background:#faf8f4;border-top:2px solid var(--border);
+      display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;
+    }
+
+    .export-btns{display:flex;gap:10px;margin-bottom:20px}
+
+    .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:0.3px}
+    .badge-gold{background:var(--gold-pale);color:var(--gold)}
+    .badge-green{background:#edf7f2;color:var(--success)}
+
+    /* ── CLIENTES ── */
+    .cliente-card{
+      background:white;border:1px solid var(--border);border-radius:8px;
+      margin-bottom:12px;overflow:hidden;
+    }
+    .cliente-header{
+      padding:14px 20px;display:flex;justify-content:space-between;align-items:center;
+      cursor:pointer;transition:background 0.2s;
+    }
+    .cliente-header:hover{background:#faf8f4}
+    .cliente-nome{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700}
+    .cliente-stats{display:flex;gap:16px;font-size:11px;color:var(--muted);margin-top:3px}
+    .cliente-total{font-size:14px;font-weight:700;color:var(--success)}
+    .cliente-body{display:none;border-top:1px solid var(--border);padding:16px 20px}
+    .cliente-body.open{display:block}
+
+    /* ── MODAL ── */
+    .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center}
+    .modal.active{display:flex}
+    .modal-content{background:white;border-radius:10px;padding:30px;max-width:520px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+    .modal-header h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700}
+    .modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0}
+
+    .detail-row{display:flex;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .detail-row:last-child{border-bottom:none}
+    .detail-label{width:40%;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;padding-top:1px}
+    .detail-value{flex:1;color:var(--dark);font-weight:500}
+
+    /* ── TEMA ESCURO ── */
+    [data-theme="dark"]{
+      --gold:#d4af5a;--gold-light:#e8c97a;--gold-pale:#2a2310;
+      --dark:#e8e8e8;--dark2:#1e1e1e;--mid:#aaaaaa;--muted:#777;
+      --border:#3a3a3a;--bg:#121212;--card:#1a1a1a;
+      --success:#5db887;--error:#e06060;--shadow:0 2px 16px rgba(0,0,0,0.4);
+    }
+    [data-theme="dark"] body{background:var(--bg);color:var(--dark)}
+    [data-theme="dark"] .btn-primary{background:var(--gold);color:#1a1a1a}
+    [data-theme="dark"] .btn-primary:hover:not(:disabled){background:var(--gold-light);color:#1a1a1a}
+    [data-theme="dark"] input,[data-theme="dark"] select{background:#252525;color:var(--dark);border-color:var(--border)}
+    [data-theme="dark"] thead{background:#222}
+    [data-theme="dark"] tr:hover td{background:#222}
+    [data-theme="dark"] .table-footer{background:#222}
+    [data-theme="dark"] .topbar{background:#1a1a1a;border-color:var(--border)}
+    [data-theme="dark"] .card{background:var(--card);border-color:var(--border)}
+    [data-theme="dark"] .dash-card{background:#1a1a1a;border-color:var(--border)}
+    [data-theme="dark"] .recibo-item{background:#1a1a1a;border-color:var(--border)}
+    [data-theme="dark"] .cliente-card{background:#1a1a1a;border-color:var(--border)}
+    [data-theme="dark"] .cliente-header:hover{background:#222}
+    [data-theme="dark"] .modal-content{background:#1a1a1a}
+    [data-theme="dark"] .admin-tabs{background:#1a1a1a;border-color:var(--border)}
+    [data-theme="dark"] .table-wrap{background:#1a1a1a;border-color:var(--border)}
+    [data-theme="dark"] .admin-tab.active{background:var(--dark2);color:var(--dark)}
+    [data-theme="dark"] td{color:var(--dark)}
+
+    /* ── TOAST ── */
+    #toast{
+      position:fixed;bottom:28px;right:28px;z-index:9999;
+      background:#1a1a1a;color:white;border-radius:10px;
+      padding:14px 18px;display:flex;align-items:center;gap:14px;
+      box-shadow:0 8px 30px rgba(0,0,0,0.35);max-width:360px;
+      transform:translateY(calc(100% + 60px));transition:transform 0.3s cubic-bezier(.4,0,.2,1);
+      font-size:13px;border:1px solid rgba(184,151,58,0.3);
+    }
+    #toast.show{transform:translateY(0)}
+
+    /* ── EDIT MODE BANNER ── */
+    #edit-mode-banner{
+      display:none;background:var(--gold-pale);border:1px solid var(--gold);
+      border-radius:6px;padding:10px 16px;margin-bottom:16px;
+      font-size:12px;color:var(--mid);align-items:center;
+      justify-content:space-between;gap:12px;
+    }
+
+    /* ── META BAR ── */
+    .meta-bar-wrap{margin-top:10px}
+    .meta-bar-track{background:var(--border);border-radius:4px;height:6px;overflow:hidden;margin:4px 0}
+    .meta-bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
+
+    /* ── ALERTA INATIVOS ── */
+    #alerta-inativos{
+      background:#fff8e6;border:1px solid var(--gold);
+      border-left:4px solid var(--gold);border-radius:8px;
+      padding:12px 18px;margin-bottom:20px;font-size:12px;
+      display:none;justify-content:space-between;align-items:flex-start;gap:12px;
+    }
+    [data-theme="dark"] #alerta-inativos{background:#2a2310}
+
+    /* ── BTN TEMA ── */
+    #btn-tema{
+      background:none;border:1px solid var(--border);border-radius:6px;
+      padding:6px 10px;cursor:pointer;font-size:14px;color:var(--mid);
+      transition:all 0.2s;
+    }
+    #btn-tema:hover{background:var(--gold-pale);border-color:var(--gold)}
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img id="sidebar-logo-img" src="" alt="Logo" onerror="this.style.display='none'" />
+      <div class="firm-name">ARAUJO PREV</div>
+      <div class="firm-sub">A ARAUJO SERVIÇOS LTDA ME</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Documentos</div>
+      <div class="nav-item active" onclick="navegarPara('gerar')"><span class="icon">✦</span> Gerar Recibo</div>
+      <div class="nav-item" onclick="navegarPara('historico')"><span class="icon">◈</span> Histórico</div>
+      <div class="nav-section">Gestão</div>
+      <div class="nav-item" onclick="navegarPara('clientes')"><span class="icon">◉</span> Clientes</div>
+      <div class="nav-item" onclick="navegarPara('admin')"><span class="icon">◎</span> Administrativo</div>
+      <div class="nav-section">Sistema</div>
+      <div class="nav-item" onclick="fazerBackup()"><span class="icon">↓</span> Backup</div>
+      <div class="nav-item" onclick="document.getElementById('input-restaurar').click()"><span class="icon">↑</span> Restaurar</div>
+      <input type="file" id="input-restaurar" accept=".json" style="display:none" onchange="restaurarBackup(this)">
+    </nav>
+    <div class="sidebar-footer">Araujo Prev © 2026</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Gerar Recibo</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="topbar-badge" id="num-recibo">Nº 0001/2026</div>
+        <button id="btn-tema" onclick="alternarTema()" title="Alternar tema claro/escuro">☾</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ALERTA INATIVOS -->
+      <div id="alerta-inativos">
+        <div>
+          <strong style="color:var(--gold)">⚠ Clientes sem recibo recente</strong>
+          <div id="alerta-inativos-lista" style="color:var(--mid);margin-top:4px;line-height:1.8"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <button class="btn-secondary btn-sm" onclick="configurarAlertaInativo()">⚙ Configurar</button>
+          <button onclick="document.getElementById('alerta-inativos').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:0;line-height:1">✕</button>
+        </div>
+      </div>
+
+      <!-- GERAR RECIBO -->
+      <div id="screen-gerar" class="screen active">
+        <div class="card">
+          <div id="edit-mode-banner">
+            <span>✏ Modo de edição — Recibo <strong id="edit-num-banner"></strong></span>
+            <label style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:12px;font-weight:500;margin-bottom:0">
+              <input type="checkbox" id="chk-regenerar" style="width:auto" /> Regenerar arquivo .docx
+            </label>
+            <button class="btn-danger btn-sm" onclick="cancelarEdicao()">Cancelar</button>
+          </div>
+          <div class="card-title">Novo Recibo de Honorários</div>
+          <div class="form-group">
+            <label>Nome do(a) Cliente</label>
+            <input id="nome" type="text" style="text-transform:uppercase" list="nome-sugestoes" autocomplete="off" />
+            <datalist id="nome-sugestoes"></datalist>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label id="label-cpf">CPF / CNPJ</label>
+              <input id="cpf" type="text" maxlength="18" />
+            </div>
+            <div class="form-group">
+              <label>Município / UF</label>
+              <input id="municipio_uf" type="text" style="text-transform:uppercase" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Valor Recebido (R$)</label>
+            <input id="valor" type="text" />
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:2">
+              <label>Complemento da Ação <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+              <input id="complemento" type="text" placeholder="Ex: Aposentadoria por Invalidez..." />
+            </div>
+            <div class="form-group" style="flex:1">
+              <label>Referência <span style="font-weight:400;text-transform:none;letter-spacing:0">(gaveta)</span></label>
+              <input id="referencia" type="text" style="text-transform:uppercase" placeholder="Ex: A1, C2..." maxlength="10" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Data</label>
+            <div class="form-row three">
+              <input id="dia" type="number" min="1" max="31" placeholder="Dia" />
+              <select id="mes">
+                <option value="">Mês</option>
+                <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+                <option value="03">Março</option><option value="04">Abril</option>
+                <option value="05">Maio</option><option value="06">Junho</option>
+                <option value="07">Julho</option><option value="08">Agosto</option>
+                <option value="09">Setembro</option><option value="10">Outubro</option>
+                <option value="11">Novembro</option><option value="12">Dezembro</option>
+              </select>
+              <input id="ano" type="number" min="2024" max="2099" placeholder="Ano" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Emitido por</label>
+            <input id="emitido_por" type="text" style="text-transform:uppercase" placeholder="Nome do responsável" />
+          </div>
+          <div class="btn-group">
+            <button class="btn-primary" id="btn-gerar" onclick="gerarRecibo()">Gerar Recibo</button>
+            <button class="btn-secondary" onclick="limparCampos()">Limpar</button>
+          </div>
+          <div id="status" class="status"></div>
+        </div>
+      </div>
+
+      <!-- HISTÓRICO -->
+      <div id="screen-historico" class="screen">
+        <div class="search-wrap">
+          <div class="search-box">
+            <input id="busca-historico" type="text" placeholder="Buscar por nome do cliente..." oninput="renderHistorico()" onkeyup="renderHistorico()" />
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0;white-space:nowrap">De</label>
+            <input id="filtro-data-ini" type="date" style="width:140px" oninput="renderHistorico()" />
+            <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0;white-space:nowrap">Até</label>
+            <input id="filtro-data-fim" type="date" style="width:140px" oninput="renderHistorico()" />
+            <button class="btn-secondary btn-sm" onclick="limparFiltroData()" title="Limpar datas">✕</button>
+          </div>
+          <span id="historico-count" style="color:var(--muted);font-size:12px;white-space:nowrap"></span>
+        </div>
+        <div id="historico-grid" class="historico-grid"></div>
+      </div>
+
+      <!-- CLIENTES -->
+      <div id="screen-clientes" class="screen">
+        <div class="search-wrap" style="margin-bottom:20px">
+          <div class="search-box">
+            <input id="busca-clientes" type="text" placeholder="Buscar cliente..." oninput="renderClientes()" onkeyup="renderClientes()" />
+          </div>
+        </div>
+        <div id="clientes-grid"></div>
+      </div>
+
+      <!-- ADMINISTRATIVO -->
+      <div id="screen-admin" class="screen">
+        <div class="admin-tabs">
+          <button class="admin-tab active" onclick="abrirAdminTab('dashboard',this)">Dashboard</button>
+          <button class="admin-tab" onclick="abrirAdminTab('financeiro',this)">Financeiro</button>
+          <button class="admin-tab" onclick="abrirAdminTab('relatorios',this)">Relatórios</button>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="admin-dashboard" class="admin-panel active">
+          <div class="cards-grid">
+            <div class="dash-card green">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div class="label">Total do Mês</div>
+                <button onclick="definirMetaMensal()" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--muted);padding:0;line-height:1" title="Definir meta mensal">⚙</button>
+              </div>
+              <div class="value" id="card-mes">R$ 0,00</div>
+              <div class="sub" id="card-mes-qtd">0 recibos</div>
+              <div id="meta-wrap" class="meta-bar-wrap" style="display:none">
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)">
+                  <span>Meta mensal</span><span id="meta-pct">0%</span>
+                </div>
+                <div class="meta-bar-track"><div id="meta-bar" class="meta-bar-fill" style="width:0%"></div></div>
+                <div style="font-size:10px;color:var(--muted)" id="meta-valor-label"></div>
+              </div>
+            </div>
+            <div class="dash-card">
+              <div class="label">Total do Ano</div>
+              <div class="value" id="card-ano">R$ 0,00</div>
+              <div class="sub" id="card-ano-qtd">0 recibos</div>
+            </div>
+            <div class="dash-card dark">
+              <div class="label">Ticket Médio</div>
+              <div class="value" id="card-ticket">R$ 0,00</div>
+              <div class="sub">por recibo</div>
+            </div>
+            <div class="dash-card red">
+              <div class="label">Total Geral</div>
+              <div class="value" id="card-total">R$ 0,00</div>
+              <div class="sub" id="card-total-qtd">0 recibos</div>
+            </div>
+          </div>
+          <div class="table-wrap" style="padding:24px;margin-bottom:20px">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">Faturamento por Mês</div>
+            <canvas id="grafico-mensal" height="100"></canvas>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Período</th><th>Qtd</th><th>Total</th><th>Ticket Médio</th></tr></thead>
+              <tbody id="tabela-mensal"></tbody>
+            </table>
+          </div>
+
+          <!-- Comparativo mês a mês -->
+          <div class="table-wrap" style="padding:24px;margin-top:20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">Comparativo Mês a Mês</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <select id="comp-ano-a" style="width:90px;padding:5px 8px;font-size:12px"></select>
+                <span style="font-size:11px;color:var(--muted)">vs</span>
+                <select id="comp-ano-b" style="width:90px;padding:5px 8px;font-size:12px"></select>
+                <button class="btn-secondary btn-sm" onclick="atualizarGraficoComparativo()">Atualizar</button>
+              </div>
+            </div>
+            <canvas id="grafico-comparativo" height="100"></canvas>
+          </div>
+        </div>
+
+        <!-- Financeiro -->
+        <div id="admin-financeiro" class="admin-panel">
+          <div class="filtros">
+            <div class="form-group"><label>Mês</label>
+              <select id="filtro-mes">
+                <option value="">Todos</option>
+                <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+                <option value="03">Março</option><option value="04">Abril</option>
+                <option value="05">Maio</option><option value="06">Junho</option>
+                <option value="07">Julho</option><option value="08">Agosto</option>
+                <option value="09">Setembro</option><option value="10">Outubro</option>
+                <option value="11">Novembro</option><option value="12">Dezembro</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Ano</label><select id="filtro-ano"></select></div>
+            <div class="form-group"><label>Responsável</label><select id="filtro-responsavel"><option value="">Todos</option></select></div>
+            <button class="btn-gold btn-sm" style="margin-top:18px" onclick="aplicarFiltros()">Filtrar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nº</th><th>Cliente</th><th>Data</th><th>Valor</th><th>Responsável</th><th></th></tr></thead>
+              <tbody id="tabela-financeiro"></tbody>
+            </table>
+            <div class="table-footer">
+              <span id="financeiro-count">0 recibos</span>
+              <span id="financeiro-total" style="color:var(--success)">Total: R$ 0,00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Relatórios -->
+        <div id="admin-relatorios" class="admin-panel">
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+            <!-- Relatório Geral -->
+            <div class="card" style="max-width:none">
+              <div class="card-title">📄 Relatório Geral</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Todos os recibos com filtros de período e responsável.</p>
+              <div class="form-row">
+                <div class="form-group"><label>Mês</label>
+                  <select id="rel-mes">
+                    <option value="">Todos</option>
+                    <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+                    <option value="03">Março</option><option value="04">Abril</option>
+                    <option value="05">Maio</option><option value="06">Junho</option>
+                    <option value="07">Julho</option><option value="08">Agosto</option>
+                    <option value="09">Setembro</option><option value="10">Outubro</option>
+                    <option value="11">Novembro</option><option value="12">Dezembro</option>
+                  </select>
+                </div>
+                <div class="form-group"><label>Ano</label><select id="rel-ano"></select></div>
+              </div>
+              <div class="form-group"><label>Responsável</label><select id="rel-responsavel"><option value="">Todos</option></select></div>
+              <div style="display:flex;gap:8px;margin-top:16px">
+                <button class="btn-success btn-sm" onclick="exportarExcel()">📊 Excel</button>
+                <button class="btn-primary btn-sm" onclick="exportarPDF()">📄 PDF</button>
+              </div>
+            </div>
+
+            <!-- Relatório por Cliente -->
+            <div class="card" style="max-width:none">
+              <div class="card-title">👤 Relatório por Cliente</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Resumo financeiro agrupado por cliente com total pago.</p>
+              <div class="form-group"><label>Ano</label><select id="rel-cliente-ano"></select></div>
+              <div style="display:flex;gap:8px;margin-top:16px">
+                <button class="btn-success btn-sm" onclick="exportarExcelClientes()">📊 Excel</button>
+                <button class="btn-primary btn-sm" onclick="exportarPDFClientes()">📄 PDF</button>
+              </div>
+            </div>
+
+            <!-- Relatório por Responsável -->
+            <div class="card" style="max-width:none">
+              <div class="card-title">👥 Relatório por Responsável</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Desempenho de cada responsável: qtd de recibos e total emitido.</p>
+              <div class="form-row">
+                <div class="form-group"><label>Mês</label>
+                  <select id="rel-resp-mes">
+                    <option value="">Todos</option>
+                    <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+                    <option value="03">Março</option><option value="04">Abril</option>
+                    <option value="05">Maio</option><option value="06">Junho</option>
+                    <option value="07">Julho</option><option value="08">Agosto</option>
+                    <option value="09">Setembro</option><option value="10">Outubro</option>
+                    <option value="11">Novembro</option><option value="12">Dezembro</option>
+                  </select>
+                </div>
+                <div class="form-group"><label>Ano</label><select id="rel-resp-ano"></select></div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:16px">
+                <button class="btn-success btn-sm" onclick="exportarExcelResponsaveis()">📊 Excel</button>
+                <button class="btn-primary btn-sm" onclick="exportarPDFResponsaveis()">📄 PDF</button>
+              </div>
+            </div>
+
+            <!-- Resumo Executivo -->
+            <div class="card" style="max-width:none">
+              <div class="card-title">📊 Resumo Executivo</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Visão geral do ano: faturamento mensal, top clientes e responsáveis.</p>
+              <div class="form-group"><label>Ano</label><select id="rel-exec-ano"></select></div>
+              <div style="display:flex;gap:8px;margin-top:16px">
+                <button class="btn-primary btn-sm" onclick="exportarPDFExecutivo()">📄 PDF Executivo</button>
+              </div>
+            </div>
+
+            <!-- Backup Automático -->
+            <div class="card" style="max-width:none;grid-column:span 2">
+              <div class="card-title">🔄 Backup Automático</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Backup automático do histórico em JSON a cada N dias.</p>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Pasta de Destino</label>
+                  <input id="backup-auto-pasta" type="text" readonly placeholder="Clique para escolher..." onclick="escolherPastaBackup()" style="cursor:pointer" />
+                </div>
+                <div class="form-group">
+                  <label>Frequência (dias)</label>
+                  <input id="backup-auto-dias" type="number" min="1" max="30" value="1" onchange="salvarConfigBackupAuto()" />
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px" id="backup-auto-status"></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modal detalhe -->
+  <div id="modal-detalhe" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Detalhes do Recibo</h2>
+        <button class="modal-close" onclick="fecharModal('modal-detalhe')">✕</button>
+      </div>
+      <div id="modal-detalhe-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast">
+    <span id="toast-msg" style="flex:1"></span>
+    <button id="toast-btn-abrir" style="background:var(--gold);color:white;border:none;border-radius:5px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;display:none;white-space:nowrap">Abrir</button>
+    <button onclick="fecharToast()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">✕</button>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
