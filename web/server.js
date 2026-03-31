@@ -105,7 +105,7 @@ app.get("/api/recibos", auth, async (req, res) => {
   res.json(recibos.map(r => ({ ...r, id: r._id })));
 });
 
-app.post("/api/recibos", auth, financeiroOnly, async (req, res) => {
+app.post("/api/recibos", auth, async (req, res) => {
   const { num, nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, timestamp } = req.body;
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", timestamp });
   res.json({ id: doc._id });
