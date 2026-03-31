@@ -1,3 +1,19 @@
+// =============================================================
+//  SERVIDOR — web/server.js
+//  Roda na AWS. Nunca abre no navegador, só no terminal/servidor.
+//
+//  O QUE ESSE ARQUIVO FAZ:
+//  - Recebe os pedidos do navegador (login, salvar recibo, etc.)
+//  - Verifica se o usuário está logado e tem permissão
+//  - Salva e busca dados no banco de dados
+//  - Gera o documento Word (.docx) do recibo
+//
+//  QUANDO MEXER AQUI:
+//  - Mudar campos do recibo
+//  - Mudar regras de permissão (quem pode fazer o quê)
+//  - Mudar tempo de expiração do login (atualmente 8h)
+//  - Adicionar novas funcionalidades no servidor
+// =============================================================
 require("dotenv").config();
 const express = require("express");
 const Datastore = require("@seald-io/nedb");

@@ -1,3 +1,20 @@
+// =============================================================
+//  COMPORTAMENTO — web/public/app.js
+//  Roda no navegador do usuário.
+//
+//  O QUE ESSE ARQUIVO FAZ:
+//  - Controla o que acontece quando o usuário clica em algo
+//  - Envia e recebe dados do servidor
+//  - Gera o PDF na tela
+//  - Controla qual tela está visível
+//
+//  QUANDO MEXER AQUI:
+//  - Mudar o que um botão faz
+//  - Mudar como os dados são exibidos na tela
+//  - Mudar o PDF gerado no navegador
+//  - Adicionar comportamentos novos (filtros, cálculos, etc.)
+// =============================================================
+
 // ── UTILITÁRIOS ────────────────────────────────────────────
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 function valorParaNumero(v){ return parseFloat((v||"0").replace(/\./g,"").replace(",","."))||0; }
