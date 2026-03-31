@@ -9,7 +9,22 @@ const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderSty
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || "araujo-prev-2026-secret";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("❌ ERRO: Defina a variável de ambiente JWT_SECRET antes de iniciar.");
+  process.exit(1);
+}
+
+// ── RATE LIMIT LOGIN ───────────────────────────────────────
+const loginAttempts = new Map();
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip) || { count: 0, resetAt: now + 15 * 60 * 1000 };
+  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + 15 * 60 * 1000; }
+  entry.count++;
+  loginAttempts.set(ip, entry);
+  return entry.count > 10;
+}
 
 // ── BANCO DE DADOS ─────────────────────────────────────────
 const dbDir = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -39,8 +54,17 @@ dbUsers.findOne({ username: ADMIN_USER }, (err, doc) => {
 });
 
 // ── MIDDLEWARE ─────────────────────────────────────────────
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+// Headers de segurança
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  next();
+});
 
 function auth(req, res, next) {
   const token = (req.headers.authorization || "").split(" ")[1];
@@ -89,8 +113,11 @@ function count(db, query) {
 
 // ── ROTAS AUTH ─────────────────────────────────────────────
 app.post("/api/login", async (req, res) => {
+  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  if (checkRateLimit(ip)) return res.status(429).json({ erro: "Muitas tentativas. Aguarde 15 minutos." });
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
+  if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ erro: "Dados inválidos" });
   const user = await findOne(dbUsers, { username });
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ erro: "Usuário ou senha incorretos" });
@@ -208,7 +235,8 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="${nomeArquivo}"`);
     res.send(buf);
   } catch (e) {
-    res.status(500).json({ erro: e.message });
+    console.error("Erro ao gerar recibo:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar documento." });
   }
 });
 
