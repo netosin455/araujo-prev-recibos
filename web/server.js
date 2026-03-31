@@ -28,10 +28,13 @@ if (!ADMIN_USER || !ADMIN_PASS) {
   process.exit(1);
 }
 dbUsers.findOne({ username: ADMIN_USER }, (err, doc) => {
+  const hash = bcrypt.hashSync(ADMIN_PASS, 10);
   if (!doc) {
-    const hash = bcrypt.hashSync(ADMIN_PASS, 10);
     dbUsers.insert({ username: ADMIN_USER, password: hash, created_at: new Date().toISOString() });
     console.log("✅ Usuário admin criado.");
+  } else {
+    dbUsers.update({ username: ADMIN_USER }, { $set: { password: hash } }, {});
+    console.log("✅ Senha do admin atualizada.");
   }
 });
 
