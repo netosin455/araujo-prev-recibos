@@ -702,9 +702,24 @@ async function renderUsuarios(){
         <div style="font-size:11px;color:var(--muted)">Criado em ${new Date(u.created_at).toLocaleDateString("pt-BR")}</div>
       </div>
       <div style="display:flex;gap:8px">
-        ${u.id!==1?`<button class="btn-danger btn-sm" onclick="excluirUsuario(${u.id})">Remover</button>`:"<span style='font-size:11px;color:var(--muted)'>Admin</span>"}
+        <button class="btn-sm" onclick="editarUsuario('${u.id}','${esc(u.username)}')">Editar</button>
+        <button class="btn-danger btn-sm" onclick="excluirUsuario('${u.id}')">Remover</button>
       </div>
     </div>`).join("");
+}
+
+async function editarUsuario(id, usernameAtual){
+  const novoNome = prompt("Novo nome de usuário:", usernameAtual);
+  if(novoNome === null) return;
+  const novaSenha = prompt("Nova senha (deixe em branco para manter a atual):");
+  if(novaSenha === null) return;
+  const body = { username: novoNome.trim() };
+  if(novaSenha.trim()) body.password = novaSenha;
+  const res = await api("PUT", `/api/users/${id}`, body);
+  const data = await res.json();
+  if(!res.ok) return alert(data.erro || "Erro ao editar usuário.");
+  mostrarToast("Usuário atualizado!");
+  renderUsuarios();
 }
 
 async function adicionarUsuario(){

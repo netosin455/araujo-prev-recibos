@@ -223,6 +223,15 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
   res.json({ id: doc._id, username });
 });
 
+app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
+  const { username, password } = req.body;
+  if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
+  const upd = { username };
+  if (password) upd.password = bcrypt.hashSync(password, 10);
+  await update(dbUsers, { _id: req.params.id }, upd);
+  res.json({ ok: true });
+});
+
 app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
   const user = await findOne(dbUsers, { _id: req.params.id });
   if (user?.username === "admin") return res.status(400).json({ erro: "Não é possível remover o admin." });
