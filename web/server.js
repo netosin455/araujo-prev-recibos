@@ -12,8 +12,8 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "araujo-prev-2026-secret";
 
 // ── BANCO DE DADOS ─────────────────────────────────────────
-const dbDir = path.join(__dirname, "data");
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir);
+const dbDir = process.env.DATA_DIR || path.join(__dirname, "data");
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
 const dbUsers   = new Datastore({ filename: path.join(dbDir, "users.db"),   autoload: true });
 const dbRecibos = new Datastore({ filename: path.join(dbDir, "recibos.db"), autoload: true });
