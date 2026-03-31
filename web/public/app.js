@@ -716,18 +716,26 @@ async function renderUsuarios(){
     </div>`).join("");
 }
 
-async function editarUsuario(id, usernameAtual, roleAtual){
-  const novoNome = prompt("Novo nome de usuário:", usernameAtual);
-  if(novoNome === null) return;
-  const novaSenha = prompt("Nova senha (deixe em branco para manter a atual):");
-  if(novaSenha === null) return;
-  const novoRole = prompt("Perfil (financeiro ou recepcao):", roleAtual);
-  if(novoRole === null) return;
-  const body = { username: novoNome.trim(), role: novoRole.trim() };
-  if(novaSenha.trim()) body.password = novaSenha;
+function editarUsuario(id, usernameAtual, roleAtual){
+  document.getElementById("edit-user-id").value = id;
+  document.getElementById("edit-user-nome").value = usernameAtual;
+  document.getElementById("edit-user-senha").value = "";
+  document.getElementById("edit-user-role").value = roleAtual || "financeiro";
+  document.getElementById("modal-editar-usuario").classList.add("active");
+}
+
+async function salvarEdicaoUsuario(){
+  const id = document.getElementById("edit-user-id").value;
+  const username = document.getElementById("edit-user-nome").value.trim();
+  const password = document.getElementById("edit-user-senha").value;
+  const role = document.getElementById("edit-user-role").value;
+  if(!username) return alert("Preencha o nome de usuário.");
+  const body = { username, role };
+  if(password) body.password = password;
   const res = await api("PUT", `/api/users/${id}`, body);
   const data = await res.json();
   if(!res.ok) return alert(data.erro || "Erro ao editar usuário.");
+  fecharModal("modal-editar-usuario");
   mostrarToast("Usuário atualizado!");
   renderUsuarios();
 }

@@ -492,6 +492,36 @@
     </div>
   </div>
 
+  <!-- Modal editar usuário -->
+  <div id="modal-editar-usuario" class="modal">
+    <div class="modal-content" style="max-width:400px">
+      <div class="modal-header">
+        <h2>Editar Usuário</h2>
+        <button class="modal-close" onclick="fecharModal('modal-editar-usuario')">✕</button>
+      </div>
+      <input type="hidden" id="edit-user-id" />
+      <div class="form-group" style="margin-top:16px">
+        <label>Nome de usuário</label>
+        <input id="edit-user-nome" type="text" />
+      </div>
+      <div class="form-group">
+        <label>Nova senha <span style="font-weight:400;color:var(--muted)">(deixe em branco para manter)</span></label>
+        <input id="edit-user-senha" type="password" />
+      </div>
+      <div class="form-group">
+        <label>Perfil</label>
+        <select id="edit-user-role">
+          <option value="financeiro">Financeiro (cria e edita recibos)</option>
+          <option value="recepcao">Recepção (somente visualiza)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn-gold" onclick="salvarEdicaoUsuario()">Salvar</button>
+        <button class="btn-secondary" onclick="fecharModal('modal-editar-usuario')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal detalhe -->
   <div id="modal-detalhe" class="modal">
     <div class="modal-content">
