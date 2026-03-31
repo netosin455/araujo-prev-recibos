@@ -1,0 +1,21 @@
+{
+  "name": "Araujo Prev — Recibos",
+  "short_name": "Araujo Prev",
+  "description": "Sistema de gestão de recibos A Araujo Serviços Ltda ME",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ef",
+  "theme_color": "#1a1a1a",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
