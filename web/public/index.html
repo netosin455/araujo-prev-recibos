@@ -192,6 +192,42 @@
     #alerta-inativos{background:#fff8e6;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:8px;padding:12px 18px;margin-bottom:20px;font-size:12px;display:none;justify-content:space-between;align-items:flex-start;gap:12px}
     #btn-tema{background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--mid);transition:all 0.2s}
     #btn-tema:hover{background:var(--gold-pale);border-color:var(--gold)}
+
+    /* ── MOBILE ── */
+    @media(max-width:768px){
+      body{flex-direction:column}
+      .sidebar{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap;bottom:auto}
+      .sidebar-logo{padding:12px 16px;border-bottom:none;border-right:1px solid rgba(184,151,58,0.3);display:flex;align-items:center;gap:10px}
+      .sidebar-logo img{width:50px;margin-bottom:0}
+      .sidebar-logo .firm-name{font-size:12px}
+      .sidebar-logo .firm-sub{display:none}
+      .sidebar-nav{display:flex;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;padding:8px 4px;flex:1;gap:2px;-webkit-overflow-scrolling:touch}
+      .nav-section{display:none}
+      .nav-item{padding:8px 12px;font-size:11px;white-space:nowrap;border-left:none;border-bottom:2px solid transparent}
+      .nav-item.active{border-left:none;border-bottom-color:var(--gold)}
+      #usuario-logado{display:none}
+      .sidebar-footer{display:none}
+      .main{margin-left:0;min-height:calc(100vh - 90px)}
+      .topbar{padding:12px 16px}
+      .content{padding:16px}
+      .card{padding:18px 16px;max-width:100%}
+      .form-row{grid-template-columns:1fr}
+      .form-row.three{grid-template-columns:1fr}
+      .cards-grid{grid-template-columns:1fr 1fr;gap:10px}
+      .recibo-item{flex-direction:column;align-items:flex-start;gap:10px}
+      .recibo-actions{flex-wrap:wrap;gap:6px}
+      .btn-group{flex-direction:column}
+      .btn-primary,.btn-gold{width:100%}
+      .search-wrap{flex-direction:column;align-items:stretch}
+      .search-box{max-width:100%}
+      .filtros{flex-direction:column}
+      .filtros select,.filtros input{width:100%}
+      table{font-size:11px}
+      th,td{padding:8px 10px}
+      .modal-content{margin:16px;width:calc(100% - 32px);padding:20px}
+      .login-box{width:90%;padding:28px 24px}
+      .admin-tabs{flex-wrap:wrap}
+    }
   </style>
 </head>
 <body>
