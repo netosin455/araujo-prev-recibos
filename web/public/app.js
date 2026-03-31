@@ -6,6 +6,7 @@ function formatarValor(n){ return n.toLocaleString("pt-BR",{minimumFractionDigit
 // ── AUTH ───────────────────────────────────────────────────
 let token = localStorage.getItem("token") || "";
 let usuarioLogado = localStorage.getItem("usuarioLogado") || "";
+let roleLogado = localStorage.getItem("roleLogado") || "financeiro";
 
 async function api(method, path, body){
   const opts = { method, headers: { "Content-Type":"application/json", "Authorization":"Bearer "+token } };
@@ -26,8 +27,10 @@ async function fazerLogin(){
   if(!res.ok){ erroEl.textContent=data.erro||"Erro ao entrar."; erroEl.style.display="block"; return; }
   token = data.token;
   usuarioLogado = data.username;
+  roleLogado = data.role || "financeiro";
   localStorage.setItem("token", token);
   localStorage.setItem("usuarioLogado", usuarioLogado);
+  localStorage.setItem("roleLogado", roleLogado);
   document.getElementById("tela-login").classList.add("hide");
   document.getElementById("nome-usuario").textContent = usuarioLogado;
   iniciarApp();
@@ -36,7 +39,8 @@ async function fazerLogin(){
 function fazerLogout(){
   localStorage.removeItem("token");
   localStorage.removeItem("usuarioLogado");
-  token=""; usuarioLogado="";
+  localStorage.removeItem("roleLogado");
+  token=""; usuarioLogado=""; roleLogado="financeiro";
   location.reload();
 }
 
@@ -56,6 +60,10 @@ async function iniciarApp(){
   // Mostra menu de usuários só para admin
   const res = await api("GET", "/api/users");
   if(res && res.ok) document.getElementById("nav-usuarios").style.display = "";
+  // Esconde ações de edição para recepção
+  if(roleLogado === "recepcao"){
+    document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
+  }
   await carregarRecibos();
   await atualizarNumRecibo();
   atualizarSugestoesNomes();
@@ -383,10 +391,10 @@ function renderHistorico(){
       <div class="recibo-actions">
         <button class="btn-secondary btn-sm" data-action="detalhe">Detalhes</button>
         <button class="btn-gold btn-sm" data-action="ver">👁 Ver</button>
-        <button class="btn-secondary btn-sm" data-action="editar">Editar</button>
-        <button class="btn-secondary btn-sm" data-action="duplicar">Duplicar</button>
+        ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="editar">Editar</button>`:""}
+        ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="duplicar">Duplicar</button>`:""}
         <button class="btn-secondary btn-sm" data-action="reimprimir">📄 Baixar</button>
-        <button class="btn-danger btn-sm" data-action="excluir">🗑</button>
+        ${roleLogado!=="recepcao"?`<button class="btn-danger btn-sm" data-action="excluir">🗑</button>`:""}
       </div>`;
     item.querySelectorAll("button").forEach(btn=>{
       btn.addEventListener("click",async()=>{
@@ -699,21 +707,23 @@ async function renderUsuarios(){
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
       <div>
         <div style="font-weight:600">${esc(u.username)}</div>
-        <div style="font-size:11px;color:var(--muted)">Criado em ${new Date(u.created_at).toLocaleDateString("pt-BR")}</div>
+        <div style="font-size:11px;color:var(--muted)">Perfil: ${u.role==="recepcao"?"Recepção":"Financeiro"} · Criado em ${new Date(u.created_at).toLocaleDateString("pt-BR")}</div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn-sm" onclick="editarUsuario('${u.id}','${esc(u.username)}')">Editar</button>
+        <button class="btn-sm" onclick="editarUsuario('${u.id}','${esc(u.username)}','${u.role||"financeiro"}')">Editar</button>
         <button class="btn-danger btn-sm" onclick="excluirUsuario('${u.id}')">Remover</button>
       </div>
     </div>`).join("");
 }
 
-async function editarUsuario(id, usernameAtual){
+async function editarUsuario(id, usernameAtual, roleAtual){
   const novoNome = prompt("Novo nome de usuário:", usernameAtual);
   if(novoNome === null) return;
   const novaSenha = prompt("Nova senha (deixe em branco para manter a atual):");
   if(novaSenha === null) return;
-  const body = { username: novoNome.trim() };
+  const novoRole = prompt("Perfil (financeiro ou recepcao):", roleAtual);
+  if(novoRole === null) return;
+  const body = { username: novoNome.trim(), role: novoRole.trim() };
   if(novaSenha.trim()) body.password = novaSenha;
   const res = await api("PUT", `/api/users/${id}`, body);
   const data = await res.json();
@@ -725,12 +735,14 @@ async function editarUsuario(id, usernameAtual){
 async function adicionarUsuario(){
   const username=document.getElementById("novo-usuario").value.trim();
   const password=document.getElementById("nova-senha").value;
+  const role=document.getElementById("novo-role").value;
   if(!username||!password) return alert("Preencha usuário e senha.");
-  const res=await api("POST","/api/users",{username,password});
+  const res=await api("POST","/api/users",{username,password,role});
   const data=await res.json();
   if(!res.ok) return alert(data.erro||"Erro ao criar usuário.");
   document.getElementById("novo-usuario").value="";
   document.getElementById("nova-senha").value="";
+  document.getElementById("novo-role").value="financeiro";
   mostrarToast(`Usuário "${username}" criado com sucesso!`);
   renderUsuarios();
 }

@@ -223,7 +223,7 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Documentos</div>
-      <div class="nav-item active" onclick="navegarPara('gerar')"><span class="icon">✦</span> Gerar Recibo</div>
+      <div class="nav-item active somente-financeiro" onclick="navegarPara('gerar')"><span class="icon">✦</span> Gerar Recibo</div>
       <div class="nav-item" onclick="navegarPara('historico')"><span class="icon">◈</span> Histórico</div>
       <div class="nav-section">Gestão</div>
       <div class="nav-item" onclick="navegarPara('clientes')"><span class="icon">◉</span> Clientes</div>
@@ -262,7 +262,7 @@
       </div>
 
       <!-- GERAR RECIBO -->
-      <div id="screen-gerar" class="screen active">
+      <div id="screen-gerar" class="screen active somente-financeiro">
         <div class="card">
           <div id="edit-mode-banner">
             <span>✏ Modo de edição — Recibo <strong id="edit-num-banner"></strong></span>
@@ -476,6 +476,13 @@
             <div class="form-row">
               <div class="form-group"><label>Usuário</label><input id="novo-usuario" type="text" /></div>
               <div class="form-group"><label>Senha</label><input id="nova-senha" type="password" /></div>
+            </div>
+            <div class="form-group">
+              <label>Perfil</label>
+              <select id="novo-role">
+                <option value="financeiro">Financeiro (cria e edita recibos)</option>
+                <option value="recepcao">Recepção (somente visualiza)</option>
+              </select>
             </div>
             <button class="btn-gold" onclick="adicionarUsuario()">Adicionar</button>
           </div>

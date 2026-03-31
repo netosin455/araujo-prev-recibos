@@ -58,6 +58,11 @@ function adminOnly(req, res, next) {
   next();
 }
 
+function financeiroOnly(req, res, next) {
+  if (req.user.role === "recepcao") return res.status(403).json({ erro: "Sem permissão para esta ação." });
+  next();
+}
+
 // Promisify nedb
 function find(db, query, sort) {
   return new Promise((res, rej) => {
@@ -90,8 +95,8 @@ app.post("/api/login", async (req, res) => {
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ erro: "Usuário ou senha incorretos" });
   }
-  const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: "8h" });
-  res.json({ token, username: user.username });
+  const token = jwt.sign({ id: user._id, username: user.username, role: user.role || "financeiro" }, JWT_SECRET, { expiresIn: "8h" });
+  res.json({ token, username: user.username, role: user.role || "financeiro" });
 });
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────
@@ -100,19 +105,19 @@ app.get("/api/recibos", auth, async (req, res) => {
   res.json(recibos.map(r => ({ ...r, id: r._id })));
 });
 
-app.post("/api/recibos", auth, async (req, res) => {
+app.post("/api/recibos", auth, financeiroOnly, async (req, res) => {
   const { num, nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, timestamp } = req.body;
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", timestamp });
   res.json({ id: doc._id });
 });
 
-app.put("/api/recibos/:id", auth, async (req, res) => {
+app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
   const { nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia } = req.body;
   await update(dbRecibos, { _id: req.params.id }, { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"" });
   res.json({ ok: true });
 });
 
-app.delete("/api/recibos/:id", auth, async (req, res) => {
+app.delete("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
   await remove(dbRecibos, { _id: req.params.id });
   res.json({ ok: true });
 });
@@ -214,19 +219,19 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
 });
 
 app.post("/api/users", auth, adminOnly, async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, role } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
   const exists = await findOne(dbUsers, { username });
   if (exists) return res.status(400).json({ erro: "Usuário já existe" });
   const hash = bcrypt.hashSync(password, 10);
-  const doc = await insert(dbUsers, { username, password: hash, created_at: new Date().toISOString() });
+  const doc = await insert(dbUsers, { username, password: hash, role: role || "financeiro", created_at: new Date().toISOString() });
   res.json({ id: doc._id, username });
 });
 
 app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, role } = req.body;
   if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
-  const upd = { username };
+  const upd = { username, role: role || "financeiro" };
   if (password) upd.password = bcrypt.hashSync(password, 10);
   await update(dbUsers, { _id: req.params.id }, upd);
   res.json({ ok: true });
