@@ -1,8 +1,0 @@
-{
-  "resolveFilenameLength": 3213,
-  "hasElectronInterceptor": false,
-  "resolveResult": "ERROR: Cannot find module 'electron'",
-  "nodeModulePathsCount": 7,
-  "firstPath": "c:\\Users\\carlo\\OneDrive\\Área de Trabalho\\Araujo_Prev_Recibos\\frontend\\node_modules",
-  "electronVersion": "22.3.27"
-}

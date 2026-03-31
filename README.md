@@ -1,139 +1,84 @@
-# 📄 Gerador Automático de Recibos
+# Araujo Prev — Sistema de Recibos
 
-App desktop (Electron) + backend serverless na AWS.
-
----
-
-## Arquitetura
-
-```
-[App Electron] → POST → [API Gateway] → [Lambda Python] → [S3]
-                                              ↑
-                                    docxtpl preenche template
-```
+Sistema web de gestão de recibos da A Araujo Serviços Ltda ME.
 
 ---
 
-## Pré-requisitos
-
-- Node.js 18+
-- Python 3.11+
-- AWS CLI configurado (`aws configure`)
-- Conta AWS com permissões para Lambda, S3, API Gateway e IAM
-
----
-
-## Passo a Passo
-
-### 1. Criar o template .docx
-
-Crie um arquivo `template/recibo_template.docx` com as variáveis:
+## Onde cada coisa fica
 
 ```
-Nome: {{ nome }}
-CPF:  {{ cpf }}
-Cidade: {{ cidade }}
-Valor: R$ {{ valor }}
-Descrição: {{ descricao }}
-Data: {{ data }}
-```
-
-Use exatamente `{{ variavel }}` dentro do Word.
-
-### 2. Criar Role IAM para a Lambda
-
-No console AWS → IAM → Roles → Create Role:
-- Trusted entity: Lambda
-- Policies: `AmazonS3FullAccess` + `AWSLambdaBasicExecutionRole`
-- Anote a ARN da role criada
-
-### 3. Criar bucket S3 e fazer upload do template
-
-```bash
-aws s3 mb s3://meu-bucket-recibos --region us-east-1
-aws s3 cp template/recibo_template.docx s3://meu-bucket-recibos/templates/recibo_template.docx
-```
-
-### 4. Deploy da Lambda
-
-```bash
-cd backend
-bash deploy.sh recibo-generator meu-bucket-recibos us-east-1 arn:aws:iam::SEU_ACCOUNT:role/NOME_DA_ROLE
-```
-
-### 5. Criar API Gateway
-
-```bash
-cd infra
-bash setup.sh meu-bucket-recibos arn:aws:lambda:us-east-1:SEU_ACCOUNT:function:recibo-generator us-east-1
-```
-
-O script vai imprimir o endpoint. Copie-o.
-
-### 6. Configurar o app
-
-Edite `frontend/renderer.js` linha 2:
-```js
-const API_URL = "https://SEU_API_ID.execute-api.us-east-1.amazonaws.com/prod/gerar-recibo";
-```
-
-### 7. Rodar o app localmente
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-### 8. Gerar instalador .exe (distribuir para outros PCs)
-
-```bash
-cd frontend
-npm run build
-```
-
-O instalador estará em `frontend/dist/`.
-
----
-
-## Variáveis de Ambiente da Lambda
-
-| Variável       | Descrição                        | Padrão                          |
-|----------------|----------------------------------|---------------------------------|
-| BUCKET_NAME    | Nome do bucket S3                | obrigatório                     |
-| TEMPLATE_KEY   | Caminho do template no S3        | templates/recibo_template.docx  |
-
----
-
-## Testando via curl
-
-```bash
-curl -X POST https://SEU_ENDPOINT/prod/gerar-recibo \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nome": "João da Silva",
-    "cpf": "123.456.789-00",
-    "cidade": "São Paulo - SP",
-    "valor": "1.500,00",
-    "descricao": "Consultoria em TI",
-    "data": "15/01/2025"
-  }'
-```
-
-Resposta:
-```json
-{
-  "url": "https://meu-bucket.s3.amazonaws.com/recibos/15-01-2025_joao_143022.docx?...",
-  "arquivo": "recibos/15-01-2025_joao_143022.docx"
-}
+Araujo_Prev_Recibos/
+│
+├── web/                         ← PASTA PRINCIPAL DO SISTEMA
+│   │
+│   ├── server.js                ← SERVIDOR: regras de negócio, login, banco de dados
+│   │                               Mexe aqui quando quiser mudar:
+│   │                               - Campos do recibo
+│   │                               - Regras de permissão (admin, financeiro, recepção)
+│   │                               - Tempo de expiração do login
+│   │
+│   ├── public/
+│   │   ├── index.html           ← TELA: o que o usuário vê (layout, botões, menus)
+│   │   │                           Mexe aqui quando quiser mudar:
+│   │   │                           - Textos e labels
+│   │   │                           - Cores e visual (CSS no início do arquivo)
+│   │   │                           - Adicionar novos campos no formulário
+│   │   │
+│   │   ├── app.js               ← COMPORTAMENTO: o que acontece quando clica em algo
+│   │   │                           Mexe aqui quando quiser mudar:
+│   │   │                           - O que cada botão faz
+│   │   │                           - Como os dados são enviados ao servidor
+│   │   │                           - Geração do PDF na tela
+│   │   │
+│   │   ├── logo.png             ← Logo que aparece no sistema e nos recibos
+│   │   │
+│   │   └── manifest.json        ← Configurações do app no celular (ícone, nome)
+│   │
+│   └── package.json             ← Lista de bibliotecas que o sistema usa
+│
+├── .ebextensions/               ← Configurações do servidor AWS (não mexer)
+│   └── 01_data_dir.config       ← Garante que os dados persistem entre deploys
+│
+├── Procfile                     ← Diz ao AWS como iniciar o sistema (não mexer)
+├── package.json                 ← Dependências para o AWS instalar (não mexer)
+└── .gitignore                   ← Arquivos que o Git ignora (senhas, node_modules)
 ```
 
 ---
 
-## Custos AWS (estimativa)
+## Como atualizar o sistema
 
-- Lambda: gratuito até 1M requisições/mês
-- S3: ~$0.023/GB armazenado
-- API Gateway: gratuito até 1M chamadas/mês
+1. Abre o arquivo que quer mudar (veja o mapa acima)
+2. Faz a alteração
+3. Abre o terminal na pasta do projeto
+4. Roda:
 
-Para uso pessoal/pequeno volume: **praticamente gratuito**.
+```bash
+git add .
+git commit -m "descreva o que mudou"
+git push origin main
+```
+
+O sistema atualiza automaticamente em ~2 minutos.
+
+---
+
+## Onde o sistema está no ar
+
+**URL:** http://araujo-prev-env.eba-cfsqbcw7.us-east-1.elasticbeanstalk.com
+
+**Painel AWS:** console.aws.amazon.com → Elastic Beanstalk → araujo-prev
+
+---
+
+## Variáveis de ambiente (senhas e configurações secretas)
+
+Ficam no painel do Elastic Beanstalk — nunca no código.
+
+| Variável     | O que é                        |
+|--------------|--------------------------------|
+| ADMIN_USER   | Nome do usuário administrador  |
+| ADMIN_PASS   | Senha do administrador         |
+| JWT_SECRET   | Chave de segurança dos tokens  |
+| DATA_DIR     | Pasta onde o banco fica salvo  |
+| PORT         | Porta do servidor (padrão 8080)|
