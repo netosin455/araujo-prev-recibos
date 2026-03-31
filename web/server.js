@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const Datastore = require("@seald-io/nedb");
 const bcrypt = require("bcryptjs");
@@ -19,12 +20,18 @@ const dbRecibos = new Datastore({ filename: path.join(dbDir, "recibos.db"), auto
 
 dbUsers.ensureIndex({ fieldName: "username", unique: true });
 
-// Admin padrão
-dbUsers.findOne({ username: "admin" }, (err, doc) => {
+// Admin padrão via variáveis de ambiente
+const ADMIN_USER = process.env.ADMIN_USER;
+const ADMIN_PASS = process.env.ADMIN_PASS;
+if (!ADMIN_USER || !ADMIN_PASS) {
+  console.error("❌ ERRO: Defina as variáveis de ambiente ADMIN_USER e ADMIN_PASS antes de iniciar.");
+  process.exit(1);
+}
+dbUsers.findOne({ username: ADMIN_USER }, (err, doc) => {
   if (!doc) {
-    const hash = bcrypt.hashSync("admin123", 10);
-    dbUsers.insert({ username: "admin", password: hash, created_at: new Date().toISOString() });
-    console.log("✅ Usuário admin criado — senha: admin123");
+    const hash = bcrypt.hashSync(ADMIN_PASS, 10);
+    dbUsers.insert({ username: ADMIN_USER, password: hash, created_at: new Date().toISOString() });
+    console.log("✅ Usuário admin criado.");
   }
 });
 
