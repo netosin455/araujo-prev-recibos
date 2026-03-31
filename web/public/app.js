@@ -53,6 +53,9 @@ let idEdicao = null;
 async function iniciarApp(){
   document.getElementById("nome-usuario").textContent = usuarioLogado;
   aplicarTema(localStorage.getItem("tema")||"light");
+  // Mostra menu de usuários só para admin
+  const res = await api("GET", "/api/users");
+  if(res && res.ok) document.getElementById("nav-usuarios").style.display = "";
   await carregarRecibos();
   await atualizarNumRecibo();
   atualizarSugestoesNomes();

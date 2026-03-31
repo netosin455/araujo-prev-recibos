@@ -229,7 +229,7 @@
       <div class="nav-item" onclick="navegarPara('clientes')"><span class="icon">◉</span> Clientes</div>
       <div class="nav-item" onclick="navegarPara('admin')"><span class="icon">◎</span> Administrativo</div>
       <div class="nav-section">Sistema</div>
-      <div class="nav-item" onclick="navegarPara('usuarios')"><span class="icon">👤</span> Usuários</div>
+      <div class="nav-item" id="nav-usuarios" style="display:none" onclick="navegarPara('usuarios')"><span class="icon">👤</span> Usuários</div>
       <div class="nav-item" onclick="fazerBackup()"><span class="icon">↓</span> Backup</div>
       <div class="nav-item" onclick="document.getElementById('input-restaurar').click()"><span class="icon">↑</span> Restaurar</div>
       <input type="file" id="input-restaurar" accept=".json" style="display:none" onchange="restaurarBackup(this)">

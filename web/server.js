@@ -53,6 +53,11 @@ function auth(req, res, next) {
   }
 }
 
+function adminOnly(req, res, next) {
+  if (req.user.username !== ADMIN_USER) return res.status(403).json({ erro: "Acesso restrito ao administrador." });
+  next();
+}
+
 // Promisify nedb
 function find(db, query, sort) {
   return new Promise((res, rej) => {
@@ -203,12 +208,12 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
 });
 
 // ── ROTAS USUÁRIOS ─────────────────────────────────────────
-app.get("/api/users", auth, async (req, res) => {
+app.get("/api/users", auth, adminOnly, async (req, res) => {
   const users = await find(dbUsers, {});
   res.json(users.map(u => ({ id: u._id, username: u.username, created_at: u.created_at })));
 });
 
-app.post("/api/users", auth, async (req, res) => {
+app.post("/api/users", auth, adminOnly, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
   const exists = await findOne(dbUsers, { username });
@@ -218,7 +223,7 @@ app.post("/api/users", auth, async (req, res) => {
   res.json({ id: doc._id, username });
 });
 
-app.delete("/api/users/:id", auth, async (req, res) => {
+app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
   const user = await findOne(dbUsers, { _id: req.params.id });
   if (user?.username === "admin") return res.status(400).json({ erro: "Não é possível remover o admin." });
   await remove(dbUsers, { _id: req.params.id });
