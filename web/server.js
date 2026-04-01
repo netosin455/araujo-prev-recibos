@@ -22,6 +22,66 @@ const jwt = require("jsonwebtoken");
 const path = require("path");
 const fs = require("fs");
 const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderStyle } = require("docx");
+const { google } = require("googleapis");
+
+// ── GOOGLE SHEETS ───────────────────────────────────────────
+const SHEET_ID = "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
+const SHEET_NAME = "Respostas ao formulário 1";
+const MESES = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+
+function getSheetsClient() {
+  const credsB64 = process.env.GOOGLE_CREDENTIALS;
+  if (!credsB64) return null;
+  try {
+    const creds = JSON.parse(Buffer.from(credsB64, "base64").toString("utf8"));
+    const auth = new google.auth.GoogleAuth({
+      credentials: creds,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    return google.sheets({ version: "v4", auth });
+  } catch (e) {
+    console.error("❌ Erro ao inicializar Google Sheets:", e.message);
+    return null;
+  }
+}
+
+async function registrarNoSheets(dados) {
+  const sheets = getSheetsClient();
+  if (!sheets) return;
+  try {
+    const agora = new Date();
+    const mes = MESES[agora.getMonth()];
+    const dataFormatada = agora.toLocaleDateString("pt-BR");
+    const horaFormatada = agora.toLocaleTimeString("pt-BR");
+    const carimbo = `${dataFormatada} ${horaFormatada}`;
+
+    const linha = [
+      carimbo,                                          // Carimbo de data/hora
+      dados.nome || "",                                 // Nome completo do cliente
+      dados.cpf || "",                                  // CPF do cliente
+      dados.valor || "",                                // Valor pago
+      dataFormatada,                                    // Data do pagamento
+      dataFormatada,                                    // Data do depósito
+      "",                                               // Forma de pagamento (não coletado no recibo)
+      dados.complemento || "Honorários Advocatícios",   // Motivo de pagamento
+      dados.municipio_uf || "",                         // Escritório
+      dados.referencia || "",                           // Observação
+      "",                                               // Anexo comprovante
+      mes,                                              // Mês
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A:L`,
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values: [linha] },
+    });
+    console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets`);
+  } catch (e) {
+    console.error("❌ Erro ao registrar no Google Sheets:", e.message);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -151,6 +211,7 @@ app.get("/api/recibos", auth, async (req, res) => {
 app.post("/api/recibos", auth, async (req, res) => {
   const { num, nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, timestamp } = req.body;
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", timestamp });
+  registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia });
   res.json({ id: doc._id });
 });
 
