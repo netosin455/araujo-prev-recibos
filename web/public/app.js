@@ -207,6 +207,8 @@ function limparCampos(){
     if(el) el.value="";
   });
   document.getElementById("mes").value="";
+  document.getElementById("forma_pagamento").value="";
+  document.getElementById("escritorio").value="";
   setStatus("","");
 }
 
@@ -239,6 +241,8 @@ function editarRecibo(r){
   document.getElementById("complemento").value=r.complemento||"";
   document.getElementById("referencia").value=r.referencia||"";
   document.getElementById("emitido_por").value=r.emitido_por||"";
+  document.getElementById("forma_pagamento").value=r.forma_pagamento||"";
+  document.getElementById("escritorio").value=r.escritorio||"";
   const [dia,mes,ano]=(r.data||"").split("/");
   document.getElementById("dia").value=parseInt(dia)||"";
   document.getElementById("mes").value=mes||"";
@@ -281,6 +285,8 @@ async function gerarRecibo(){
   }
   dados.complemento=document.getElementById("complemento").value.trim();
   dados.referencia=document.getElementById("referencia").value.trim().toUpperCase();
+  dados.forma_pagamento=document.getElementById("forma_pagamento").value;
+  dados.escritorio=document.getElementById("escritorio").value;
   const dia=document.getElementById("dia").value;
   const mes=document.getElementById("mes").value;
   const ano=document.getElementById("ano").value;
@@ -344,6 +350,7 @@ async function gerarRecibo(){
     municipio_uf:dados.municipio_uf,valor:dados.valor,
     data:dados.data,emitido_por:dados.emitido_por,
     complemento:dados.complemento,referencia:dados.referencia,
+    forma_pagamento:dados.forma_pagamento,escritorio:dados.escritorio,
     timestamp:new Date().toISOString()
   });
 

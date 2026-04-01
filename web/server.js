@@ -62,9 +62,9 @@ async function registrarNoSheets(dados) {
       dados.valor || "",                                // Valor pago
       dataFormatada,                                    // Data do pagamento
       dataFormatada,                                    // Data do depósito
-      "",                                               // Forma de pagamento (não coletado no recibo)
+      dados.forma_pagamento || "",                      // Forma de pagamento
       dados.complemento || "Honorários Advocatícios",   // Motivo de pagamento
-      dados.municipio_uf || "",                         // Escritório
+      dados.escritorio || "",                           // Escritório
       dados.referencia || "",                           // Observação
       "",                                               // Anexo comprovante
       mes,                                              // Mês
@@ -209,9 +209,9 @@ app.get("/api/recibos", auth, async (req, res) => {
 });
 
 app.post("/api/recibos", auth, async (req, res) => {
-  const { num, nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, timestamp } = req.body;
-  const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", timestamp });
-  registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia });
+  const { num, nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, timestamp } = req.body;
+  const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", timestamp });
+  registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, forma_pagamento, escritorio });
   res.json({ id: doc._id });
 });
 
