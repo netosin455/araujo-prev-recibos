@@ -440,7 +440,8 @@ function renderHistorico(){
   });
 }
 
-function abrirPDFRecibo(r){
+async function abrirPDFRecibo(r){
+  await garantirJSPDF();
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
   const W=doc.internal.pageSize.getWidth();
@@ -829,6 +830,25 @@ async function restaurarBackup(input){
   input.value="";
 }
 
+// ── LAZY LOAD LIBS PESADAS ─────────────────────────────────
+function carregarLib(src){
+  return new Promise((resolve,reject)=>{
+    if(document.querySelector(`script[src="${src}"]`)){resolve();return;}
+    const s=document.createElement("script");
+    s.src=src;s.onload=resolve;s.onerror=reject;
+    document.head.appendChild(s);
+  });
+}
+async function garantirXLSX(){
+  if(!window.XLSX) await carregarLib("libs/xlsx.min.js");
+}
+async function garantirJSPDF(){
+  if(!window.jspdf){
+    await carregarLib("libs/jspdf.min.js");
+    await carregarLib("libs/jspdf.autotable.min.js");
+  }
+}
+
 // ── EXPORTAR EXCEL ─────────────────────────────────────────
 function filtrarRelatorio(){
   const mes=document.getElementById("rel-mes").value;
@@ -844,7 +864,8 @@ function filtrarRelatorio(){
   });
 }
 
-function exportarExcel(){
+async function exportarExcel(){
+  await garantirXLSX();
   const lista=filtrarRelatorio();
   if(!lista.length) return alert("Nenhum dado para exportar.");
   const ws=XLSX.utils.json_to_sheet(lista.map(r=>({
@@ -856,7 +877,8 @@ function exportarExcel(){
   XLSX.writeFile(wb,`relatorio_araujo_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-function exportarExcelClientes(){
+async function exportarExcelClientes(){
+  await garantirXLSX();
   const ano=document.getElementById("rel-cliente-ano").value;
   const lista=historicoRecibos.filter(r=>!ano||r.data?.split("/")[2]===ano);
   if(!lista.length) return alert("Nenhum dado.");
@@ -874,7 +896,8 @@ function exportarExcelClientes(){
   XLSX.writeFile(wb,`clientes_araujo_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-function exportarPDF(){
+async function exportarPDF(){
+  await garantirJSPDF();
   const lista=filtrarRelatorio();
   if(!lista.length) return alert("Nenhum dado.");
   const {jsPDF}=window.jspdf;
@@ -898,7 +921,8 @@ function exportarPDF(){
   doc.save(`relatorio_araujo_${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
-function exportarPDFClientes(){
+async function exportarPDFClientes(){
+  await garantirJSPDF();
   const ano=document.getElementById("rel-cliente-ano").value;
   const lista=historicoRecibos.filter(r=>!ano||r.data?.split("/")[2]===ano);
   if(!lista.length) return alert("Nenhum dado.");
@@ -924,7 +948,8 @@ function exportarPDFClientes(){
 }
 
 // ── RELATÓRIO POR RESPONSÁVEL ──────────────────────────────
-function exportarExcelResponsaveis(){
+async function exportarExcelResponsaveis(){
+  await garantirXLSX();
   const mes=document.getElementById("rel-resp-mes").value;
   const ano=document.getElementById("rel-resp-ano").value;
   const lista=historicoRecibos.filter(r=>{
@@ -949,7 +974,8 @@ function exportarExcelResponsaveis(){
   XLSX.writeFile(wb,`responsaveis_araujo_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-function exportarPDFResponsaveis(){
+async function exportarPDFResponsaveis(){
+  await garantirJSPDF();
   const mes=document.getElementById("rel-resp-mes").value;
   const ano=document.getElementById("rel-resp-ano").value;
   const lista=historicoRecibos.filter(r=>{
@@ -984,7 +1010,8 @@ function exportarPDFResponsaveis(){
 }
 
 // ── RESUMO EXECUTIVO ───────────────────────────────────────
-function exportarPDFExecutivo(){
+async function exportarPDFExecutivo(){
+  await garantirJSPDF();
   const ano=document.getElementById("rel-exec-ano").value;
   const lista=historicoRecibos.filter(r=>!ano||r.data?.split("/")[2]===ano);
   if(!lista.length)return alert("Nenhum dado.");
