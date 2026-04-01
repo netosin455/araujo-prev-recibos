@@ -216,8 +216,8 @@ app.post("/api/recibos", auth, async (req, res) => {
 });
 
 app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
-  const { nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia } = req.body;
-  await update(dbRecibos, { _id: req.params.id }, { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"" });
+  const { nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio } = req.body;
+  await update(dbRecibos, { _id: req.params.id }, { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"" });
   res.json({ ok: true });
 });
 
