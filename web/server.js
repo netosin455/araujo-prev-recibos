@@ -47,7 +47,7 @@ function getSheetsClient() {
   }
 }
 
-const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || null;
+const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1tAZamgITcl9NtATn7zujEhBTZ_TSIbLRI3vs9k5V9XAaZPvazb59NfqiKNnjcjwzbiaWQsb6";
 
 async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
   const credsB64 = process.env.GOOGLE_CREDENTIALS;
