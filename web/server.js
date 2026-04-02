@@ -23,6 +23,8 @@ const path = require("path");
 const fs = require("fs");
 const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderStyle, Table, TableRow, TableCell, WidthType } = require("docx");
 const { google } = require("googleapis");
+const multer = require("multer");
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
 const SHEET_ID = "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
@@ -41,6 +43,38 @@ function getSheetsClient() {
     return google.sheets({ version: "v4", auth });
   } catch (e) {
     console.error("❌ Erro ao inicializar Google Sheets:", e.message);
+    return null;
+  }
+}
+
+const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || null;
+
+async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
+  const credsB64 = process.env.GOOGLE_CREDENTIALS;
+  if (!credsB64) return null;
+  try {
+    const creds = JSON.parse(Buffer.from(credsB64, "base64").toString("utf8"));
+    const auth = new google.auth.GoogleAuth({
+      credentials: creds,
+      scopes: ["https://www.googleapis.com/auth/drive.file"],
+    });
+    const drive = google.drive({ version: "v3", auth });
+    const { Readable } = require("stream");
+    const stream = new Readable();
+    stream.push(buffer);
+    stream.push(null);
+    const meta = { name: nomeArquivo };
+    if (DRIVE_FOLDER_ID) meta.parents = [DRIVE_FOLDER_ID];
+    const res = await drive.files.create({
+      requestBody: meta,
+      media: { mimeType, body: stream },
+      fields: "id",
+    });
+    const fileId = res.data.id;
+    await drive.permissions.create({ fileId, requestBody: { role: "reader", type: "anyone" } });
+    return `https://drive.google.com/file/d/${fileId}/view`;
+  } catch (e) {
+    console.error("❌ Erro ao fazer upload pro Drive:", e.message);
     return null;
   }
 }
@@ -66,7 +100,7 @@ async function registrarNoSheets(dados) {
       dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // Motivo de pagamento
       dados.escritorio || "",                           // Escritório
       "",                                               // Alguma observação (não usado)
-      "",                                               // Anexo comprovante
+      dados.link_comprovante || "",                     // Anexo comprovante
       mes,                                              // Mês
     ];
 
@@ -233,6 +267,14 @@ app.get("/api/debug-sheets-headers", auth, async (req, res) => {
   }
 });
 
+// ── UPLOAD COMPROVANTE ─────────────────────────────────────
+app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
+  const link = await uploadParaDrive(req.file.buffer, req.file.originalname, req.file.mimetype);
+  if (!link) return res.status(500).json({ erro: "Erro ao subir arquivo pro Drive." });
+  res.json({ link });
+});
+
 // ── ROTAS RECIBOS ──────────────────────────────────────────
 app.get("/api/recibos", auth, async (req, res) => {
   const recibos = await find(dbRecibos, {}, { timestamp: -1 });
@@ -240,9 +282,9 @@ app.get("/api/recibos", auth, async (req, res) => {
 });
 
 app.post("/api/recibos", auth, async (req, res) => {
-  const { num, nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, timestamp } = req.body;
-  const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", timestamp });
-  registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento });
+  const { num, nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
+  const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
+  registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
   res.json({ id: doc._id });
 });
 

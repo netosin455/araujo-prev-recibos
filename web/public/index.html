@@ -452,6 +452,11 @@
             <label>Emitido por</label>
             <input id="emitido_por" type="text" style="text-transform:uppercase" placeholder="Nome do responsável" />
           </div>
+          <div class="form-group">
+            <label>Comprovante de depósito <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+            <input id="comprovante" type="file" accept="image/*,application/pdf" />
+            <div id="comprovante-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          </div>
           <div class="btn-group">
             <button class="btn-primary" id="btn-gerar" onclick="gerarRecibo()">Gerar Recibo</button>
             <button class="btn-secondary" onclick="limparCampos()">Limpar</button>

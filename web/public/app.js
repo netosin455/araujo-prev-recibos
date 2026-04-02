@@ -210,6 +210,10 @@ function limparCampos(){
   document.getElementById("forma_pagamento").value="";
   document.getElementById("escritorio").value="";
   document.getElementById("motivo_pagamento").value="";
+  const comp = document.getElementById("comprovante");
+  if(comp) comp.value="";
+  const compStatus = document.getElementById("comprovante-status");
+  if(compStatus) compStatus.textContent="";
   setStatus("","");
 }
 
@@ -347,6 +351,23 @@ async function gerarRecibo(){
   a.click();
   URL.revokeObjectURL(url);
 
+  // Upload comprovante se houver
+  let link_comprovante = "";
+  const compInput = document.getElementById("comprovante");
+  if(compInput && compInput.files[0]){
+    const compStatus = document.getElementById("comprovante-status");
+    if(compStatus) compStatus.textContent = "Enviando comprovante...";
+    const fd = new FormData();
+    fd.append("comprovante", compInput.files[0]);
+    const token = localStorage.getItem("token");
+    try {
+      const r = await fetch("/api/upload-comprovante", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:fd });
+      const j = await r.json();
+      if(j.link){ link_comprovante = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
+      else { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; }
+    } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; }
+  }
+
   // Salvar no banco
   await api("POST","/api/recibos",{
     num:dados.num_recibo,nome:dados.nome,cpf:dados.cpf,
@@ -354,7 +375,7 @@ async function gerarRecibo(){
     data:dados.data,emitido_por:dados.emitido_por,
     complemento:dados.complemento,referencia:dados.referencia,
     forma_pagamento:dados.forma_pagamento,escritorio:dados.escritorio,
-    motivo_pagamento:dados.motivo_pagamento,
+    motivo_pagamento:dados.motivo_pagamento,link_comprovante,
     timestamp:new Date().toISOString()
   });
 
