@@ -223,4 +223,18 @@
 **Solução:** Trocado `append` por lógica explícita: lê quantas linhas já existem a partir de A4, calcula a próxima linha vazia, escreve exatamente naquela linha com `update`. Agora não depende do API adivinhar onde colocar.  
 **Arquivo alterado:** `web/server.js` — função `registrarNoSheets()` reescrita.
 
+---
+
+## 2026-04-01 — Troca de emojis por Bootstrap Icons
+
+**Solicitado por:** Carlo  
+**Raciocínio:** Emojis têm renderização inconsistente entre sistemas e ficam amadores. Bootstrap Icons dão um visual mais profissional e consistente.  
+**O que foi feito:**
+- Adicionada lib Bootstrap Icons 1.11.3 via CDN (preload, não bloqueia renderização)
+- Substituídos todos os emojis por `<i class="bi bi-...">` em `index.html` e `app.js`
+- Search box: removido CSS `::before` com emoji, adicionado `<i class="bi bi-search">` no HTML
+- Ícone de tema (lua/sol): atualizado para `bi-moon-stars` / `bi-sun-fill`, lógica de troca ajustada em `app.js`
+
+**Arquivos alterados:** `web/public/index.html`, `web/public/app.js`
+
 _Próxima entrada será adicionada aqui quando houver nova alteração._
