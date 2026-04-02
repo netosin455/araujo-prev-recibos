@@ -70,11 +70,18 @@ async function registrarNoSheets(dados) {
       mes,                                              // Mês
     ];
 
-    await sheets.spreadsheets.values.append({
+    // Busca última linha com dado na coluna A (a partir da linha 4, pulando logo+cabeçalho)
+    const existing = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A:L`,
+      range: `${SHEET_NAME}!A4:A`,
+    });
+    const nRows = (existing.data.values || []).length;
+    const nextRow = 4 + nRows;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A${nextRow}:L${nextRow}`,
       valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
       requestBody: { values: [linha] },
     });
     console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets`);
