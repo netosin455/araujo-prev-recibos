@@ -214,4 +214,13 @@
 **Solução temporária:** Adicionado endpoint `GET /api/debug-sheets-headers` que lê a linha 1 da planilha e retorna o mapeamento coluna→cabeçalho. Após Carlo consultar o endpoint, corrigiremos o array `linha` no `registrarNoSheets()`.  
 **Arquivo alterado:** `web/server.js` — nova rota de debug adicionada antes de `// ── ROTAS RECIBOS`.
 
+---
+
+## 2026-04-01 — Fix definitivo: colunas Sheets alinhadas
+
+**Problema:** Dados inseridos nas colunas erradas (ex: "Honorários" aparecia em "Alguma observação?", nome aparecia em coluna K).  
+**Raciocínio:** A planilha tem logo e cabeçalho nas linhas 1-2, dados só a partir da linha 4. O método `append` da API do Google Sheets se confundia com isso e jogava os dados em posições erradas. Confirmado vendo a planilha real: a célula selecionada K261 tinha "CARLOS PEGORARO NETO (TESTE)" — o nome estava 9 colunas deslocado.  
+**Solução:** Trocado `append` por lógica explícita: lê quantas linhas já existem a partir de A4, calcula a próxima linha vazia, escreve exatamente naquela linha com `update`. Agora não depende do API adivinhar onde colocar.  
+**Arquivo alterado:** `web/server.js` — função `registrarNoSheets()` reescrita.
+
 _Próxima entrada será adicionada aqui quando houver nova alteração._
