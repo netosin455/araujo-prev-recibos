@@ -264,4 +264,20 @@
 - Logo no rodapé
 - Espaçamento: 3600 após data, 600 após assinatura do cliente
 
+---
+
+## 2026-04-02 — Upload de comprovante de depósito
+
+**Solicitado por:** Carlo (após conversa com coordenador financeiro Lucas Bassetto)  
+**Raciocínio:** O comprovante chega via WhatsApp (Pix/Ted) ou impresso no caixa. Na hora de gerar o recibo, quem emite já anexa o comprovante no sistema — igual ao fluxo do formulário Google antigo.  
+**O que foi feito:**
+- Adicionado campo "Comprovante de depósito" (upload opcional) no formulário
+- Arquivo sobe pro Google Drive via API (mesma conta de serviço)
+- Link público gerado e salvo na coluna "Anexo comprovante" da planilha
+- Lib `multer` instalada para lidar com upload de arquivos no servidor
+- Nova rota `POST /api/upload-comprovante`
+- Limite de 20MB por arquivo, aceita imagem e PDF
+
+**Arquivos alterados:** `web/server.js`, `web/public/index.html`, `web/public/app.js`, `web/package.json`, `package.json`
+
 _Próxima entrada será adicionada aqui quando houver nova alteração._
