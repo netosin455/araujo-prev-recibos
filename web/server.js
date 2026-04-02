@@ -21,7 +21,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const path = require("path");
 const fs = require("fs");
-const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderStyle } = require("docx");
+const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderStyle, Table, TableRow, TableCell, WidthType } = require("docx");
 const { google } = require("googleapis");
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
@@ -310,25 +310,47 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
       }));
     }
 
+    const semBorda = { top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" } };
+
     children.push(
       p("A ARAUJO SERVIÇOS LTDA ME", { align: AlignmentType.CENTER, bold: true, size: 14, color: "1E40AF", spaceAfter: 40 }),
       p("A ARAUJO PREV", { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 40 }),
       linha(),
       p(`Recibo Nº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 20 }),
-      p("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: AlignmentType.CENTER, bold: true, size: 14, spaceAfter: 120 }),
-      p(textoCorpo, { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
-      p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 120 }),
+      p("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: AlignmentType.CENTER, bold: true, size: 14, spaceAfter: 80 }),
+      p(textoCorpo, { align: AlignmentType.JUSTIFIED, spaceAfter: 60 }),
+      p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
       linha(),
-      p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 800 }),
-      p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 160 }),
-      p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 10, spaceAfter: 0 }),
+      p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 240 }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: semBorda,
+        rows: [new TableRow({ children: [
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            borders: semBorda,
+            children: [
+              new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: "________________________", font: "Arial", size: 20 })] }),
+              new Paragraph({ spacing: { after: 20 }, children: [new TextRun({ text: dados.emitido_por || "A ARAUJO PREV", bold: true, font: "Arial", size: 20 })] }),
+              new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: "Emitido por", font: "Arial", size: 18, color: "666666" })] }),
+            ],
+          }),
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            borders: semBorda,
+            children: [
+              new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 40 }, children: [new TextRun({ text: "________________________", font: "Arial", size: 20 })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 20 }, children: [new TextRun({ text: dados.nome, font: "Arial", size: 20 })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [new TextRun({ text: `${labelDoc}: ${dados.cpf}`, font: "Arial", size: 18, color: "666666" })] }),
+            ],
+          }),
+        ]})],
+      }),
     );
 
     if (logoExists) {
       children.push(
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 900, after: 40 }, children: [new TextRun({ text: "________________________", font: "Arial", size: 22 })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 40 }, children: [new TextRun({ text: dados.emitido_por || "A ARAUJO PREV", bold: true, font: "Arial", size: 22 })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 700, after: 0 }, children: [new ImageRun({ data: fs.readFileSync(logoPath), transformation: { width: 200, height: 76 }, type: "png" })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 320, after: 0 }, children: [new ImageRun({ data: fs.readFileSync(logoPath), transformation: { width: 180, height: 68 }, type: "png" })] }),
       );
     }
 
