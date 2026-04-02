@@ -65,7 +65,7 @@ async function registrarNoSheets(dados) {
       dados.forma_pagamento || "",                      // Forma de pagamento
       dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // Motivo de pagamento
       dados.escritorio || "",                           // Escritório
-      dados.referencia || "",                           // Observação
+      "",                                               // Alguma observação (não usado)
       "",                                               // Anexo comprovante
       mes,                                              // Mês
     ];
