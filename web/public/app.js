@@ -209,6 +209,7 @@ function limparCampos(){
   document.getElementById("mes").value="";
   document.getElementById("forma_pagamento").value="";
   document.getElementById("escritorio").value="";
+  document.getElementById("motivo_pagamento").value="";
   setStatus("","");
 }
 
@@ -243,6 +244,7 @@ function editarRecibo(r){
   document.getElementById("emitido_por").value=r.emitido_por||"";
   document.getElementById("forma_pagamento").value=r.forma_pagamento||"";
   document.getElementById("escritorio").value=r.escritorio||"";
+  document.getElementById("motivo_pagamento").value=r.motivo_pagamento||"";
   const [dia,mes,ano]=(r.data||"").split("/");
   document.getElementById("dia").value=parseInt(dia)||"";
   document.getElementById("mes").value=mes||"";
@@ -287,6 +289,7 @@ async function gerarRecibo(){
   dados.referencia=document.getElementById("referencia").value.trim().toUpperCase();
   dados.forma_pagamento=document.getElementById("forma_pagamento").value;
   dados.escritorio=document.getElementById("escritorio").value;
+  dados.motivo_pagamento=document.getElementById("motivo_pagamento").value;
   const dia=document.getElementById("dia").value;
   const mes=document.getElementById("mes").value;
   const ano=document.getElementById("ano").value;
@@ -351,6 +354,7 @@ async function gerarRecibo(){
     data:dados.data,emitido_por:dados.emitido_por,
     complemento:dados.complemento,referencia:dados.referencia,
     forma_pagamento:dados.forma_pagamento,escritorio:dados.escritorio,
+    motivo_pagamento:dados.motivo_pagamento,
     timestamp:new Date().toISOString()
   });
 
