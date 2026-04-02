@@ -321,36 +321,19 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
       p(textoCorpo, { align: AlignmentType.JUSTIFIED, spaceAfter: 60 }),
       p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
       linha(),
-      p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 240 }),
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: semBorda,
-        rows: [new TableRow({ children: [
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            borders: semBorda,
-            children: [
-              new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: "________________________", font: "Arial", size: 20 })] }),
-              new Paragraph({ spacing: { after: 20 }, children: [new TextRun({ text: dados.emitido_por || "A ARAUJO PREV", bold: true, font: "Arial", size: 20 })] }),
-              new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: "Emitido por", font: "Arial", size: 18, color: "666666" })] }),
-            ],
-          }),
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            borders: semBorda,
-            children: [
-              new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 40 }, children: [new TextRun({ text: "________________________", font: "Arial", size: 20 })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 20 }, children: [new TextRun({ text: dados.nome, font: "Arial", size: 20 })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [new TextRun({ text: `${labelDoc}: ${dados.cpf}`, font: "Arial", size: 18, color: "666666" })] }),
-            ],
-          }),
-        ]})],
-      }),
+      p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 400 }),
+      // Assinatura do cliente — centro
+      p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 40 }),
+      p(dados.nome, { align: AlignmentType.CENTER, size: 10, spaceAfter: 20 }),
+      p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: 200 }),
+      // Assinatura do emissor — esquerda
+      p("________________________", { align: AlignmentType.LEFT, spaceAfter: 40 }),
+      p(dados.emitido_por || "A ARAUJO PREV", { align: AlignmentType.LEFT, size: 10, spaceAfter: 0 }),
     );
 
     if (logoExists) {
       children.push(
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 320, after: 0 }, children: [new ImageRun({ data: fs.readFileSync(logoPath), transformation: { width: 180, height: 68 }, type: "png" })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 240, after: 0 }, children: [new ImageRun({ data: fs.readFileSync(logoPath), transformation: { width: 180, height: 68 }, type: "png" })] }),
       );
     }
 
