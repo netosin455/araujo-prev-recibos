@@ -237,4 +237,19 @@
 
 **Arquivos alterados:** `web/public/index.html`, `web/public/app.js`
 
+---
+
+## 2026-04-02 — Redesign do documento Word do recibo
+
+**Solicitado por:** Carlo  
+**Raciocínio:** O layout antigo tinha espaço em branco excessivo antes da logo, assinatura do emissor centralizada e possibilidade de ultrapassar 1 página.  
+**O que foi feito:**
+- Assinatura do emissor (emitido_por) movida para o **canto inferior esquerdo**
+- Assinatura do cliente (nome + CPF) ficou no **lado direito** — usando tabela de 2 colunas sem borda
+- Espaçamentos reduzidos para caber em 1 página (spaceAfter: 800→240 após data, 120→80 nos parágrafos)
+- Logo aproximada do conteúdo (before: 700→320)
+- Adicionada label "Emitido por" abaixo da assinatura do emissor
+
+**Arquivo alterado:** `web/server.js` — rota `POST /api/gerar-recibo`, bloco de montagem do documento.
+
 _Próxima entrada será adicionada aqui quando houver nova alteração._
