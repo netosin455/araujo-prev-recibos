@@ -106,8 +106,8 @@ async function carregarRecibos(){
 // ── TEMA ───────────────────────────────────────────────────
 function aplicarTema(t){
   document.documentElement.setAttribute("data-theme",t);
-  const btn=document.getElementById("btn-tema");
-  if(btn) btn.textContent=t==="dark"?"☀":"☾";
+  const icon=document.getElementById("icon-tema");
+  if(icon){ icon.className=t==="dark"?"bi bi-sun-fill":"bi bi-moon-stars"; }
   localStorage.setItem("tema",t);
 }
 function alternarTema(){ aplicarTema(localStorage.getItem("tema")==="dark"?"light":"dark"); }
@@ -419,7 +419,7 @@ function renderHistorico(){
       </div>
       <div class="recibo-actions">
         <button class="btn-secondary btn-sm" data-action="detalhe">Detalhes</button>
-        <button class="btn-gold btn-sm" data-action="ver">👁 Ver</button>
+        <button class="btn-gold btn-sm" data-action="ver"><i class="bi bi-eye"></i> Ver</button>
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="editar">Editar</button>`:""}
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="duplicar">Duplicar</button>`:""}
         <button class="btn-secondary btn-sm" data-action="reimprimir">📄 Baixar</button>
@@ -520,7 +520,7 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Referência</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
     <div style="margin-top:20px;display:flex;gap:10px">
-      <button class="btn-gold" id="btn-ver-modal">👁 Ver PDF</button>
+      <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-primary" id="btn-reimprimir-modal">📄 Baixar .docx</button>
     </div>`;
   document.getElementById("btn-ver-modal").onclick=()=>{ abrirPDFRecibo(r); fecharModal("modal-detalhe"); };

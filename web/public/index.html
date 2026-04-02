@@ -25,6 +25,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"></noscript>
+  <link rel="preload" as="style" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"></noscript>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -118,7 +120,7 @@
     .search-wrap{display:flex;gap:12px;margin-bottom:20px;align-items:center;flex-wrap:wrap}
     .search-box{position:relative;flex:1;max-width:400px}
     .search-box input{padding-left:36px}
-    .search-box::before{content:"🔍";position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px}
+    .search-box>.bi{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted);pointer-events:none}
     .historico-grid{display:flex;flex-direction:column;gap:8px}
     .recibo-item{background:white;border:1px solid var(--border);border-radius:8px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;transition:all 0.2s}
     .recibo-item:hover{box-shadow:var(--shadow);border-color:var(--gold-light)}
@@ -327,19 +329,19 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Documentos</div>
-      <div class="nav-item active" onclick="navegarPara('gerar')"><span class="icon">✦</span> Gerar Recibo</div>
-      <div class="nav-item" onclick="navegarPara('historico')"><span class="icon">◈</span> Histórico</div>
+      <div class="nav-item active" onclick="navegarPara('gerar')"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
+      <div class="nav-item" onclick="navegarPara('historico')"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
       <div class="nav-section">Gestão</div>
-      <div class="nav-item" onclick="navegarPara('clientes')"><span class="icon">◉</span> Clientes</div>
-      <div class="nav-item" onclick="navegarPara('admin')"><span class="icon">◎</span> Administrativo</div>
+      <div class="nav-item" onclick="navegarPara('clientes')"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes</div>
+      <div class="nav-item" onclick="navegarPara('admin')"><span class="icon"><i class="bi bi-bar-chart-fill"></i></span> Administrativo</div>
       <div class="nav-section">Sistema</div>
-      <div class="nav-item" id="nav-usuarios" style="display:none" onclick="navegarPara('usuarios')"><span class="icon">👤</span> Usuários</div>
-      <div class="nav-item" onclick="fazerBackup()"><span class="icon">↓</span> Backup</div>
-      <div class="nav-item" onclick="document.getElementById('input-restaurar').click()"><span class="icon">↑</span> Restaurar</div>
+      <div class="nav-item" id="nav-usuarios" style="display:none" onclick="navegarPara('usuarios')"><span class="icon"><i class="bi bi-person-gear"></i></span> Usuários</div>
+      <div class="nav-item" onclick="fazerBackup()"><span class="icon"><i class="bi bi-download"></i></span> Backup</div>
+      <div class="nav-item" onclick="document.getElementById('input-restaurar').click()"><span class="icon"><i class="bi bi-upload"></i></span> Restaurar</div>
       <input type="file" id="input-restaurar" accept=".json" style="display:none" onchange="restaurarBackup(this)">
     </nav>
     <div id="usuario-logado">Logado como: <strong id="nome-usuario">—</strong><br><span id="perfil-usuario" style="font-size:11px;opacity:0.7"></span></div>
-    <div class="nav-item" onclick="fazerLogout()" style="margin-bottom:4px"><span class="icon">⬡</span> Sair</div>
+    <div class="nav-item" onclick="fazerLogout()" style="margin-bottom:4px"><span class="icon"><i class="bi bi-box-arrow-right"></i></span> Sair</div>
     <div class="sidebar-footer">Araujo Prev © 2026</div>
   </aside>
 
@@ -348,7 +350,7 @@
       <div class="topbar-title" id="topbar-title">Gerar Recibo</div>
       <div style="display:flex;align-items:center;gap:10px">
         <div class="topbar-badge" id="num-recibo">Nº 0001/2026</div>
-        <button id="btn-tema" onclick="alternarTema()" title="Alternar tema">☾</button>
+        <button id="btn-tema" onclick="alternarTema()" title="Alternar tema"><i class="bi bi-moon-stars" id="icon-tema"></i></button>
       </div>
     </div>
 
@@ -356,12 +358,12 @@
 
       <div id="alerta-inativos">
         <div>
-          <strong style="color:var(--gold)">⚠ Clientes sem recibo recente</strong>
+          <strong style="color:var(--gold)"><i class="bi bi-exclamation-triangle-fill"></i> Clientes sem recibo recente</strong>
           <div id="alerta-inativos-lista" style="color:var(--mid);margin-top:4px;line-height:1.8"></div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <button class="btn-secondary btn-sm" onclick="configurarAlertaInativo()">⚙ Configurar</button>
-          <button onclick="document.getElementById('alerta-inativos').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:0;line-height:1">✕</button>
+          <button class="btn-secondary btn-sm" onclick="configurarAlertaInativo()"><i class="bi bi-gear-fill"></i> Configurar</button>
+          <button onclick="document.getElementById('alerta-inativos').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:0;line-height:1"><i class="bi bi-x-lg"></i></button>
         </div>
       </div>
 
@@ -369,7 +371,7 @@
       <div id="screen-gerar" class="screen active">
         <div class="card">
           <div id="edit-mode-banner">
-            <span>✏ Modo de edição — Recibo <strong id="edit-num-banner"></strong></span>
+            <span><i class="bi bi-pencil-fill"></i> Modo de edição — Recibo <strong id="edit-num-banner"></strong></span>
             <button class="btn-danger btn-sm" onclick="cancelarEdicao()">Cancelar</button>
           </div>
           <div class="card-title">Novo Recibo de Honorários</div>
@@ -462,6 +464,7 @@
       <div id="screen-historico" class="screen">
         <div class="search-wrap">
           <div class="search-box">
+            <i class="bi bi-search"></i>
             <input id="busca-historico" type="text" placeholder="Buscar por nome ou CPF..." oninput="renderHistorico()" />
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -469,7 +472,7 @@
             <input id="filtro-data-ini" type="date" style="width:140px" oninput="renderHistorico()" />
             <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0;white-space:nowrap">Até</label>
             <input id="filtro-data-fim" type="date" style="width:140px" oninput="renderHistorico()" />
-            <button class="btn-secondary btn-sm" onclick="limparFiltroData()">✕</button>
+            <button class="btn-secondary btn-sm" onclick="limparFiltroData()"><i class="bi bi-x-lg"></i></button>
           </div>
           <span id="historico-count" style="color:var(--muted);font-size:12px;white-space:nowrap"></span>
         </div>
@@ -480,6 +483,7 @@
       <div id="screen-clientes" class="screen">
         <div class="search-wrap" style="margin-bottom:20px">
           <div class="search-box">
+            <i class="bi bi-search"></i>
             <input id="busca-clientes" type="text" placeholder="Buscar cliente..." oninput="renderClientes()" />
           </div>
         </div>
@@ -548,7 +552,7 @@
         <div id="admin-relatorios" class="admin-panel">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div class="card" style="max-width:none">
-              <div class="card-title">📄 Relatório Geral</div>
+              <div class="card-title"><i class="bi bi-file-text"></i> Relatório Geral</div>
               <div class="form-row">
                 <div class="form-group"><label>Mês</label>
                   <select id="rel-mes"><option value="">Todos</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
@@ -557,21 +561,21 @@
               </div>
               <div class="form-group"><label>Responsável</label><select id="rel-responsavel"><option value="">Todos</option></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn-success btn-sm" onclick="exportarExcel()">📊 Excel</button>
-                <button class="btn-primary btn-sm" onclick="exportarPDF()">📄 PDF</button>
+                <button class="btn-success btn-sm" onclick="exportarExcel()"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
+                <button class="btn-primary btn-sm" onclick="exportarPDF()"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
               </div>
             </div>
             <div class="card" style="max-width:none">
-              <div class="card-title">👤 Relatório por Cliente</div>
+              <div class="card-title"><i class="bi bi-person"></i> Relatório por Cliente</div>
               <div class="form-group"><label>Ano</label><select id="rel-cliente-ano"></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn-success btn-sm" onclick="exportarExcelClientes()">📊 Excel</button>
-                <button class="btn-primary btn-sm" onclick="exportarPDFClientes()">📄 PDF</button>
+                <button class="btn-success btn-sm" onclick="exportarExcelClientes()"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
+                <button class="btn-primary btn-sm" onclick="exportarPDFClientes()"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
               </div>
             </div>
 
             <div class="card" style="max-width:none">
-              <div class="card-title">👥 Relatório por Responsável</div>
+              <div class="card-title"><i class="bi bi-people"></i> Relatório por Responsável</div>
               <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Desempenho de cada responsável: qtd de recibos e total emitido.</p>
               <div class="form-row">
                 <div class="form-group"><label>Mês</label>
@@ -580,17 +584,17 @@
                 <div class="form-group"><label>Ano</label><select id="rel-resp-ano"></select></div>
               </div>
               <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn-success btn-sm" onclick="exportarExcelResponsaveis()">📊 Excel</button>
-                <button class="btn-primary btn-sm" onclick="exportarPDFResponsaveis()">📄 PDF</button>
+                <button class="btn-success btn-sm" onclick="exportarExcelResponsaveis()"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
+                <button class="btn-primary btn-sm" onclick="exportarPDFResponsaveis()"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
               </div>
             </div>
 
             <div class="card" style="max-width:none;grid-column:span 2">
-              <div class="card-title">📊 Resumo Executivo</div>
+              <div class="card-title"><i class="bi bi-graph-up"></i> Resumo Executivo</div>
               <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Visão geral do ano: faturamento mensal, top clientes e responsáveis.</p>
               <div class="form-group"><label>Ano</label><select id="rel-exec-ano"></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn-primary btn-sm" onclick="exportarPDFExecutivo()">📄 PDF Executivo</button>
+                <button class="btn-primary btn-sm" onclick="exportarPDFExecutivo()"><i class="bi bi-file-earmark-pdf"></i> PDF Executivo</button>
               </div>
             </div>
 
@@ -629,7 +633,7 @@
     <div class="modal-content" style="max-width:400px">
       <div class="modal-header">
         <h2>Editar Usuário</h2>
-        <button class="modal-close" onclick="fecharModal('modal-editar-usuario')">✕</button>
+        <button class="modal-close" onclick="fecharModal('modal-editar-usuario')"><i class="bi bi-x-lg"></i></button>
       </div>
       <input type="hidden" id="edit-user-id" />
       <div class="form-group" style="margin-top:16px">
@@ -659,7 +663,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Detalhes do Recibo</h2>
-        <button class="modal-close" onclick="fecharModal('modal-detalhe')">✕</button>
+        <button class="modal-close" onclick="fecharModal('modal-detalhe')"><i class="bi bi-x-lg"></i></button>
       </div>
       <div id="modal-detalhe-body"></div>
     </div>
@@ -669,7 +673,7 @@
   <div id="toast">
     <span id="toast-msg" style="flex:1"></span>
     <button id="toast-btn-abrir" style="background:var(--gold);color:white;border:none;border-radius:5px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;display:none;white-space:nowrap">Abrir</button>
-    <button onclick="fecharToast()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">✕</button>
+    <button onclick="fecharToast()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0"><i class="bi bi-x-lg"></i></button>
   </div>
 
   <script src="libs/chart.min.js" defer></script>
