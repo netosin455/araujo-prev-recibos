@@ -53,4 +53,165 @@
 - Abas admin com `flex:1` para ocupar largura total no mobile
 - `topbar-badge` escondido em telas muito pequenas (economiza espaço)
 
+---
+
+## 2026-04-01 — Correção: carregamento infinito no celular
+
+**Problema relatado:** App travava carregando infinitamente no celular.  
+**Raciocínio:** O servidor respondia normalmente (200 OK em 0.5s), então não era problema de servidor. A causa era o `<link>` do Google Fonts sem `preload` — o navegador mobile bloqueava toda a renderização da página esperando as fontes carregarem. Em redes móveis lentas isso trava a tela indefinidamente.  
+**Arquivo alterado:** `web/public/index.html` — bloco de importação de fontes no `<head>`
+
+**O que foi feito:**
+- Adicionado `<link rel="preconnect">` para `fonts.googleapis.com` e `fonts.gstatic.com`
+- Fonte carregada com `rel="preload" as="style"` + `onload` — não bloqueia mais a renderização
+- Adicionado `<noscript>` fallback para navegadores sem JavaScript
+
+---
+
+## 2026-04-01 — Integração Google Sheets
+
+**Solicitado por:** Carlo  
+**Raciocínio:** Ao gerar um recibo, o sistema deve automaticamente registrar uma linha na planilha "Caixa Araújo Prev 2026". Usamos conta de serviço do Google Cloud (projeto sunny-advantage-468503-m4) para autenticação server-to-server, sem precisar de login manual.
+
+**Segurança:** Credenciais armazenadas como variável de ambiente `GOOGLE_CREDENTIALS` em base64 — nunca no código ou no repositório. O arquivo `.env` já estava no `.gitignore`.
+
+**Arquivos alterados:**
+- `web/server.js` — adicionado `getSheetsClient()`, `registrarNoSheets()` no topo, e chamada em `POST /api/recibos`
+- `web/package.json` — `googleapis` adicionado como dependência
+- `web/.env` — `GOOGLE_CREDENTIALS` adicionado (não vai para o GitHub)
+
+**Mapeamento de colunas (planilha → campo do recibo):**
+| Coluna da planilha | Campo usado |
+|---|---|
+| Carimbo de data/hora | data/hora atual |
+| Nome completo do cliente | dados.nome |
+| CPF do cliente | dados.cpf |
+| Valor pago | dados.valor |
+| Data do pagamento | data atual |
+| Data do depósito | data atual |
+| Forma de pagamento | vazio (não coletado no recibo) |
+| Motivo de pagamento | dados.complemento ou "Honorários Advocatícios" |
+| Escritório | dados.municipio_uf |
+| Observação | dados.referencia |
+| Anexo comprovante | vazio |
+| Mês | mês atual em português |
+
+**Pendente:** Configurar `GOOGLE_CREDENTIALS` no Elastic Beanstalk (AWS) para funcionar em produção.
+
+---
+
+## 2026-04-01 — Fix 502: googleapis faltando no deploy AWS
+
+**Problema:** 502 Bad Gateway após deploy da integração Google Sheets.  
+**Raciocínio:** O AWS Elastic Beanstalk roda `npm install` usando o `package.json` da **raiz** do repositório, não o `web/package.json`. O `googleapis` havia sido adicionado apenas no `web/package.json`, então não era instalado em produção e o servidor crashava ao iniciar.  
+**Arquivo alterado:** `package.json` (raiz) — adicionado `"googleapis": "^171.4.0"` nas dependências.
+
+---
+
+## 2026-04-01 — Novos campos: Forma de Pagamento e Escritório
+
+**Solicitado por:** Carlo  
+**Raciocínio:** A planilha "Caixa Araújo Prev 2026" tem colunas de Forma de Pagamento e Escritório que não eram coletadas no formulário. Sem esses campos, as colunas ficavam vazias na planilha.
+
+**Arquivos alterados:**
+- `web/public/index.html` — adicionados dois `<select>` no formulário de recibo: Forma de Pagamento e Escritório
+- `web/public/app.js` — coleta os novos campos em `gerarRecibo()`, envia para `/api/recibos`, limpa em `limparCampos()`, preenche em `editarRecibo()`
+- `web/server.js` — salva `forma_pagamento` e `escritorio` no NeDB; envia para `registrarNoSheets()` corretamente
+
+**Mapeamento corrigido:**
+- Coluna "Forma de pagamento" → `dados.forma_pagamento` (antes estava vazio)
+- Coluna "Escritório" → `dados.escritorio` (antes usava município do cliente — errado)
+
+**Escritórios disponíveis no select:**
+- Terra Rica - PR
+- Presidente Venceslau - SP
+- Paranavaí - PR
+
+---
+
+## 2026-04-01 — Escritório: select → input livre
+
+**Solicitado por:** Carlo  
+**Raciocínio:** Melhor deixar quem emite digitar o escritório livremente do que forçar uma lista fixa.  
+**Arquivo alterado:** `web/public/index.html` — campo `escritorio` trocado de `<select>` para `<input type="text">`.
+
+---
+
+## 2026-04-01 — Fix: campos novos incluídos no PUT (edição de recibo)
+
+**Raciocínio:** Ao conferir o mapeamento completo das colunas, notei que o `PUT /api/recibos/:id` não incluía `forma_pagamento` e `escritorio`. Ao editar um recibo existente, esses campos seriam apagados do banco.  
+**Arquivo alterado:** `web/server.js` — rota `PUT /api/recibos/:id` atualizada.
+
+---
+
+## 2026-04-01 — Segurança: arquivo JSON de credenciais deletado
+
+**Raciocínio:** O arquivo `sunny-advantage-468503-m4-7d996556c0ec.json` continha a chave privada da conta de serviço do Google. Após as credenciais serem convertidas para base64 e salvas no `.env`, o arquivo original em `Downloads/` não tinha mais utilidade e representava risco de segurança.  
+**Ação:** Arquivo deletado de `C:\Users\carlo\Downloads\`.
+
+---
+
+## 2026-04-01 — Fix: carregamento infinito no celular (scripts externos)
+
+**Problema:** App ainda travava carregando no celular mesmo após o fix das fontes.  
+**Raciocínio:** Havia 4 scripts externos carregando de forma bloqueante no final do HTML: Chart.js, xlsx, jsPDF e jspdf-autotable. Em redes móveis lentas, qualquer um travando impede a página de renderizar.  
+**Arquivo alterado:** `web/public/index.html` — adicionado `defer` nos 4 scripts externos e no `app.js`.
+
+---
+
+## 2026-04-01 — Fix definitivo carregamento mobile: libs locais
+
+**Problema:** App continuava carregando infinitamente no celular mesmo após fixes anteriores.  
+**Raciocínio:** As 4 bibliotecas JS (Chart.js, xlsx, jsPDF, autotable) eram carregadas do CDN jsdelivr.net. Em redes mobile brasileiras o CDN pode travar ou ter latência muito alta, impedindo a página de inicializar.  
+**Solução:** Baixadas as 4 libs e servidas localmente em `web/public/libs/`. Agora o app não depende de nenhum recurso externo para carregar — tudo vem do próprio servidor AWS.  
+**Arquivos alterados:**
+- `web/public/libs/chart.min.js` — criado
+- `web/public/libs/xlsx.min.js` — criado
+- `web/public/libs/jspdf.min.js` — criado
+- `web/public/libs/jspdf.autotable.min.js` — criado
+- `web/public/index.html` — scripts apontam para `libs/` em vez do CDN
+
+---
+
+## 2026-04-01 — Fix mobile: lazy load xlsx e jspdf
+
+**Problema:** Mesmo com libs locais, celular continuava travando.  
+**Raciocínio:** O payload inicial de JS era ~1.5MB — xlsx.min.js sozinho tem 861KB. Mobile com memória limitada e JS engine mais lento trava ao tentar parsear 1.5MB de JS na carga inicial.  
+**Solução:** xlsx e jspdf removidos do carregamento inicial. Criada função `carregarLib()` que injeta o script dinamicamente sob demanda. Cada função de exportação agora chama `garantirXLSX()` ou `garantirJSPDF()` antes de executar. Payload inicial: ~210KB (só chart.js + app.js).  
+**Arquivos alterados:**
+- `web/public/index.html` — removidos xlsx, jspdf e autotable do `<script>`
+- `web/public/app.js` — adicionadas `carregarLib()`, `garantirXLSX()`, `garantirJSPDF()`; todas as 7 funções de exportação convertidas para `async`
+
+---
+
+## 2026-04-01 — Fix mobile: redirecionamento HTTPS→HTTP
+
+**Problema:** Celular dava ERR_CONNECTION_TIMED_OUT — o browser mobile tenta HTTPS automaticamente mas o servidor só tem HTTP.  
+**Tentativa:** Solicitado certificado SSL no AWS Certificate Manager — falhou porque a AWS não emite certificados para subdomínios `.elasticbeanstalk.com` (domínio que ela mesma controla).  
+**Solução:** Adicionado middleware no Express que detecta requisições HTTPS (via header `x-forwarded-proto`) e redireciona para HTTP.  
+**Observação:** Solução definitiva seria ter um domínio próprio (ex: `araujo-prev.com.br`) para emitir certificado SSL real.  
+**Arquivo alterado:** `web/server.js` — middleware de redirecionamento HTTPS→HTTP adicionado antes do `express.static`.
+
+---
+
+## 2026-04-01 — Fix planilha: valor com R$, campo motivo de pagamento
+
+**Problema:** Registro na planilha chegava com valor sem `R$` e coluna "Motivo de pagamento" vazia.  
+**Raciocínio:** O valor era enviado cru (ex: `1.111,11`) sem prefixo. O motivo estava usando o campo `complemento` que é livre e muitas vezes vazio.  
+**Solução:**
+- Valor formatado como `R$ X` no `registrarNoSheets()`
+- Adicionado campo **Motivo de Pagamento** (select) no formulário com opções: Ação judicial, Ação administrativa, Honorários Advocatícios, Consultoria
+- Campo salvo no NeDB e enviado para coluna correta na planilha
+
+**Arquivos alterados:** `web/server.js`, `web/public/index.html`, `web/public/app.js`
+
+---
+
+## 2026-04-01 — Debug: endpoint para verificar cabeçalhos reais do Sheets
+
+**Problema:** Dados chegando nas colunas erradas da planilha — "Honorários Advocatícios" aparecia em "Alguma observação?" (shift de +2 colunas).  
+**Raciocínio:** O código envia os dados na ordem certa, mas o mapeamento pode estar errado porque a planilha é uma aba de respostas de formulário Google e pode ter colunas extras ou ordem diferente da assumida. Sem ver o cabeçalho real, impossível corrigir com certeza.  
+**Solução temporária:** Adicionado endpoint `GET /api/debug-sheets-headers` que lê a linha 1 da planilha e retorna o mapeamento coluna→cabeçalho. Após Carlo consultar o endpoint, corrigiremos o array `linha` no `registrarNoSheets()`.  
+**Arquivo alterado:** `web/server.js` — nova rota de debug adicionada antes de `// ── ROTAS RECIBOS`.
+
 _Próxima entrada será adicionada aqui quando houver nova alteração._

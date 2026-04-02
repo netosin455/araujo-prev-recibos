@@ -210,6 +210,22 @@ app.post("/api/login", async (req, res) => {
   res.json({ token, username: user.username, role: user.role || "financeiro" });
 });
 
+// ── DEBUG: lê cabeçalhos reais da planilha ─────────────────
+app.get("/api/debug-sheets-headers", auth, async (req, res) => {
+  const sheets = getSheetsClient();
+  if (!sheets) return res.status(500).json({ error: "GOOGLE_CREDENTIALS não configurado" });
+  try {
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!1:1`,
+    });
+    const headers = (r.data.values || [[]])[0];
+    res.json(headers.map((h, i) => ({ col: String.fromCharCode(65 + i), header: h })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── ROTAS RECIBOS ──────────────────────────────────────────
 app.get("/api/recibos", auth, async (req, res) => {
   const recibos = await find(dbRecibos, {}, { timestamp: -1 });
