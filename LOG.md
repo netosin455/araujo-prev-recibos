@@ -252,4 +252,16 @@
 
 **Arquivo alterado:** `web/server.js` — rota `POST /api/gerar-recibo`, bloco de montagem do documento.
 
+---
+
+## 2026-04-02 — Layout final do recibo aprovado
+
+**Layout definido:**
+- Logo no topo
+- Corpo do recibo
+- Assinatura do cliente centralizada (meio da página)
+- Assinatura do emissor no canto inferior esquerdo
+- Logo no rodapé
+- Espaçamento: 3600 após data, 600 após assinatura do cliente
+
 _Próxima entrada será adicionada aqui quando houver nova alteração._
