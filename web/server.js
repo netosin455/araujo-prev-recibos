@@ -321,11 +321,11 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
       p(textoCorpo, { align: AlignmentType.JUSTIFIED, spaceAfter: 60 }),
       p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
       linha(),
-      p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 400 }),
+      p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 3600 }),
       // Assinatura do cliente — centro
       p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 40 }),
       p(dados.nome, { align: AlignmentType.CENTER, size: 10, spaceAfter: 20 }),
-      p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: 200 }),
+      p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: 600 }),
       // Assinatura do emissor — esquerda
       p("________________________", { align: AlignmentType.LEFT, spaceAfter: 40 }),
       p(dados.emitido_por || "A ARAUJO PREV", { align: AlignmentType.LEFT, size: 10, spaceAfter: 0 }),
