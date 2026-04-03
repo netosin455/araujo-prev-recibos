@@ -540,6 +540,7 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">Responsável</div><div class="detail-value">${esc(r.emitido_por||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Referência</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
+    ${r.link_comprovante ? `<div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value"><a href="${esc(r.link_comprovante)}" target="_blank" class="btn-gold btn-sm" style="text-decoration:none"><i class="bi bi-paperclip"></i> Ver comprovante</a></div></div>` : ""}
     <div style="margin-top:20px;display:flex;gap:10px">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-primary" id="btn-reimprimir-modal">📄 Baixar .docx</button>
