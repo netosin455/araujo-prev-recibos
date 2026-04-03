@@ -219,6 +219,24 @@ function limparCampos(){
 
 function fecharModal(id){document.getElementById(id).classList.remove("active");}
 
+function abrirComprovante(link) {
+  const body = document.getElementById("modal-comprovante-body");
+  // Extrai o fileId do link do Drive e monta embed
+  const match = link.match(/\/d\/([^/]+)\//);
+  if (match) {
+    const fileId = match[1];
+    const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(link);
+    if (isImg) {
+      body.innerHTML = `<img src="https://drive.google.com/uc?id=${fileId}" style="max-width:100%;border-radius:8px" />`;
+    } else {
+      body.innerHTML = `<iframe src="https://drive.google.com/file/d/${fileId}/preview" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
+    }
+  } else {
+    body.innerHTML = `<iframe src="${link}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
+  }
+  document.getElementById("modal-comprovante").classList.add("active");
+}
+
 // ── FORMATAÇÃO ─────────────────────────────────────────────
 function formatarData(){
   const dia=String(document.getElementById("dia").value).padStart(2,"0");
@@ -540,7 +558,7 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">Responsável</div><div class="detail-value">${esc(r.emitido_por||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Referência</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
-    ${r.link_comprovante ? `<div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value"><a href="${esc(r.link_comprovante)}" target="_blank" class="btn-gold btn-sm" style="text-decoration:none"><i class="bi bi-paperclip"></i> Ver comprovante</a></div></div>` : ""}
+    ${r.link_comprovante ? `<div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value"><button class="btn-gold btn-sm" onclick="abrirComprovante('${esc(r.link_comprovante)}')"><i class="bi bi-paperclip"></i> Ver comprovante</button></div></div>` : ""}
     <div style="margin-top:20px;display:flex;gap:10px">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-primary" id="btn-reimprimir-modal">📄 Baixar .docx</button>
