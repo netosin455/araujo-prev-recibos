@@ -213,7 +213,7 @@ async function sincronizarDeSheets() {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const carimbo = row[0] || "";
-      const nome    = row[1] || "";
+      const nome    = (row[1] || "").replace(/\b\w/g, c => c.toUpperCase());
       const cpf     = row[2] || "";
       const valor   = (row[3] || "").replace(/R\$\s*/i, "").trim();
       const data    = row[4] || "";
@@ -241,6 +241,34 @@ async function sincronizarDeSheets() {
   }
 }
 sincronizarDeSheets();
+
+// Normaliza nomes e CPFs já existentes no banco
+async function normalizarDados() {
+  try {
+    const todos = await find(dbRecibos, {});
+    let corrigidos = 0;
+    for (const r of todos) {
+      const updates = {};
+      // Title Case no nome
+      const nomeNorm = (r.nome || "").replace(/\b\w/g, c => c.toUpperCase());
+      if (nomeNorm !== r.nome) updates.nome = nomeNorm;
+      // CPF: formata se vier sem máscara
+      const digits = (r.cpf || "").replace(/\D/g, "");
+      let cpfNorm = r.cpf;
+      if (digits.length === 11) cpfNorm = digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+      else if (digits.length === 14) cpfNorm = digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+      if (cpfNorm !== r.cpf) updates.cpf = cpfNorm;
+      if (Object.keys(updates).length > 0) {
+        await update(dbRecibos, { _id: r._id }, updates);
+        corrigidos++;
+      }
+    }
+    if (corrigidos > 0) console.log(`✅ ${corrigidos} registros normalizados (nome/CPF).`);
+  } catch (e) {
+    console.error("❌ Erro ao normalizar dados:", e.message);
+  }
+}
+normalizarDados();
 
 // ── MIDDLEWARE ─────────────────────────────────────────────
 app.use(express.json({ limit: "100kb" }));
@@ -354,7 +382,8 @@ app.get("/api/recibos", auth, async (req, res) => {
 });
 
 app.post("/api/recibos", auth, async (req, res) => {
-  const { num, nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
+  const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
+  const nome = (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
   registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
   res.json({ id: doc._id });
