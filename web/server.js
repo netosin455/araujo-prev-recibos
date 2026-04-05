@@ -27,7 +27,7 @@ const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
-const SHEET_ID = "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
+const SHEET_ID = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
 const SHEET_NAME = "Respostas ao formulário 1";
 const MESES = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
 
@@ -302,12 +302,12 @@ unificarNomesPorCPF();
 // ── MIDDLEWARE ─────────────────────────────────────────────
 app.use(express.json({ limit: "100kb" }));
 
-// Redireciona HTTPS → HTTP (o EB não tem certificado SSL próprio)
-app.use((req, res, next) => {
-  const proto = req.headers["x-forwarded-proto"];
-  if (proto === "https") return res.redirect(301, "http://" + req.headers.host + req.url);
-  next();
-});
+// Aceita HTTPS normalmente (não faz downgrade para HTTP)
+// Quando tiver domínio próprio + certificado SSL, descomentar para forçar HTTPS:
+// app.use((req, res, next) => {
+//   if (req.headers["x-forwarded-proto"] === "http") return res.redirect(301, "https://" + req.headers.host + req.url);
+//   next();
+// });
 
 app.use(express.static(path.join(__dirname, "public")));
 
