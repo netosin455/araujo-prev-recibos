@@ -613,17 +613,26 @@ function renderClientes(){
       </div>
       <div class="cliente-body">
         <table style="width:100%">
-          <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th></th></tr></thead>
+          <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th>Ações</th></tr></thead>
           <tbody>
-            ${c.recibos.map(r=>`
-              <tr>
+            ${c.recibos.map(r=>{
+              const rd=JSON.stringify(r).replace(/"/g,"&quot;");
+              return `<tr>
                 <td><span class="badge badge-gold">${esc(r.num)}</span></td>
                 <td>${esc(r.data)}</td>
                 <td style="color:var(--success);font-weight:700">R$ ${esc(r.valor)}</td>
                 <td>${esc(r.emitido_por||"-")}</td>
                 <td>${esc(r.referencia||"-")}</td>
-                <td><button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${JSON.stringify(r).replace(/"/g,"&quot;")})">📄</button></td>
-              </tr>`).join("")}
+                <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
+                  <button class="btn-secondary btn-sm" onclick="abrirDetalhe(${rd})">Detalhes</button>
+                  <button class="btn-gold btn-sm" onclick="abrirPDFRecibo(${rd})"><i class="bi bi-eye"></i> Ver</button>
+                  ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>`:""}
+                  ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" onclick="duplicarRecibo(${rd})">Duplicar</button>`:""}
+                  <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
+                  ${roleLogado!=="recepcao"?`<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id||r._id}')">🗑</button>`:""}
+                </td>
+              </tr>`;
+            }).join("")}
           </tbody>
         </table>
       </div>`;
@@ -637,6 +646,14 @@ function renderClientes(){
 
 function toggleCliente(header){
   header.nextElementSibling.classList.toggle("open");
+}
+
+async function excluirReciboById(id){
+  const recibo = historicoRecibos.find(r=>(r.id||r._id)===id);
+  if(!confirm(`Excluir recibo ${recibo?recibo.num:id}?`)) return;
+  await api("DELETE",`/api/recibos/${id}`);
+  await carregarRecibos();
+  renderClientes();
 }
 
 // ── DASHBOARD ──────────────────────────────────────────────
