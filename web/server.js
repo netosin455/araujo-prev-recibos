@@ -270,6 +270,35 @@ async function normalizarDados() {
 }
 normalizarDados();
 
+// Unifica nomes por CPF: todos os recibos do mesmo CPF ficam com o nome do registro mais antigo
+async function unificarNomesPorCPF() {
+  try {
+    const todos = await find(dbRecibos, {}, { timestamp: 1 });
+    const nomePorCPF = {};
+    // Pega o nome do registro mais antigo de cada CPF
+    for (const r of todos) {
+      const cpfKey = (r.cpf || "").replace(/\D/g, "");
+      if (!cpfKey) continue;
+      if (!nomePorCPF[cpfKey]) nomePorCPF[cpfKey] = r.nome;
+    }
+    // Corrige todos os registros que têm nome diferente do canonical
+    let corrigidos = 0;
+    for (const r of todos) {
+      const cpfKey = (r.cpf || "").replace(/\D/g, "");
+      if (!cpfKey) continue;
+      const nomeCanonical = nomePorCPF[cpfKey];
+      if (nomeCanonical && r.nome !== nomeCanonical) {
+        await update(dbRecibos, { _id: r._id }, { nome: nomeCanonical });
+        corrigidos++;
+      }
+    }
+    if (corrigidos > 0) console.log(`✅ ${corrigidos} registros com nome unificado por CPF.`);
+  } catch (e) {
+    console.error("❌ Erro ao unificar nomes por CPF:", e.message);
+  }
+}
+unificarNomesPorCPF();
+
 // ── MIDDLEWARE ─────────────────────────────────────────────
 app.use(express.json({ limit: "100kb" }));
 
@@ -383,7 +412,11 @@ app.get("/api/recibos", auth, async (req, res) => {
 
 app.post("/api/recibos", auth, async (req, res) => {
   const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
-  const nome = (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
+  // Se CPF já existe, usa o nome já cadastrado (CPF é identidade única do cliente)
+  const existente = await findOne(dbRecibos, { cpf });
+  const nome = existente
+    ? existente.nome
+    : (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
   registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
   res.json({ id: doc._id });
