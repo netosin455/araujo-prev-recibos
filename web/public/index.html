@@ -253,8 +253,8 @@
 
       /* Histórico */
       .recibo-item{flex-direction:column;align-items:flex-start;gap:10px}
-      .recibo-actions{flex-wrap:wrap;gap:6px;width:100%}
-      .recibo-actions button{flex:1;min-width:80px}
+      .recibo-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;width:100%}
+      .recibo-actions button{flex:unset;min-width:unset;font-size:12px;padding:8px 4px;min-height:40px}
 
       /* Botões de ação do formulário */
       .btn-group{flex-direction:column}
@@ -285,8 +285,12 @@
       #toast{bottom:16px;right:12px;left:12px;max-width:unset}
 
       /* Clientes */
-      .cliente-header{padding:14px}
-      .cliente-stats{flex-wrap:wrap;gap:8px}
+      .cliente-header{padding:12px 14px;flex-wrap:wrap;gap:8px}
+      .cliente-stats{flex-wrap:wrap;gap:4px}
+      .cliente-nome{font-size:14px}
+      .cliente-total{font-size:15px}
+      .cliente-header>div:last-child{width:100%;display:flex;justify-content:space-between;align-items:center}
+      .btn-gold[data-nome]{width:auto;min-width:120px}
     }
 
     /* Celulares pequenos (375px — iPhone SE, Galaxy S) */
