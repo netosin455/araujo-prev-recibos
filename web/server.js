@@ -90,18 +90,19 @@ async function registrarNoSheets(dados) {
     const carimbo = `${dataFormatada} ${horaFormatada}`;
 
     const linha = [
-      carimbo,                                          // Carimbo de data/hora
-      dados.nome || "",                                 // Nome completo do cliente
-      dados.cpf || "",                                  // CPF do cliente
-      dados.valor ? `R$ ${dados.valor}` : "",            // Valor pago
-      dataFormatada,                                    // Data do pagamento
-      dataFormatada,                                    // Data do depósito
-      dados.forma_pagamento || "",                      // Forma de pagamento
-      dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // Motivo de pagamento
-      dados.escritorio || "",                           // Escritório
-      "",                                               // Alguma observação (não usado)
-      dados.link_comprovante || "",                     // Anexo comprovante
-      mes,                                              // Mês
+      carimbo,                                          // A: Carimbo de data/hora
+      dados.nome || "",                                 // B: Nome completo do cliente
+      dados.cpf || "",                                  // C: CPF do cliente
+      dados.valor ? `R$ ${dados.valor}` : "",            // D: Valor pago
+      dataFormatada,                                    // E: Data do pagamento
+      dataFormatada,                                    // F: Data do depósito
+      dados.forma_pagamento || "",                      // G: Forma de pagamento
+      dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // H: Motivo de pagamento
+      dados.escritorio || "",                           // I: Escritório
+      "",                                               // J: Alguma observação (não usado)
+      dados.link_comprovante || "",                     // K: Anexo comprovante
+      mes,                                              // L: Mês
+      dados.num_recibo || "",                           // M: Número do recibo (backup para restauração)
     ];
 
     // Busca última linha com dado na coluna A (a partir da linha 4, pulando logo+cabeçalho)
@@ -114,7 +115,7 @@ async function registrarNoSheets(dados) {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A${nextRow}:L${nextRow}`,
+      range: `${SHEET_NAME}!A${nextRow}:M${nextRow}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [linha] },
     });
@@ -162,13 +163,84 @@ if (!ADMIN_USER || !ADMIN_PASS) {
 dbUsers.findOne({ username: ADMIN_USER }, (err, doc) => {
   const hash = bcrypt.hashSync(ADMIN_PASS, 10);
   if (!doc) {
-    dbUsers.insert({ username: ADMIN_USER, password: hash, created_at: new Date().toISOString() });
+    dbUsers.insert({ username: ADMIN_USER, password: hash, role: "admin", created_at: new Date().toISOString() });
     console.log("✅ Usuário admin criado.");
   } else {
-    dbUsers.update({ username: ADMIN_USER }, { $set: { password: hash } }, {});
+    dbUsers.update({ username: ADMIN_USER }, { $set: { password: hash, role: "admin" } }, {});
     console.log("✅ Senha do admin atualizada.");
   }
 });
+
+// Usuários extras via variável de ambiente USERS_JSON (base64 de JSON array)
+// Formato: [{"username":"financeiro","password":"senha","role":"financeiro"}, ...]
+// Para gerar: btoa(JSON.stringify([...])) no console do navegador
+const USERS_JSON = process.env.USERS_JSON;
+if (USERS_JSON) {
+  try {
+    const extraUsers = JSON.parse(Buffer.from(USERS_JSON, "base64").toString("utf8"));
+    for (const u of extraUsers) {
+      if (!u.username || !u.password) continue;
+      const hash = bcrypt.hashSync(u.password, 10);
+      dbUsers.findOne({ username: u.username }, (err, doc) => {
+        if (!doc) {
+          dbUsers.insert({ username: u.username, password: hash, role: u.role || "financeiro", created_at: new Date().toISOString() });
+          console.log(`✅ Usuário ${u.username} criado.`);
+        } else {
+          dbUsers.update({ username: u.username }, { $set: { password: hash, role: u.role || "financeiro" } }, {});
+          console.log(`✅ Usuário ${u.username} atualizado.`);
+        }
+      });
+    }
+  } catch (e) {
+    console.error("❌ Erro ao processar USERS_JSON:", e.message);
+  }
+}
+
+// Sincroniza recibos da planilha se o banco estiver vazio (restauração após troca de servidor)
+async function sincronizarDeSheets() {
+  try {
+    const total = await count(dbRecibos, {});
+    if (total > 0) return;
+    const sheets = getSheetsClient();
+    if (!sheets) return;
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A4:M`,
+    });
+    const rows = res.data.values || [];
+    if (rows.length === 0) return;
+    let importados = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const carimbo = row[0] || "";
+      const nome    = row[1] || "";
+      const cpf     = row[2] || "";
+      const valor   = (row[3] || "").replace(/R\$\s*/i, "").trim();
+      const data    = row[4] || "";
+      const forma_pagamento  = row[6] || "";
+      const motivo_pagamento = row[7] || "";
+      const escritorio       = row[8] || "";
+      const link_comprovante = row[10] || "";
+      const num = row[12] || `${String(i + 1).padStart(4, "0")}/${(data.split("/")[2] || String(new Date().getFullYear()))}`;
+      // Converte carimbo "DD/MM/YYYY HH:MM:SS" em timestamp
+      let timestamp = Date.now() - (rows.length - i) * 1000;
+      if (carimbo) {
+        const [datePart, timePart] = carimbo.split(" ");
+        const [d, m, y] = (datePart || "").split("/");
+        if (y && m && d) {
+          const t = new Date(`${y}-${m}-${d}T${timePart || "00:00:00"}`).getTime();
+          if (!isNaN(t)) timestamp = t;
+        }
+      }
+      await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por: "", complemento: "", referencia: "", forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
+      importados++;
+    }
+    console.log(`✅ ${importados} recibos restaurados da planilha Google Sheets.`);
+  } catch (e) {
+    console.error("❌ Erro ao sincronizar recibos da planilha:", e.message);
+  }
+}
+sincronizarDeSheets();
 
 // ── MIDDLEWARE ─────────────────────────────────────────────
 app.use(express.json({ limit: "100kb" }));

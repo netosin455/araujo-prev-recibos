@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-04-05
+
+### Proteção contra perda de dados após troca de servidor (AWS)
+**Problema:** Quando o Elastic Beanstalk substitui a instância EC2 (health check, scaling, update de plataforma), os arquivos NeDB são apagados. Deploys normais de código não causam isso, mas eventos de infraestrutura sim.  
+**Solução implementada em `web/server.js`:**
+
+1. **Usuários persistentes via `USERS_JSON`:** Todos os usuários não-admin podem ser definidos como variável de ambiente no EB. A cada startup, o servidor garante que existam. Formato: array JSON base64 com `[{username, password, role}]`.
+
+2. **Restauração automática de recibos da planilha:** Função `sincronizarDeSheets()` executada no startup. Se `recibos.db` estiver vazio, importa todos os registros do Google Sheets automaticamente. O número do recibo agora também é gravado na coluna M da planilha (antes só salvava até L).
+
+**Próximo passo obrigatório:** Adicionar `USERS_JSON` no Elastic Beanstalk com os usuários existentes.
+
+---
+
 ## 2026-04-01
 
 ### Levantamento inicial de features
