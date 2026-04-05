@@ -274,6 +274,12 @@
       .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
       table{font-size:12px;min-width:500px}
       th,td{padding:10px 12px;white-space:nowrap}
+      /* Tabela dentro do card cliente não deve ter min-width */
+      .cliente-body table{min-width:unset;width:100%}
+      .cliente-body th,.cliente-body td{padding:8px 6px;font-size:11px;white-space:normal}
+      /* Botão X dos filtros fica inline com os inputs de data */
+      .search-wrap>div{flex-wrap:nowrap !important}
+      #filtro-data-ini,#filtro-data-fim{width:100% !important;flex:1}
 
       /* Modal desliza de baixo — mais natural no mobile */
       .modal{align-items:flex-end}
