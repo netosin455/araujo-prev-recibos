@@ -15,7 +15,19 @@
 
 2. **Restauração automática de recibos da planilha:** Função `sincronizarDeSheets()` executada no startup. Se `recibos.db` estiver vazio, importa todos os registros do Google Sheets automaticamente. O número do recibo agora também é gravado na coluna M da planilha (antes só salvava até L).
 
-**Próximo passo obrigatório:** Adicionar `USERS_JSON` no Elastic Beanstalk com os usuários existentes.
+**Próximo passo obrigatório:** Adicionar `USERS_JSON` no Elastic Beanstalk com os usuários existentes. ✅ Feito pelo Carlo no painel AWS.
+
+### Normalização de nomes e CPFs no banco
+**Problema:** Nomes vindos da planilha em caixa alta (ex: `ALESSANDRA RODRIGUES`) criavam visual inconsistente com nomes em Title Case.  
+**Solução:** Função `normalizarDados()` no startup converte todos os nomes para Title Case e formata CPFs com máscara. Novos recibos já entram normalizados.
+
+### CPF como identidade única do cliente
+**Problema:** Mesmo cliente com nome digitado diferente (ex: `Ivanilde Maria De Souza Rodrigues` vs `Ivanilde Maria Souza Rodrigues`) gerava perfis separados na aba Clientes.  
+**Solução:** Ao salvar novo recibo, se o CPF já existe no banco, usa o nome do registro mais antigo. Função `unificarNomesPorCPF()` no startup corrige todos os registros existentes.
+
+### Ações na aba Clientes
+**Problema:** Ao expandir um cliente, só havia botão de reimprimir — sem Detalhes, Editar, Duplicar, Excluir.  
+**Solução:** Tabela de recibos na aba Clientes agora tem as mesmas ações do Histórico, respeitando o role: recepção vê Detalhes/Ver/Baixar; financeiro/admin vê tudo incluindo Editar/Duplicar/Excluir.
 
 ---
 
