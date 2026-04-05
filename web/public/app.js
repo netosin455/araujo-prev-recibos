@@ -143,6 +143,10 @@ function navegarPara(tela){
   document.getElementById("screen-"+tela)?.classList.add("active");
   const idx=["gerar","historico","clientes","admin"].indexOf(tela);
   if(idx>=0) document.querySelectorAll(".nav-item")[idx]?.classList.add("active");
+  // Atualiza bottom nav mobile
+  document.querySelectorAll(".bn-item").forEach(n=>n.classList.remove("active"));
+  const bn=document.getElementById("bn-"+tela);
+  if(bn) bn.classList.add("active");
   document.getElementById("topbar-title").textContent=titulos[tela]||tela;
   if(tela==="historico") renderHistorico();
   if(tela==="clientes") renderClientes();
