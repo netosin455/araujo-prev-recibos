@@ -77,7 +77,10 @@ async function iniciarApp(){
   aplicarTema(localStorage.getItem("tema")||"light");
   // Mostra menu de usuários só para admin
   const res = await api("GET", "/api/users");
-  if(res && res.ok) document.getElementById("nav-usuarios").style.display = "";
+  if(res && res.ok) {
+    document.getElementById("nav-usuarios").style.display = "";
+    document.getElementById("bn-usuarios").style.display = "";
+  }
   // Esconde ações de edição para recepção
   if(roleLogado === "recepcao"){
     document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
