@@ -642,6 +642,131 @@ app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── GOV.BR — ASSINATURA DIGITAL ────────────────────────────
+// Credenciais fornecidas pelo Gov.br após cadastro em:
+// https://www.gov.br/governodigital/pt-br/privacidade-e-seguranca/login-unico
+//
+// Variáveis de ambiente necessárias no Elastic Beanstalk:
+//   GOVBR_CLIENT_ID     → client_id recebido do Gov.br
+//   GOVBR_CLIENT_SECRET → client_secret recebido do Gov.br
+//   GOVBR_REDIRECT_URI  → URL de callback (ex: http://seu-dominio/api/govbr/callback)
+//
+// Ambientes:
+//   Homologação: https://sso.staging.acesso.gov.br
+//   Produção:    https://sso.acesso.gov.br
+
+const GOVBR_CLIENT_ID     = process.env.GOVBR_CLIENT_ID     || "";
+const GOVBR_CLIENT_SECRET = process.env.GOVBR_CLIENT_SECRET || "";
+const GOVBR_REDIRECT_URI  = process.env.GOVBR_REDIRECT_URI  || "";
+const GOVBR_BASE_URL      = process.env.GOVBR_ENV === "producao"
+  ? "https://sso.acesso.gov.br"
+  : "https://sso.staging.acesso.gov.br";
+
+// Verifica se Gov.br está configurado
+function govbrConfigurado() {
+  return !!(GOVBR_CLIENT_ID && GOVBR_CLIENT_SECRET && GOVBR_REDIRECT_URI);
+}
+
+// Gera state aleatório para segurança OAuth2
+function gerarState() {
+  return require("crypto").randomBytes(16).toString("hex");
+}
+
+// Armazena states temporários (expira em 10 min)
+const govbrStates = new Map();
+
+// PASSO 1 — Inicia fluxo OAuth2: retorna URL de redirecionamento para o Gov.br
+app.get("/api/govbr/iniciar", auth, (req, res) => {
+  if (!govbrConfigurado()) {
+    return res.status(503).json({ erro: "Integração Gov.br não configurada. Aguardando credenciais." });
+  }
+  const { recibo_id } = req.query;
+  if (!recibo_id) return res.status(400).json({ erro: "recibo_id obrigatório" });
+
+  const state = gerarState();
+  govbrStates.set(state, { recibo_id, user: req.user.username, expires: Date.now() + 10 * 60 * 1000 });
+
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: GOVBR_CLIENT_ID,
+    scope: "openid email profile govbr_empresa govbr_confiabilidades",
+    redirect_uri: GOVBR_REDIRECT_URI,
+    state,
+    nonce: gerarState(),
+  });
+
+  res.json({ url: `${GOVBR_BASE_URL}/authorize?${params.toString()}` });
+});
+
+// PASSO 2 — Callback: Gov.br redireciona aqui após o cliente autenticar
+app.get("/api/govbr/callback", async (req, res) => {
+  const { code, state, error } = req.query;
+
+  if (error) {
+    return res.redirect(`/?govbr_erro=${encodeURIComponent(error)}`);
+  }
+
+  const stateData = govbrStates.get(state);
+  if (!stateData || Date.now() > stateData.expires) {
+    return res.redirect("/?govbr_erro=state_invalido");
+  }
+  govbrStates.delete(state);
+
+  try {
+    // Troca code por token
+    const tokenRes = await fetch(`${GOVBR_BASE_URL}/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: GOVBR_REDIRECT_URI,
+        client_id: GOVBR_CLIENT_ID,
+        client_secret: GOVBR_CLIENT_SECRET,
+      }),
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) throw new Error("Token não recebido");
+
+    // Busca dados do usuário (nome, CPF)
+    const userRes = await fetch(`${GOVBR_BASE_URL}/userinfo`, {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const userInfo = await userRes.json();
+
+    // Salva assinatura no recibo
+    const agora = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const assinatura = {
+      cpf_assinante: userInfo.sub || "",
+      nome_assinante: userInfo.name || "",
+      email_assinante: userInfo.email || "",
+      nivel_confiabilidade: userInfo.amr ? userInfo.amr.join(",") : "",
+      assinado_em: agora.toLocaleString("pt-BR"),
+      metodo: "govbr",
+    };
+
+    await update(dbRecibos, { _id: stateData.recibo_id }, { assinatura_govbr: assinatura });
+    console.log(`✅ Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante}`);
+
+    // Redireciona de volta para o app com sucesso
+    res.redirect(`/?govbr_ok=1&recibo_id=${stateData.recibo_id}`);
+  } catch (e) {
+    console.error("❌ Erro no callback Gov.br:", e.message);
+    res.redirect(`/?govbr_erro=${encodeURIComponent(e.message)}`);
+  }
+});
+
+// PASSO 3 — Retorna status da assinatura de um recibo
+app.get("/api/govbr/status/:id", auth, async (req, res) => {
+  const recibo = await findOne(dbRecibos, { _id: req.params.id });
+  if (!recibo) return res.status(404).json({ erro: "Recibo não encontrado" });
+  res.json({
+    assinado: !!recibo.assinatura_govbr,
+    assinatura: recibo.assinatura_govbr || null,
+    configurado: govbrConfigurado(),
+  });
+});
+
 // ── INICIAR ────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`✅ Araujo Prev rodando em http://localhost:${PORT}`);

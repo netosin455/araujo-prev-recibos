@@ -728,6 +728,25 @@
     </div>
   </div>
 
+  <!-- Modal Gov.br assinatura -->
+  <div id="modal-govbr" class="modal">
+    <div class="modal-content" style="max-width:420px;text-align:center">
+      <div class="modal-header">
+        <h2>Assinatura Digital Gov.br</h2>
+        <button class="modal-close" onclick="fecharModal('modal-govbr')"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div id="modal-govbr-body" style="padding:16px 0">
+        <img src="https://www.gov.br/++theme++padrao_govbr/img/govbr-colorido-b.png" alt="Gov.br" style="height:40px;margin-bottom:20px" onerror="this.style.display='none'" />
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px">O cliente será redirecionado para o Gov.br para autenticar e assinar o recibo digitalmente.</p>
+        <div id="govbr-status-box" style="display:none;background:#edf7f2;border:1px solid #c0e0d0;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--success);text-align:left"></div>
+        <button class="btn-gold" id="btn-govbr-assinar" onclick="iniciarAssinaturaGovBr()" style="width:100%;font-size:14px;padding:14px">
+          <i class="bi bi-shield-check"></i> Assinar com Gov.br
+        </button>
+        <p style="font-size:10px;color:var(--muted);margin-top:12px">Requer conta Gov.br nível prata ou ouro</p>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal comprovante -->
   <div id="modal-comprovante" class="modal">
     <div class="modal-content" style="max-width:800px;width:95%">

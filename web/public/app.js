@@ -603,14 +603,82 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Referência</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
     ${r.link_comprovante ? `<div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value"><button class="btn-gold btn-sm" onclick="abrirComprovante('${esc(r.link_comprovante)}')"><i class="bi bi-paperclip"></i> Ver comprovante</button></div></div>` : ""}
-    <div style="margin-top:20px;display:flex;gap:10px">
+    ${r.assinatura_govbr ? `<div class="detail-row"><div class="detail-label">Assinatura</div><div class="detail-value" style="color:var(--success)"><i class="bi bi-shield-check"></i> Assinado por ${esc(r.assinatura_govbr.nome_assinante)} em ${esc(r.assinatura_govbr.assinado_em)}</div></div>` : ""}
+    <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-primary" id="btn-reimprimir-modal">📄 Baixar .docx</button>
+      ${!r.assinatura_govbr ? `<button class="btn-success" id="btn-assinar-modal" style="display:none"><i class="bi bi-shield-check"></i> Assinar Gov.br</button>` : ""}
     </div>`;
   document.getElementById("btn-ver-modal").onclick=()=>{ abrirPDFRecibo(r); fecharModal("modal-detalhe"); };
   document.getElementById("btn-reimprimir-modal").onclick=()=>{ reimprimirRecibo(r); fecharModal("modal-detalhe"); };
+  // Botão de assinatura Gov.br — só aparece no mobile/app
+  const btnAssinar = document.getElementById("btn-assinar-modal");
+  if(btnAssinar){
+    if(window.innerWidth <= 768) btnAssinar.style.display = "";
+    btnAssinar.onclick = () => abrirModalGovBr(r);
+  }
   document.getElementById("modal-detalhe").classList.add("active");
 }
+
+// ── GOV.BR ─────────────────────────────────────────────────
+let reciboParaAssinar = null;
+
+async function abrirModalGovBr(r){
+  reciboParaAssinar = r;
+  const statusBox = document.getElementById("govbr-status-box");
+  const btnAssinar = document.getElementById("btn-govbr-assinar");
+  statusBox.style.display = "none";
+  btnAssinar.disabled = false;
+  btnAssinar.textContent = "";
+  btnAssinar.innerHTML = '<i class="bi bi-shield-check"></i> Assinar com Gov.br';
+  // Verifica status atual
+  const res = await api("GET", `/api/govbr/status/${r.id||r._id}`);
+  if(res && res.ok){
+    const data = await res.json();
+    if(data.assinado){
+      statusBox.style.display = "block";
+      statusBox.innerHTML = `<i class="bi bi-shield-fill-check"></i> <strong>Já assinado!</strong><br>Por: ${esc(data.assinatura.nome_assinante)}<br>Em: ${esc(data.assinatura.assinado_em)}`;
+      btnAssinar.disabled = true;
+    }
+    if(!data.configurado){
+      btnAssinar.disabled = true;
+      btnAssinar.innerHTML = '<i class="bi bi-shield-x"></i> Gov.br não configurado ainda';
+    }
+  }
+  fecharModal("modal-detalhe");
+  document.getElementById("modal-govbr").classList.add("active");
+}
+
+async function iniciarAssinaturaGovBr(){
+  if(!reciboParaAssinar) return;
+  const btn = document.getElementById("btn-govbr-assinar");
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Aguarde...';
+  const res = await api("GET", `/api/govbr/iniciar?recibo_id=${reciboParaAssinar.id||reciboParaAssinar._id}`);
+  if(!res || !res.ok){
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-shield-check"></i> Assinar com Gov.br';
+    mostrarToast("Erro ao iniciar assinatura. Gov.br pode não estar configurado.");
+    return;
+  }
+  const { url } = await res.json();
+  // Abre Gov.br no navegador
+  window.location.href = url;
+}
+
+// Verifica retorno do Gov.br após callback
+(function verificarRetornoGovBr(){
+  const params = new URLSearchParams(window.location.search);
+  if(params.get("govbr_ok")){
+    mostrarToast("Recibo assinado com sucesso via Gov.br!");
+    history.replaceState({}, "", "/");
+    carregarRecibos();
+  }
+  if(params.get("govbr_erro")){
+    mostrarToast("Erro na assinatura Gov.br: " + params.get("govbr_erro"));
+    history.replaceState({}, "", "/");
+  }
+})();
 
 // ── CLIENTES ───────────────────────────────────────────────
 function renderClientes(){
