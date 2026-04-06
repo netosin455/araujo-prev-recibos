@@ -396,6 +396,10 @@ async function gerarRecibo(){
   const {num}=await numRes.json();
   dados.num_recibo=num;
 
+  // Formato escolhido
+  const formatoSel = document.querySelector('input[name="formato"]:checked');
+  dados.formato = formatoSel ? formatoSel.value : "docx";
+
   // Gerar documento
   const res=await api("POST","/api/gerar-recibo",dados);
   if(!res||!res.ok){
@@ -409,7 +413,8 @@ async function gerarRecibo(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
   a.href=url;
-  a.download=`recibo_${num.replace("/","-")}_${dados.nome.replace(/\s+/g,"_").toLowerCase()}.docx`;
+  const ext = dados.formato === "pdf" ? "pdf" : "docx";
+  a.download=`recibo_${num.replace("/","-")}_${dados.nome.replace(/\s+/g,"_").toLowerCase()}.${ext}`;
   a.click();
   URL.revokeObjectURL(url);
 

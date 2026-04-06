@@ -22,6 +22,7 @@ const jwt = require("jsonwebtoken");
 const path = require("path");
 const fs = require("fs");
 const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderStyle, Table, TableRow, TableCell, WidthType } = require("docx");
+const PDFDocument = require("pdfkit");
 const { google } = require("googleapis");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -598,12 +599,73 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
       sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children }],
     });
 
-    const buf = await Packer.toBuffer(doc);
-    const nomeArquivo = `recibo_${dados.num_recibo.replace(/[\/\\]/g, "-")}_${dados.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").toLowerCase()}.docx`;
+    const nomeBase = `recibo_${dados.num_recibo.replace(/[\/\\]/g, "-")}_${dados.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").toLowerCase()}`;
 
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    res.setHeader("Content-Disposition", `attachment; filename="${nomeArquivo}"`);
-    res.send(buf);
+    if (dados.formato === "pdf") {
+      // ── Gerar PDF ──
+      const chunks = [];
+      const pdf = new PDFDocument({ margin: 60, size: "A4" });
+      pdf.on("data", c => chunks.push(c));
+      await new Promise((resolve, reject) => {
+        pdf.on("end", resolve);
+        pdf.on("error", reject);
+
+        // Logo
+        if (logoExists) {
+          pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
+        }
+
+        pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
+          .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
+        pdf.fontSize(12).fillColor("#000000")
+          .text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
+
+        // Linha separadora
+        const lx = pdf.page.margins.left;
+        const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
+        pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
+
+        pdf.fontSize(12).font("Helvetica-Bold")
+          .text(`Recibo Nº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
+        pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
+
+        pdf.fontSize(11).font("Helvetica")
+          .text(textoCorpo, { align: "justify" }).moveDown(0.6);
+        pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
+
+        pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
+
+        pdf.text(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: "left" }).moveDown(6);
+
+        // Assinatura cliente — centro
+        const cx = pdf.page.width / 2;
+        pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
+        pdf.fontSize(10).text(dados.nome, { align: "center" }).moveDown(0.1);
+        pdf.fontSize(9).text(`${labelDoc}: ${dados.cpf}`, { align: "center" }).moveDown(5);
+
+        // Assinatura emissor — esquerda
+        pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
+        pdf.fontSize(10).text(dados.emitido_por || "A ARAUJO PREV", { align: "left" });
+
+        // Logo rodapé
+        if (logoExists) {
+          pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
+        }
+
+        pdf.end();
+      });
+
+      const pdfBuf = Buffer.concat(chunks);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.pdf"`);
+      res.send(pdfBuf);
+    } else {
+      // ── Gerar DOCX (padrão) ──
+      const buf = await Packer.toBuffer(doc);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.docx"`);
+      res.send(buf);
+    }
   } catch (e) {
     console.error("Erro ao gerar recibo:", e.message);
     res.status(500).json({ erro: "Erro ao gerar documento." });
