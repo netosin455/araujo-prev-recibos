@@ -335,11 +335,31 @@ async function gerarRecibo(){
 
   // Modo edição
   if(modoEdicao && idEdicao){
-    const res=await api("PUT",`/api/recibos/${idEdicao}`,{
+    // Upload comprovante se selecionado
+    let link_comprovante_edicao = "";
+    const compInputEdicao = document.getElementById("comprovante");
+    if(compInputEdicao && compInputEdicao.files[0]){
+      const compStatus = document.getElementById("comprovante-status");
+      if(compStatus) compStatus.textContent = "Enviando comprovante...";
+      const fd = new FormData();
+      fd.append("comprovante", compInputEdicao.files[0]);
+      const token = localStorage.getItem("token");
+      try {
+        const r = await fetch("/api/upload-comprovante", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:fd });
+        const j = await r.json();
+        if(j.link){ link_comprovante_edicao = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
+        else { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; }
+      } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; }
+    }
+    const bodyEdicao = {
       nome:dados.nome,cpf:dados.cpf,municipio_uf:dados.municipio_uf,
       valor:dados.valor,data:dados.data,emitido_por:dados.emitido_por,
-      complemento:dados.complemento,referencia:dados.referencia
-    });
+      complemento:dados.complemento,referencia:dados.referencia,
+      forma_pagamento:dados.forma_pagamento,escritorio:dados.escritorio,
+      motivo_pagamento:dados.motivo_pagamento
+    };
+    if(link_comprovante_edicao) bodyEdicao.link_comprovante = link_comprovante_edicao;
+    const res=await api("PUT",`/api/recibos/${idEdicao}`, bodyEdicao);
     if(res&&res.ok){
       await carregarRecibos();
       atualizarSugestoesNomes();

@@ -455,8 +455,10 @@ app.post("/api/recibos", auth, async (req, res) => {
 });
 
 app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
-  const { nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento } = req.body;
-  await update(dbRecibos, { _id: req.params.id }, { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"" });
+  const { nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante } = req.body;
+  const upd = { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"" };
+  if (link_comprovante) upd.link_comprovante = link_comprovante;
+  await update(dbRecibos, { _id: req.params.id }, upd);
   res.json({ ok: true });
 });
 
