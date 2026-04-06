@@ -221,10 +221,27 @@ function limparCampos(){
   if(comp) comp.value="";
   const compStatus = document.getElementById("comprovante-status");
   if(compStatus) compStatus.textContent="";
+  // Reseta label do comprovante
+  const label = document.getElementById("comprovante-label");
+  const labelText = document.getElementById("comprovante-label-text");
+  if(label) label.classList.remove("has-file");
+  if(labelText) labelText.textContent = "Escolher arquivo (imagem ou PDF)";
   setStatus("","");
 }
 
 function fecharModal(id){document.getElementById(id).classList.remove("active");}
+
+function atualizarLabelComprovante(input){
+  const label = document.getElementById("comprovante-label");
+  const labelText = document.getElementById("comprovante-label-text");
+  if(input.files[0]){
+    label.classList.add("has-file");
+    labelText.textContent = input.files[0].name;
+  } else {
+    label.classList.remove("has-file");
+    labelText.textContent = "Escolher arquivo (imagem ou PDF)";
+  }
+}
 
 function abrirComprovante(link) {
   const body = document.getElementById("modal-comprovante-body");

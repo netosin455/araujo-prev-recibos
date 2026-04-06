@@ -202,6 +202,14 @@
     [data-theme="dark"] .table-wrap{background:#1a1a1a;border-color:var(--border)}
     [data-theme="dark"] td{color:var(--dark)}
 
+    /* ── COMPROVANTE UPLOAD ── */
+    .comprovante-label{display:flex;align-items:center;gap:10px;padding:12px 16px;border:2px dashed var(--border);border-radius:8px;cursor:pointer;font-size:13px;color:var(--mid);transition:all 0.2s;background:var(--bg);font-weight:500}
+    .comprovante-label:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-pale)}
+    .comprovante-label.has-file{border-color:var(--success);color:var(--success);background:#edf7f2;border-style:solid}
+    .comprovante-label i{font-size:18px}
+    [data-theme="dark"] .comprovante-label{background:#252525;border-color:#444}
+    [data-theme="dark"] .comprovante-label.has-file{background:#1a2e22}
+
     /* ── TOAST ── */
     #toast{position:fixed;bottom:28px;right:28px;z-index:9999;background:#1a1a1a;color:white;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 30px rgba(0,0,0,0.35);max-width:360px;transform:translateY(calc(100% + 60px));transition:transform 0.3s cubic-bezier(.4,0,.2,1);font-size:13px;border:1px solid rgba(184,151,58,0.3)}
     #toast.show{transform:translateY(0)}
@@ -497,7 +505,10 @@
           </div>
           <div class="form-group">
             <label>Comprovante de depósito <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
-            <input id="comprovante" type="file" accept="image/*,application/pdf" />
+            <label for="comprovante" class="comprovante-label" id="comprovante-label">
+              <i class="bi bi-upload"></i> <span id="comprovante-label-text">Escolher arquivo (imagem ou PDF)</span>
+            </label>
+            <input id="comprovante" type="file" accept="image/*,application/pdf" style="display:none" onchange="atualizarLabelComprovante(this)" />
             <div id="comprovante-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
           </div>
           <div class="btn-group">
