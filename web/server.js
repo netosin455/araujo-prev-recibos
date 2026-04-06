@@ -242,6 +242,38 @@ async function sincronizarDeSheets() {
 }
 sincronizarDeSheets();
 
+// Sincroniza links de comprovante da planilha para recibos existentes no banco
+async function sincronizarComprovantes() {
+  try {
+    const sheets = getSheetsClient();
+    if (!sheets) return;
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A4:M`,
+    });
+    const rows = res.data.values || [];
+    let atualizados = 0;
+    for (const row of rows) {
+      const link = row[10] || "";
+      if (!link) continue;
+      const num = row[12] || "";
+      const cpf = row[2] || "";
+      // Tenta achar pelo número do recibo, senão pelo CPF + data
+      let recibo = null;
+      if (num) recibo = await findOne(dbRecibos, { num });
+      if (!recibo && cpf) recibo = await findOne(dbRecibos, { cpf, data: row[4] || "" });
+      if (!recibo) continue;
+      if (recibo.link_comprovante === link) continue;
+      await update(dbRecibos, { _id: recibo._id }, { link_comprovante: link });
+      atualizados++;
+    }
+    if (atualizados > 0) console.log(`✅ ${atualizados} comprovantes sincronizados da planilha.`);
+  } catch (e) {
+    console.error("❌ Erro ao sincronizar comprovantes:", e.message);
+  }
+}
+sincronizarComprovantes();
+
 // Normaliza nomes e CPFs já existentes no banco
 async function normalizarDados() {
   try {
