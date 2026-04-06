@@ -125,6 +125,48 @@ async function registrarNoSheets(dados) {
   }
 }
 
+async function atualizarNoSheets(num, dados) {
+  const sheets = getSheetsClient();
+  if (!sheets) return;
+  try {
+    // Busca a linha pelo número do recibo na coluna M
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!M4:M`,
+    });
+    const rows = res.data.values || [];
+    const idx = rows.findIndex(r => r[0] === num);
+    if (idx === -1) return; // recibo não encontrado na planilha
+    const rowNum = 4 + idx;
+    const mes = MESES[new Date().getMonth()];
+    const linha = [
+      undefined,                                           // A: carimbo (não atualiza)
+      dados.nome || "",                                    // B: Nome
+      dados.cpf || "",                                     // C: CPF
+      dados.valor ? `R$ ${dados.valor}` : "",              // D: Valor
+      dados.data || "",                                    // E: Data pagamento
+      dados.data || "",                                    // F: Data depósito
+      dados.forma_pagamento || "",                         // G: Forma pagamento
+      dados.motivo_pagamento || dados.complemento || "",   // H: Motivo
+      dados.escritorio || "",                              // I: Escritório
+      "",                                                  // J: Observação
+      dados.link_comprovante || "",                        // K: Comprovante
+      mes,                                                 // L: Mês
+      num,                                                 // M: Número recibo
+    ];
+    // Atualiza apenas colunas B-M (não mexe no carimbo)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!B${rowNum}:M${rowNum}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [linha.slice(1)] },
+    });
+    console.log(`✅ Recibo ${num} atualizado no Google Sheets`);
+  } catch (e) {
+    console.error("❌ Erro ao atualizar no Google Sheets:", e.message);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -459,6 +501,11 @@ app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
   const upd = { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"" };
   if (link_comprovante) upd.link_comprovante = link_comprovante;
   await update(dbRecibos, { _id: req.params.id }, upd);
+  // Atualiza também na planilha
+  const recibo = await findOne(dbRecibos, { _id: req.params.id });
+  if (recibo && recibo.num) {
+    atualizarNoSheets(recibo.num, { ...upd, link_comprovante: upd.link_comprovante || recibo.link_comprovante });
+  }
   res.json({ ok: true });
 });
 

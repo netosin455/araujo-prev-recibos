@@ -324,7 +324,7 @@ function duplicarRecibo(r){
 
 // ── GERAR RECIBO ───────────────────────────────────────────
 async function gerarRecibo(){
-  const campos=["nome","cpf","municipio_uf","valor","emitido_por"];
+  const campos=["nome","cpf","municipio_uf","valor","emitido_por","escritorio"];
   const dados={};
   for(const c of campos){
     const val=document.getElementById(c).value.trim();
