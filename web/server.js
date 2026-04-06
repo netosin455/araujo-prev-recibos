@@ -83,7 +83,7 @@ async function registrarNoSheets(dados) {
   const sheets = getSheetsClient();
   if (!sheets) return;
   try {
-    const agora = new Date();
+    const agora = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
     const mes = MESES[agora.getMonth()];
     const dataFormatada = agora.toLocaleDateString("pt-BR");
     const horaFormatada = agora.toLocaleTimeString("pt-BR");
