@@ -512,6 +512,7 @@ function renderHistorico(){
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="editar">Editar</button>`:""}
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="duplicar">Duplicar</button>`:""}
         <button class="btn-secondary btn-sm" data-action="reimprimir">📄 Baixar</button>
+        ${roleLogado==="recepcao"?`<button class="btn-secondary btn-sm" data-action="upload-comp">📎 Comprovante</button>`:""}
         ${roleLogado!=="recepcao"?`<button class="btn-danger btn-sm" data-action="excluir">🗑</button>`:""}
       </div>`;
     item.querySelectorAll("button").forEach(btn=>{
@@ -521,6 +522,7 @@ function renderHistorico(){
         if(btn.dataset.action==="editar") editarRecibo(recibo);
         if(btn.dataset.action==="duplicar") duplicarRecibo(recibo);
         if(btn.dataset.action==="reimprimir") reimprimirRecibo(recibo);
+        if(btn.dataset.action==="upload-comp") abrirModalUploadComprovante(recibo.id||recibo._id);
         if(btn.dataset.action==="excluir"){
           if(!confirm(`Excluir recibo ${recibo.num}?`)) return;
           await api("DELETE",`/api/recibos/${recibo.id}`);
@@ -747,6 +749,7 @@ function renderClientes(){
                   ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>`:""}
                   ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" onclick="duplicarRecibo(${rd})">Duplicar</button>`:""}
                   <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
+                  ${roleLogado==="recepcao"?`<button class="btn-secondary btn-sm" onclick="abrirModalUploadComprovante('${r.id||r._id}')">📎 Comprovante</button>`:""}
                   ${roleLogado!=="recepcao"?`<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id||r._id}')">🗑</button>`:""}
                 </td>
               </tr>`;
@@ -1228,6 +1231,60 @@ async function exportarPDFExecutivo(){
   lista.forEach(r=>{const k=r.emitido_por||"-";if(!mapaR[k])mapaR[k]={resp:k,total:0,qtd:0};mapaR[k].total+=valorParaNumero(r.valor);mapaR[k].qtd++;});
   doc.autoTable({startY:doc.lastAutoTable.finalY+14,head:[["Responsável","Qtd","Total"]],body:Object.values(mapaR).sort((a,b)=>b.total-a.total).map(r=>[r.resp,r.qtd,"R$ "+formatarValor(r.total)]),styles:{fontSize:9},headStyles:{fillColor:[26,26,26],textColor:[184,151,58]}});
   doc.save(`executivo_araujo_${ano||"geral"}.pdf`);
+}
+
+// ── UPLOAD COMPROVANTE (recepção) ─────────────────────────
+let _uploadCompReciboId = null;
+
+function abrirModalUploadComprovante(reciboId) {
+  _uploadCompReciboId = reciboId;
+  document.getElementById("upload-comp-input").value = "";
+  document.getElementById("upload-comp-label-text").textContent = "Escolher arquivo (imagem ou PDF)";
+  document.getElementById("upload-comp-status").textContent = "";
+  document.getElementById("modal-upload-comprovante").classList.add("active");
+}
+
+function onUploadCompFileChange() {
+  const input = document.getElementById("upload-comp-input");
+  const labelText = document.getElementById("upload-comp-label-text");
+  if (input.files && input.files[0]) {
+    labelText.textContent = input.files[0].name;
+  } else {
+    labelText.textContent = "Escolher arquivo (imagem ou PDF)";
+  }
+}
+
+async function enviarUploadComprovante() {
+  const input = document.getElementById("upload-comp-input");
+  const status = document.getElementById("upload-comp-status");
+  const btn = document.getElementById("btn-upload-comp-enviar");
+  if (!input.files || !input.files[0]) { status.textContent = "Selecione um arquivo primeiro."; return; }
+  if (!_uploadCompReciboId) return;
+  btn.disabled = true;
+  status.textContent = "Enviando arquivo...";
+  try {
+    const fd = new FormData();
+    fd.append("comprovante", input.files[0]);
+    const r1 = await fetch("/api/upload-comprovante", { method: "POST", headers: { "Authorization": "Bearer " + token }, body: fd });
+    const j1 = await r1.json();
+    if (!j1.link) { status.textContent = j1.erro || "Erro ao enviar arquivo."; btn.disabled = false; return; }
+    status.textContent = "Vinculando ao recibo...";
+    const r2 = await fetch(`/api/recibos/${_uploadCompReciboId}/comprovante`, {
+      method: "PATCH",
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ link_comprovante: j1.link })
+    });
+    const j2 = await r2.json();
+    if (j2.ok) {
+      status.textContent = "Comprovante adicionado com sucesso!";
+      setTimeout(() => { fecharModal("modal-upload-comprovante"); carregarRecibos().then(renderHistorico); }, 1200);
+    } else {
+      status.textContent = j2.erro || "Erro ao vincular comprovante.";
+    }
+  } catch(e) {
+    status.textContent = "Erro: " + e.message;
+  }
+  btn.disabled = false;
 }
 
 // ── TECLADO ────────────────────────────────────────────────

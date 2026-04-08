@@ -499,6 +499,18 @@ app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (r
   res.json({ link });
 });
 
+// ── VINCULAR COMPROVANTE A UM RECIBO (qualquer role, inclusive recepcao) ───
+app.patch("/api/recibos/:id/comprovante", auth, async (req, res) => {
+  const { link_comprovante } = req.body;
+  if (!link_comprovante) return res.status(400).json({ erro: "link_comprovante é obrigatório." });
+  await update(dbRecibos, { _id: req.params.id }, { link_comprovante });
+  const recibo = await findOne(dbRecibos, { _id: req.params.id });
+  if (recibo && recibo.num) {
+    atualizarNoSheets(recibo.num, { ...recibo, link_comprovante });
+  }
+  res.json({ ok: true });
+});
+
 // ── VER COMPROVANTE ────────────────────────────────────────
 app.get("/api/comprovante/:filename", (req, res) => {
   const safe = path.basename(req.params.filename);

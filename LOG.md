@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-04-08 (2)
+
+### Botão "Comprovante" exclusivo para recepção
+**Problema:** Recepcionistas precisam adicionar comprovante de pagamento nos recibos, mas não podem editar nenhum outro campo.  
+**Solução:** Adicionado botão "📎 Comprovante" visível apenas para usuários com role `recepcao` nas duas listagens de recibos (cards e tabela por cliente). Ao clicar, abre um modal simples de upload. O arquivo é enviado para o servidor (`POST /api/upload-comprovante`) e depois o link é vinculado ao recibo via nova rota `PATCH /api/recibos/:id/comprovante` — que aceita qualquer role, mas só atualiza o campo `link_comprovante`.  
+**Arquivos alterados:**
+- `web/server.js`: nova rota `PATCH /api/recibos/:id/comprovante` (linha ~502)
+- `web/public/index.html`: novo modal `#modal-upload-comprovante`
+- `web/public/app.js`: botão nas duas listas + funções `abrirModalUploadComprovante`, `onUploadCompFileChange`, `enviarUploadComprovante`
+
+---
+
 ## 2026-04-08
 
 ### Comprovantes salvos no próprio servidor (sem Google Drive)
