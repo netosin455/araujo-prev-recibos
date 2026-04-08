@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-04-08
+
+### Comprovantes salvos no próprio servidor (sem Google Drive)
+**Problema:** Upload de comprovantes para o Google Drive não estava funcionando.  
+**Solução:** Arquivos agora são salvos em `web/data/uploads/` no próprio servidor. Cada arquivo recebe um nome aleatório de 32 caracteres hex (ex: `a3f7...pdf`) para que o link seja impossível de adivinhar. O link é público — qualquer pessoa com a URL consegue ver — mas seguro por ser imprevisível.  
+**Arquivos alterados:**
+- `web/server.js`: multer agora usa `diskStorage` em `web/data/uploads/`, rota `POST /api/upload-comprovante` retorna link local, nova rota `GET /api/comprovante/:filename` serve o arquivo sem auth.
+- `web/public/app.js`: `abrirComprovante()` agora exibe corretamente imagens e PDFs de links locais (não só Drive).  
+**Observação:** Os arquivos têm a mesma durabilidade do banco NeDB — sobrevivem a deploys normais, mas são perdidos se o EB trocar a instância EC2. O link na planilha fica registrado mesmo assim.
+
+---
+
 ## 2026-04-05
 
 ### Proteção contra perda de dados após troca de servidor (AWS)

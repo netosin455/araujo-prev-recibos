@@ -25,7 +25,7 @@ const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderSty
 const PDFDocument = require("pdfkit");
 const { google } = require("googleapis");
 const multer = require("multer");
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const crypto = require("crypto");
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
 const SHEET_ID = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
@@ -190,6 +190,21 @@ function checkRateLimit(ip) {
 // ── BANCO DE DADOS ─────────────────────────────────────────
 const dbDir = process.env.DATA_DIR || path.join(__dirname, "data");
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+
+// ── UPLOAD DE COMPROVANTES ─────────────────────────────────
+const uploadsDir = path.join(dbDir, "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadsDir,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || "";
+      cb(null, crypto.randomBytes(16).toString("hex") + ext);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 
 const dbUsers   = new Datastore({ filename: path.join(dbDir, "users.db"),   autoload: true });
 const dbRecibos = new Datastore({ filename: path.join(dbDir, "recibos.db"), autoload: true });
@@ -474,7 +489,9 @@ app.get("/api/debug-sheets-headers", auth, async (req, res) => {
 // ── UPLOAD COMPROVANTE ─────────────────────────────────────
 app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
   if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
-  const link = await uploadParaDrive(req.file.buffer, req.file.originalname, req.file.mimetype);
+  const buffer = fs.readFileSync(req.file.path);
+  fs.unlinkSync(req.file.path); // remove arquivo temporário após upload
+  const link = await uploadParaDrive(buffer, req.file.originalname, req.file.mimetype);
   if (!link) return res.status(500).json({ erro: "Erro ao subir arquivo pro Drive." });
   res.json({ link });
 });

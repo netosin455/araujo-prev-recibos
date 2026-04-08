@@ -245,16 +245,17 @@ function atualizarLabelComprovante(input){
 
 function abrirComprovante(link) {
   const body = document.getElementById("modal-comprovante-body");
-  // Extrai o fileId do link do Drive e monta embed
-  const match = link.match(/\/d\/([^/]+)\//);
-  if (match) {
-    const fileId = match[1];
-    const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(link);
+  const driveMatch = link.match(/\/d\/([^/]+)\//);
+  const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(link);
+  if (driveMatch) {
+    const fileId = driveMatch[1];
     if (isImg) {
       body.innerHTML = `<img src="https://drive.google.com/uc?id=${fileId}" style="max-width:100%;border-radius:8px" />`;
     } else {
       body.innerHTML = `<iframe src="https://drive.google.com/file/d/${fileId}/preview" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
     }
+  } else if (isImg) {
+    body.innerHTML = `<img src="${link}" style="max-width:100%;border-radius:8px" />`;
   } else {
     body.innerHTML = `<iframe src="${link}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
   }
