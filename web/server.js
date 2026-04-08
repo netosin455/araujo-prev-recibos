@@ -70,9 +70,14 @@ async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
       requestBody: meta,
       media: { mimeType, body: stream },
       fields: "id",
+      supportsAllDrives: true,
     });
     const fileId = res.data.id;
-    await drive.permissions.create({ fileId, requestBody: { role: "reader", type: "anyone" } });
+    await drive.permissions.create({
+      fileId,
+      requestBody: { role: "reader", type: "anyone" },
+      supportsAllDrives: true,
+    });
     return `https://drive.google.com/file/d/${fileId}/view`;
   } catch (e) {
     console.error("❌ Erro ao fazer upload pro Drive:", e.message);
