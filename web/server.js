@@ -494,14 +494,17 @@ app.get("/api/debug-sheets-headers", auth, async (req, res) => {
 // ── UPLOAD COMPROVANTE ─────────────────────────────────────
 app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
   if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
-  const buffer = fs.readFileSync(req.file.path);
-  fs.unlinkSync(req.file.path);
-  try {
-    const link = await uploadParaDrive(buffer, req.file.originalname, req.file.mimetype);
-    res.json({ link });
-  } catch (e) {
-    res.status(500).json({ erro: `Erro no Drive: ${e.message}` });
-  }
+  const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+  const link = `${baseUrl}/api/comprovante/${req.file.filename}`;
+  res.json({ link });
+});
+
+// ── VER COMPROVANTE ────────────────────────────────────────
+app.get("/api/comprovante/:filename", (req, res) => {
+  const safe = path.basename(req.params.filename);
+  const filePath = path.join(uploadsDir, safe);
+  if (!fs.existsSync(filePath)) return res.status(404).send("Arquivo não encontrado.");
+  res.sendFile(filePath);
 });
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────
