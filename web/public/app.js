@@ -366,8 +366,8 @@ async function gerarRecibo(){
         const r = await fetch("/api/upload-comprovante", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:fd });
         const j = await r.json();
         if(j.link){ link_comprovante_edicao = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
-        else { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; }
-      } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; }
+        else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; alert(j.erro || "Erro ao enviar comprovante."); }
+      } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; alert("Erro ao enviar comprovante: " + e.message); }
     }
     const bodyEdicao = {
       nome:dados.nome,cpf:dados.cpf,municipio_uf:dados.municipio_uf,
@@ -432,8 +432,8 @@ async function gerarRecibo(){
       const r = await fetch("/api/upload-comprovante", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:fd });
       const j = await r.json();
       if(j.link){ link_comprovante = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
-      else { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; }
-    } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; }
+      else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; alert(j.erro || "Erro ao enviar comprovante."); }
+    } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; alert("Erro ao enviar comprovante: " + e.message); }
   }
 
   // Salvar no banco

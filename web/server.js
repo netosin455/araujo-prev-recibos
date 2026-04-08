@@ -76,7 +76,7 @@ async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
     return `https://drive.google.com/file/d/${fileId}/view`;
   } catch (e) {
     console.error("❌ Erro ao fazer upload pro Drive:", e.message);
-    return null;
+    throw e;
   }
 }
 
@@ -490,10 +490,13 @@ app.get("/api/debug-sheets-headers", auth, async (req, res) => {
 app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
   if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
   const buffer = fs.readFileSync(req.file.path);
-  fs.unlinkSync(req.file.path); // remove arquivo temporário após upload
-  const link = await uploadParaDrive(buffer, req.file.originalname, req.file.mimetype);
-  if (!link) return res.status(500).json({ erro: "Erro ao subir arquivo pro Drive." });
-  res.json({ link });
+  fs.unlinkSync(req.file.path);
+  try {
+    const link = await uploadParaDrive(buffer, req.file.originalname, req.file.mimetype);
+    res.json({ link });
+  } catch (e) {
+    res.status(500).json({ erro: `Erro no Drive: ${e.message}` });
+  }
 });
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────
