@@ -1,0 +1,9 @@
+{
+  "appId": "com.araujoprev.app",
+  "appName": "Araujo Prev",
+  "webDir": "www",
+  "server": {
+    "url": "http://araujo-prev-env.eba-cfsqbcw7.us-east-1.elasticbeanstalk.com/",
+    "cleartext": true
+  }
+}
