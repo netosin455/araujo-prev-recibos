@@ -14,6 +14,11 @@
 - **Variável de ambiente necessária no Elastic Beanstalk**: `DATABASE_URL` (connection string do Neon)
 
 
+## 2026-05-11 (3)
+
+### UX: mensagem quando recibo não tem comprovante
+- Tela de detalhes agora exibe "Nenhum comprovante adicionado" em vez de sumir a linha quando não há comprovante
+
 ## 2026-05-11 (2)
 
 ### Fix: "Conexão recusada" ao ver comprovante

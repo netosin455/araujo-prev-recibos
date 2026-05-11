@@ -610,7 +610,7 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">Responsável</div><div class="detail-value">${esc(r.emitido_por||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Referência</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
-    ${r.link_comprovante ? `<div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value"><button class="btn-gold btn-sm" onclick="abrirComprovante('${esc(r.link_comprovante)}')"><i class="bi bi-paperclip"></i> Ver comprovante</button></div></div>` : ""}
+    <div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value">${r.link_comprovante ? `<button class="btn-gold btn-sm" onclick="abrirComprovante('${esc(r.link_comprovante)}')"><i class="bi bi-paperclip"></i> Ver comprovante</button>` : `<span style="color:var(--muted);font-size:13px;font-style:italic">Nenhum comprovante adicionado</span>`}</div></div>
     ${r.assinatura_govbr ? `<div class="detail-row"><div class="detail-label">Assinatura</div><div class="detail-value" style="color:var(--success)"><i class="bi bi-shield-check"></i> Assinado por ${esc(r.assinatura_govbr.nome_assinante)} em ${esc(r.assinatura_govbr.assinado_em)}</div></div>` : ""}
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
