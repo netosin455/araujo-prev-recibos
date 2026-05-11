@@ -16,6 +16,7 @@
 // =============================================================
 require("dotenv").config();
 const express = require("express");
+const { Pool } = require("pg");
 const Datastore = require("@seald-io/nedb");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -181,6 +182,14 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+// ── NEON (PostgreSQL) — usuários ───────────────────────────
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error("❌ ERRO: Defina a variável de ambiente DATABASE_URL (Neon) antes de iniciar.");
+  process.exit(1);
+}
+const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
+
 // ── RATE LIMIT LOGIN ───────────────────────────────────────
 const loginAttempts = new Map();
 function checkRateLimit(ip) {
@@ -211,10 +220,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-const dbUsers   = new Datastore({ filename: path.join(dbDir, "users.db"),   autoload: true });
 const dbRecibos = new Datastore({ filename: path.join(dbDir, "recibos.db"), autoload: true });
-
-dbUsers.ensureIndex({ fieldName: "username", unique: true });
 
 // Admin padrão via variáveis de ambiente
 const ADMIN_USER = process.env.ADMIN_USER;
@@ -223,39 +229,50 @@ if (!ADMIN_USER || !ADMIN_PASS) {
   console.error("❌ ERRO: Defina as variáveis de ambiente ADMIN_USER e ADMIN_PASS antes de iniciar.");
   process.exit(1);
 }
-dbUsers.findOne({ username: ADMIN_USER }, (err, doc) => {
-  const hash = bcrypt.hashSync(ADMIN_PASS, 10);
-  if (!doc) {
-    dbUsers.insert({ username: ADMIN_USER, password: hash, role: "admin", created_at: new Date().toISOString() });
-    console.log("✅ Usuário admin criado.");
-  } else {
-    dbUsers.update({ username: ADMIN_USER }, { $set: { password: hash, role: "admin" } }, {});
-    console.log("✅ Senha do admin atualizada.");
-  }
-});
 
 // Usuários extras via variável de ambiente USERS_JSON (base64 de JSON array)
 // Formato: [{"username":"financeiro","password":"senha","role":"financeiro"}, ...]
 // Para gerar: btoa(JSON.stringify([...])) no console do navegador
 const USERS_JSON = process.env.USERS_JSON;
-if (USERS_JSON) {
-  try {
-    const extraUsers = JSON.parse(Buffer.from(USERS_JSON, "base64").toString("utf8"));
-    for (const u of extraUsers) {
-      if (!u.username || !u.password) continue;
-      const hash = bcrypt.hashSync(u.password, 10);
-      dbUsers.findOne({ username: u.username }, (err, doc) => {
-        if (!doc) {
-          dbUsers.insert({ username: u.username, password: hash, role: u.role || "financeiro", created_at: new Date().toISOString() });
-          console.log(`✅ Usuário ${u.username} criado.`);
-        } else {
-          dbUsers.update({ username: u.username }, { $set: { password: hash, role: u.role || "financeiro" } }, {});
-          console.log(`✅ Usuário ${u.username} atualizado.`);
-        }
-      });
+
+// ── INICIALIZAÇÃO DO BANCO DE USUÁRIOS (Neon) ──────────────
+async function initDb() {
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id      TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role     TEXT NOT NULL DEFAULT 'financeiro',
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  // Admin sempre recriado a partir dos env vars
+  const adminHash = bcrypt.hashSync(ADMIN_PASS, 10);
+  await pgPool.query(`
+    INSERT INTO users (id, username, password, role, created_at)
+    VALUES (gen_random_uuid()::text, $1, $2, 'admin', $3)
+    ON CONFLICT (username) DO UPDATE SET password = $2, role = 'admin'
+  `, [ADMIN_USER, adminHash, new Date().toISOString()]);
+  console.log("✅ Usuário admin configurado (Neon).");
+
+  // Usuários extras via USERS_JSON
+  if (USERS_JSON) {
+    try {
+      const extraUsers = JSON.parse(Buffer.from(USERS_JSON, "base64").toString("utf8"));
+      for (const u of extraUsers) {
+        if (!u.username || !u.password) continue;
+        const hash = bcrypt.hashSync(u.password, 10);
+        await pgPool.query(`
+          INSERT INTO users (id, username, password, role, created_at)
+          VALUES (gen_random_uuid()::text, $1, $2, $3, $4)
+          ON CONFLICT (username) DO UPDATE SET password = $2, role = $3
+        `, [u.username, hash, u.role || "financeiro", new Date().toISOString()]);
+        console.log(`✅ Usuário ${u.username} configurado (Neon).`);
+      }
+    } catch (e) {
+      console.error("❌ Erro ao processar USERS_JSON:", e.message);
     }
-  } catch (e) {
-    console.error("❌ Erro ao processar USERS_JSON:", e.message);
   }
 }
 
@@ -304,6 +321,7 @@ async function sincronizarDeSheets() {
   }
 }
 sincronizarDeSheets();
+initDb().catch(e => console.error("❌ Erro ao inicializar Neon:", e.message));
 
 // Sincroniza links de comprovante da planilha para recibos existentes no banco
 async function sincronizarComprovantes() {
@@ -467,11 +485,12 @@ app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
   if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ erro: "Dados inválidos" });
-  const user = await findOne(dbUsers, { username });
+  const { rows } = await pgPool.query("SELECT * FROM users WHERE username = $1", [username]);
+  const user = rows[0];
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ erro: "Usuário ou senha incorretos" });
   }
-  const token = jwt.sign({ id: user._id, username: user.username, role: user.role || "financeiro" }, JWT_SECRET, { expiresIn: "8h" });
+  const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro" }, JWT_SECRET, { expiresIn: "8h" });
   res.json({ token, username: user.username, role: user.role || "financeiro" });
 });
 
@@ -714,33 +733,48 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
 
 // ── ROTAS USUÁRIOS ─────────────────────────────────────────
 app.get("/api/users", auth, adminOnly, async (req, res) => {
-  const users = await find(dbUsers, {});
-  res.json(users.map(u => ({ id: u._id, username: u.username, role: u.role || "financeiro", created_at: u.created_at })));
+  const { rows } = await pgPool.query("SELECT id, username, role, created_at FROM users ORDER BY created_at ASC");
+  res.json(rows);
 });
 
 app.post("/api/users", auth, adminOnly, async (req, res) => {
   const { username, password, role } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
-  const exists = await findOne(dbUsers, { username });
-  if (exists) return res.status(400).json({ erro: "Usuário já existe" });
   const hash = bcrypt.hashSync(password, 10);
-  const doc = await insert(dbUsers, { username, password: hash, role: role || "financeiro", created_at: new Date().toISOString() });
-  res.json({ id: doc._id, username });
+  try {
+    const { rows } = await pgPool.query(
+      "INSERT INTO users (id, username, password, role, created_at) VALUES (gen_random_uuid()::text, $1, $2, $3, $4) RETURNING id",
+      [username, hash, role || "financeiro", new Date().toISOString()]
+    );
+    res.json({ id: rows[0].id, username });
+  } catch (e) {
+    if (e.code === "23505") return res.status(400).json({ erro: "Usuário já existe" });
+    throw e;
+  }
 });
 
 app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
   const { username, password, role } = req.body;
   if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
-  const upd = { username, role: role || "financeiro" };
-  if (password) upd.password = bcrypt.hashSync(password, 10);
-  await update(dbUsers, { _id: req.params.id }, upd);
+  if (password) {
+    await pgPool.query(
+      "UPDATE users SET username=$1, role=$2, password=$3 WHERE id=$4",
+      [username, role || "financeiro", bcrypt.hashSync(password, 10), req.params.id]
+    );
+  } else {
+    await pgPool.query(
+      "UPDATE users SET username=$1, role=$2 WHERE id=$3",
+      [username, role || "financeiro", req.params.id]
+    );
+  }
   res.json({ ok: true });
 });
 
 app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
-  const user = await findOne(dbUsers, { _id: req.params.id });
-  if (user?.username === "admin") return res.status(400).json({ erro: "Não é possível remover o admin." });
-  await remove(dbUsers, { _id: req.params.id });
+  const { rows } = await pgPool.query("SELECT username FROM users WHERE id=$1", [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
+  if (rows[0].username === ADMIN_USER) return res.status(400).json({ erro: "Não é possível remover o admin." });
+  await pgPool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
   res.json({ ok: true });
 });
 
@@ -870,6 +904,6 @@ app.get("/api/govbr/status/:id", auth, async (req, res) => {
 });
 
 // ── INICIAR ────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`✅ Araujo Prev rodando em http://localhost:${PORT}`);
 });

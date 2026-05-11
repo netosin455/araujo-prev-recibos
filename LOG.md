@@ -1,5 +1,19 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-11
+
+### Fix: Usuários somiam após reinício do servidor
+- **Causa raiz**: usuários criados pelo painel admin ficavam apenas no nedb local (`users.db`). Ao reiniciar/redeployar no Elastic Beanstalk, esse arquivo era perdido.
+- **Correção**: migração de usuários do nedb para **Neon (PostgreSQL)**
+  - Adicionada dependência `pg` no `package.json`
+  - Pool de conexão configurado via variável de ambiente `DATABASE_URL`
+  - Tabela `users` criada automaticamente via `initDb()` na inicialização
+  - Admin e USERS_JSON continuam funcionando (upsert via `ON CONFLICT`)
+  - Usuários criados pelo painel admin agora persistem no Neon independente de restarts/redeploys
+  - Recibos continuam no nedb + Google Sheets (sem alteração)
+- **Variável de ambiente necessária no Elastic Beanstalk**: `DATABASE_URL` (connection string do Neon)
+
+
 ## 2026-05-07
 
 ### App Android (Capacitor WebView)
