@@ -513,7 +513,7 @@ app.get("/api/debug-sheets-headers", auth, async (req, res) => {
 // ── UPLOAD COMPROVANTE ─────────────────────────────────────
 app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
   if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
-  const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+  const baseUrl = process.env.APP_URL || "";
   const link = `${baseUrl}/api/comprovante/${req.file.filename}`;
   res.json({ link });
 });

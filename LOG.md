@@ -14,6 +14,12 @@
 - **Variável de ambiente necessária no Elastic Beanstalk**: `DATABASE_URL` (connection string do Neon)
 
 
+## 2026-05-11 (2)
+
+### Fix: "Conexão recusada" ao ver comprovante
+- **Causa**: link do comprovante era gerado com `req.protocol + req.get("host")` que no EB/nginx virava `http://localhost:8080/...` — inacessível pelo browser
+- **Correção**: link agora usa URL relativa (`/api/comprovante/filename`) quando `APP_URL` não está definido
+
 ## 2026-05-07
 
 ### App Android (Capacitor WebView)
