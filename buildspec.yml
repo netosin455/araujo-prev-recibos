@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - cd web && npm install --production
+
+artifacts:
+  base-directory: web
+  files:
+    - '**/*'
+  exclude-paths:
+    - 'data/**'
+    - 'data/uploads/**'
