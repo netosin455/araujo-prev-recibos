@@ -530,23 +530,28 @@ app.get("/api/debug-sheets-headers", auth, async (req, res) => {
 
 // ── UPLOAD COMPROVANTE ─────────────────────────────────────
 app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
-  const bucket = process.env.BUCKET_NAME;
-  if (bucket) {
-    const ext = path.extname(req.file.originalname) || "";
-    const key = `comprovantes/${crypto.randomBytes(16).toString("hex")}${ext}`;
-    await s3Client.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-    }));
-    const region = process.env.AWS_REGION || "us-east-1";
-    res.json({ link: `https://${bucket}.s3.${region}.amazonaws.com/${key}` });
-  } else {
-    const filename = crypto.randomBytes(16).toString("hex") + (path.extname(req.file.originalname) || "");
-    fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
-    res.json({ link: `/api/comprovante/${filename}` });
+  try {
+    if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
+    const bucket = process.env.BUCKET_NAME;
+    if (bucket) {
+      const ext = path.extname(req.file.originalname) || "";
+      const key = `comprovantes/${crypto.randomBytes(16).toString("hex")}${ext}`;
+      await s3Client.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      }));
+      const region = process.env.AWS_REGION || "us-east-1";
+      res.json({ link: `https://${bucket}.s3.${region}.amazonaws.com/${key}` });
+    } else {
+      const filename = crypto.randomBytes(16).toString("hex") + (path.extname(req.file.originalname) || "");
+      fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
+      res.json({ link: `/api/comprovante/${filename}` });
+    }
+  } catch (e) {
+    console.error("Erro upload comprovante:", e);
+    res.status(500).json({ erro: "Erro ao salvar comprovante: " + e.message });
   }
 });
 
