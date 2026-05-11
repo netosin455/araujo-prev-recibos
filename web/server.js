@@ -412,6 +412,26 @@ async function unificarNomesPorCPF() {
 }
 unificarNomesPorCPF();
 
+// Corrige links de comprovante gerados com URL absoluta errada (ex: http://localhost:8080/api/comprovante/...)
+async function corrigirLinksComprovante() {
+  try {
+    const todos = await find(dbRecibos, {});
+    let corrigidos = 0;
+    for (const r of todos) {
+      if (!r.link_comprovante) continue;
+      const match = r.link_comprovante.match(/\/api\/comprovante\/(.+)$/);
+      if (match && r.link_comprovante.startsWith("http")) {
+        await update(dbRecibos, { _id: r._id }, { link_comprovante: `/api/comprovante/${match[1]}` });
+        corrigidos++;
+      }
+    }
+    if (corrigidos > 0) console.log(`✅ ${corrigidos} links de comprovante corrigidos.`);
+  } catch (e) {
+    console.error("❌ Erro ao corrigir links de comprovante:", e.message);
+  }
+}
+corrigirLinksComprovante();
+
 // ── MIDDLEWARE ─────────────────────────────────────────────
 app.use(express.json({ limit: "100kb" }));
 

@@ -19,6 +19,7 @@
 ### Fix: "Conexão recusada" ao ver comprovante
 - **Causa**: link do comprovante era gerado com `req.protocol + req.get("host")` que no EB/nginx virava `http://localhost:8080/...` — inacessível pelo browser
 - **Correção**: link agora usa URL relativa (`/api/comprovante/filename`) quando `APP_URL` não está definido
+- `corrigirLinksComprovante()` roda na inicialização e converte todos os links absolutos antigos para URL relativa automaticamente
 
 ## 2026-05-07
 
