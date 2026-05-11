@@ -19,6 +19,14 @@
 ### UX: mensagem quando recibo não tem comprovante
 - Tela de detalhes agora exibe "Nenhum comprovante adicionado" em vez de sumir a linha quando não há comprovante
 
+## 2026-05-11 (4)
+
+### feat: upload de comprovantes via S3
+- Arquivos agora vão pro S3 quando `BUCKET_NAME` estiver configurado no EB
+- Usa `multer.memoryStorage()` + `@aws-sdk/client-s3` para upload direto
+- Fallback para disco local se `BUCKET_NAME` não estiver definido
+- Variáveis necessárias no EB: `BUCKET_NAME` e opcionalmente `AWS_REGION` (padrão: us-east-1)
+
 ## 2026-05-11 (2)
 
 ### Fix: "Conexão recusada" ao ver comprovante
