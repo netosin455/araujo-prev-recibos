@@ -1328,7 +1328,7 @@ async function syncSheets(){
       resultado.textContent=res.mensagem||"Sincronizado com sucesso.";
     }else{
       resultado.style.color="var(--danger,#ef4444)";
-      resultado.textContent=res?.erro||"Erro ao sincronizar.";
+      resultado.textContent=res?.erro||"Resposta inesperada: "+JSON.stringify(res);
     }
   }catch(e){
     resultado.style.display="block";
