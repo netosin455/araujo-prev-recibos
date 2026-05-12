@@ -956,11 +956,14 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!M4:M`,
     });
-    const naPlilha = new Set((existing.data.values || []).map(r => String(r[0] || "").trim()));
+    const naPlilha = new Set((existing.data.values || []).flat().map(v => String(v || "").trim()).filter(Boolean));
 
     // Filtra apenas os que ainda não estão na planilha
     const faltando = todos.filter(r => r.num && !naPlilha.has(String(r.num).trim()));
-    if (faltando.length === 0) return res.json({ ok: true, enviados: 0, mensagem: "Todos os recibos já estão na planilha." });
+    if (faltando.length === 0) return res.json({
+      ok: true, enviados: 0,
+      mensagem: `Todos os ${todos.length} recibos já estão na planilha (${naPlilha.size} entradas detectadas na coluna M).`
+    });
 
     // Monta as linhas para inserção em lote
     const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
@@ -986,7 +989,7 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
     });
 
     // append cria novas linhas automaticamente, sem limite de grid
-    await sheets.spreadsheets.values.append({
+    const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A4:M`,
       valueInputOption: "USER_ENTERED",
@@ -994,8 +997,13 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
       requestBody: { values: linhas },
     });
 
-    console.log(`✅ Sync forçado: ${linhas.length} recibo(s) enviados para o Sheets.`);
-    res.json({ ok: true, enviados: linhas.length, mensagem: `${linhas.length} recibo(s) adicionados à planilha.` });
+    const rangeEscrito = appendResult.data.updates?.updatedRange || "desconhecido";
+    console.log(`✅ Sync forçado: ${linhas.length} recibo(s) escritos no range ${rangeEscrito}.`);
+    res.json({
+      ok: true,
+      enviados: linhas.length,
+      mensagem: `${linhas.length} recibo(s) adicionados. Total no banco: ${todos.length}. Na planilha antes: ${naPlilha.size}. Escrito em: ${rangeEscrito}.`
+    });
   } catch (e) {
     console.error("❌ Erro no sync forçado para Sheets:", e.message);
     res.status(500).json({ erro: e.message });
