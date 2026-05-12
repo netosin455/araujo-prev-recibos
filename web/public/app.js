@@ -245,8 +245,12 @@ function atualizarLabelComprovante(input){
 
 function abrirComprovante(link) {
   const body = document.getElementById("modal-comprovante-body");
+  body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Carregando...</div>`;
+  document.getElementById("modal-comprovante").classList.add("active");
+
   const driveMatch = link.match(/\/d\/([^/]+)\//);
   const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(link);
+
   if (driveMatch) {
     const fileId = driveMatch[1];
     if (isImg) {
@@ -254,12 +258,23 @@ function abrirComprovante(link) {
     } else {
       body.innerHTML = `<iframe src="https://drive.google.com/file/d/${fileId}/preview" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
     }
+  } else if (link.startsWith("/api/comprovante-s3/")) {
+    fetch(link, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        if (isImg) {
+          body.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:8px" />`;
+        } else {
+          body.innerHTML = `<iframe src="${url}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
+        }
+      })
+      .catch(() => { body.innerHTML = `<p style="color:red;text-align:center">Erro ao carregar comprovante.</p>`; });
   } else if (isImg) {
     body.innerHTML = `<img src="${link}" style="max-width:100%;border-radius:8px" />`;
   } else {
     body.innerHTML = `<iframe src="${link}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
   }
-  document.getElementById("modal-comprovante").classList.add("active");
 }
 
 // ── FORMATAÇÃO ─────────────────────────────────────────────
