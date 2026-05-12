@@ -1,5 +1,36 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-12
+
+### ci: Pipeline CodePipeline corrigido (backslash no ZIP)
+- **Causa raiz**: CodePipeline gerava o artefato ZIP no Windows com backslashes nos caminhos, causando falha no deploy do Elastic Beanstalk ("invalid path separators")
+- **Correção**: adicionado `buildspec.yml` na raiz do repositório — CodeBuild (Linux) passa a criar o artefato antes do deploy
+  - Instala dependências via `npm install --production` dentro de `web/`
+  - Exclui `data/` e `data/uploads/` do artefato para não sobrescrever dados em produção
+- **Infraestrutura criada via AWS CLI**:
+  - IAM Role `CodeBuildAraujoRole` com políticas de S3, CloudWatch e CodeBuild
+  - Projeto CodeBuild `araujo-prev-build` usando `aws/codebuild/standard:7.0`
+  - Estágio `Build` adicionado ao pipeline entre `Source` e `Deploy`
+  - Deploy agora consome `BuildArtifact` (Linux) em vez de `SourceArtifact` (Windows)
+  - Permissão `codebuild:StartBuild` adicionada ao role do CodePipeline
+
+### fix: Upload de comprovante retornava HTML em vez de JSON
+- **Causa**: `await s3Client.send()` sem try/catch — erro não tratado fazia Express retornar página HTML de erro 500
+- **Correção**: rota `/api/upload-comprovante` envolvida em try/catch, retorna JSON com mensagem de erro legível
+
+### fix: Bucket S3 não existia
+- **Causa**: bucket `araujo-prev-comprovantes` nunca havia sido criado
+- **Correção**: bucket criado via `aws s3 mb s3://araujo-prev-comprovantes --region us-east-1`
+- **IAM**: política `AllowS3Comprovantes` adicionada ao role `aws-elasticbeanstalk-ec2-role` com permissões `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, `s3:ListBucket`
+
+### fix: Comprovante S3 não exibia (bucket privado)
+- **Causa**: link salvo era URL pública do S3 (`https://bucket.s3.amazonaws.com/...`), mas o bucket é privado — acesso bloqueado pelo Block Public Access do S3
+- **Correção**: arquitetura de proxy no servidor
+  - Nova rota `GET /api/comprovante-s3/*` busca o arquivo do S3 com `GetObjectCommand` e faz pipe para o cliente (bucket permanece privado)
+  - Upload agora salva `/api/comprovante-s3/comprovantes/KEY` em vez da URL pública
+  - `corrigirLinksComprovante()` atualizada para converter URLs públicas S3 antigas para o formato proxy automaticamente na inicialização
+- **Frontend** (`app.js`): `abrirComprovante()` detecta links `/api/comprovante-s3/` e faz `fetch()` com header `Authorization: Bearer <token>`, converte para Blob URL e injeta no modal — necessário porque `<img src>` não envia o JWT automaticamente
+
 ## 2026-05-11
 
 ### Fix: Usuários somiam após reinício do servidor
