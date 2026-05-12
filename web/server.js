@@ -201,6 +201,10 @@ function checkRateLimit(ip) {
   loginAttempts.set(ip, entry);
   return entry.count > 10;
 }
+// Usa o IP real da conexão TCP — ignora X-Forwarded-For que pode ser forjado pelo cliente
+function getClientIp(req) {
+  return req.socket.remoteAddress || "unknown";
+}
 
 // ── BANCO DE DADOS ─────────────────────────────────────────
 const dbDir = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -459,11 +463,15 @@ app.use((req, res, next) => {
   next();
 });
 
-function auth(req, res, next) {
+async function auth(req, res, next) {
   const token = (req.headers.authorization || "").split(" ")[1];
   if (!token) return res.status(401).json({ erro: "Não autorizado" });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+    // Verifica se o usuário ainda existe no banco (invalida tokens de usuários deletados)
+    const { rows } = await pgPool.query("SELECT id FROM users WHERE id = $1", [payload.id]);
+    if (!rows[0]) return res.status(401).json({ erro: "Sessão inválida, faça login novamente" });
+    req.user = payload;
     next();
   } catch {
     res.status(401).json({ erro: "Sessão expirada, faça login novamente" });
@@ -506,7 +514,7 @@ function count(db, query) {
 
 // ── ROTAS AUTH ─────────────────────────────────────────────
 app.post("/api/login", async (req, res) => {
-  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  const ip = getClientIp(req);
   if (checkRateLimit(ip)) return res.status(429).json({ erro: "Muitas tentativas. Aguarde 15 minutos." });
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
@@ -518,22 +526,6 @@ app.post("/api/login", async (req, res) => {
   }
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro" }, JWT_SECRET, { expiresIn: "8h" });
   res.json({ token, username: user.username, role: user.role || "financeiro" });
-});
-
-// ── DEBUG: lê cabeçalhos reais da planilha ─────────────────
-app.get("/api/debug-sheets-headers", auth, async (req, res) => {
-  const sheets = getSheetsClient();
-  if (!sheets) return res.status(500).json({ error: "GOOGLE_CREDENTIALS não configurado" });
-  try {
-    const r = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!1:1`,
-    });
-    const headers = (r.data.values || [[]])[0];
-    res.json(headers.map((h, i) => ({ col: String.fromCharCode(65 + i), header: h })));
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
 });
 
 // ── UPLOAD COMPROVANTE ─────────────────────────────────────
@@ -590,8 +582,8 @@ app.patch("/api/recibos/:id/comprovante", auth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ── VER COMPROVANTE ────────────────────────────────────────
-app.get("/api/comprovante/:filename", (req, res) => {
+// ── VER COMPROVANTE (disco local — fallback sem S3) ────────
+app.get("/api/comprovante/:filename", auth, (req, res) => {
   const safe = path.basename(req.params.filename);
   const filePath = path.join(uploadsDir, safe);
   if (!fs.existsSync(filePath)) return res.status(404).send("Arquivo não encontrado.");
