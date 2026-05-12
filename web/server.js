@@ -130,18 +130,11 @@ async function registrarNoSheets(dados) {
       dados.num_recibo || "",                           // M: Número do recibo (backup para restauração)
     ];
 
-    // Busca última linha com dado na coluna A (a partir da linha 4, pulando logo+cabeçalho)
-    const existing = await sheets.spreadsheets.values.get({
+    await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:A`,
-    });
-    const nRows = (existing.data.values || []).length;
-    const nextRow = 4 + nRows;
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A${nextRow}:M${nextRow}`,
+      range: `${SHEET_NAME}!A4:M`,
       valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
       requestBody: { values: [linha] },
     });
     console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets`);
@@ -992,18 +985,12 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
       ];
     });
 
-    // Descobre a próxima linha disponível na planilha
-    const existingA = await sheets.spreadsheets.values.get({
+    // append cria novas linhas automaticamente, sem limite de grid
+    await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:A`,
-    });
-    const nextRow = 4 + (existingA.data.values || []).length;
-
-    // Grava tudo de uma vez
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A${nextRow}:M${nextRow + linhas.length - 1}`,
+      range: `${SHEET_NAME}!A4:M`,
       valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
       requestBody: { values: linhas },
     });
 
