@@ -939,6 +939,73 @@ app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── SYNC FORÇADO: NeDB → Google Sheets ─────────────────────
+app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
+  const sheets = getSheetsClient();
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado (verifique GOOGLE_CREDENTIALS no EB)." });
+
+  try {
+    // Lê todos os recibos do banco local, ordenados por timestamp
+    const todos = await find(dbRecibos, {}, { timestamp: 1 });
+    if (todos.length === 0) return res.json({ ok: true, enviados: 0, mensagem: "Nenhum recibo no banco." });
+
+    // Lê números de recibo já existentes na planilha (coluna M a partir da linha 4)
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!M4:M`,
+    });
+    const naPlilha = new Set((existing.data.values || []).map(r => String(r[0] || "").trim()));
+
+    // Filtra apenas os que ainda não estão na planilha
+    const faltando = todos.filter(r => r.num && !naPlilha.has(String(r.num).trim()));
+    if (faltando.length === 0) return res.json({ ok: true, enviados: 0, mensagem: "Todos os recibos já estão na planilha." });
+
+    // Monta as linhas para inserção em lote
+    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+    const linhas = faltando.map(r => {
+      const dt = r.data ? new Date(r.data) : new Date(r.timestamp || Date.now());
+      const mes = MESES_LOCAL[dt.getMonth()] || "";
+      const dataFmt = dt.toLocaleDateString("pt-BR");
+      return [
+        dataFmt,                                                          // A: Carimbo
+        r.nome || "",                                                     // B: Nome
+        r.cpf || "",                                                      // C: CPF
+        r.valor ? `R$ ${r.valor}` : "",                                   // D: Valor
+        r.data || dataFmt,                                                // E: Data pagamento
+        r.data || dataFmt,                                                // F: Data depósito
+        r.forma_pagamento || "",                                          // G: Forma pagamento
+        r.motivo_pagamento || r.complemento || "Honorários Advocatícios", // H: Motivo
+        r.escritorio || "",                                               // I: Escritório
+        "",                                                               // J: Observação
+        r.link_comprovante || "",                                         // K: Comprovante
+        mes,                                                              // L: Mês
+        r.num || "",                                                      // M: Número recibo
+      ];
+    });
+
+    // Descobre a próxima linha disponível na planilha
+    const existingA = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A4:A`,
+    });
+    const nextRow = 4 + (existingA.data.values || []).length;
+
+    // Grava tudo de uma vez
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A${nextRow}:M${nextRow + linhas.length - 1}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: linhas },
+    });
+
+    console.log(`✅ Sync forçado: ${linhas.length} recibo(s) enviados para o Sheets.`);
+    res.json({ ok: true, enviados: linhas.length, mensagem: `${linhas.length} recibo(s) adicionados à planilha.` });
+  } catch (e) {
+    console.error("❌ Erro no sync forçado para Sheets:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // ── GOV.BR — ASSINATURA DIGITAL ────────────────────────────
 // Credenciais fornecidas pelo Gov.br após cadastro em:
 // https://www.gov.br/governodigital/pt-br/privacidade-e-seguranca/login-unico

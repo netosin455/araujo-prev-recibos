@@ -1311,3 +1311,29 @@ document.addEventListener("keydown",function(e){
   if(e.altKey&&e.key==="l"){e.preventDefault();limparCampos();}
   if(e.key==="Escape") fecharModal("modal-detalhe");
 });
+
+async function syncSheets(){
+  const btn=document.getElementById("btn-sync-sheets");
+  const resultado=document.getElementById("sync-sheets-resultado");
+  btn.disabled=true;
+  btn.innerHTML='<i class="bi bi-hourglass-split"></i> Enviando...';
+  resultado.style.display="none";
+  try{
+    const res=await api("POST","/api/admin/sync-sheets");
+    resultado.style.display="block";
+    if(res&&res.ok){
+      resultado.style.color="var(--success,#22c55e)";
+      resultado.textContent=res.mensagem||"Sincronizado com sucesso.";
+    }else{
+      resultado.style.color="var(--danger,#ef4444)";
+      resultado.textContent=res?.erro||"Erro ao sincronizar.";
+    }
+  }catch(e){
+    resultado.style.display="block";
+    resultado.style.color="var(--danger,#ef4444)";
+    resultado.textContent="Erro de conexão.";
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='<i class="bi bi-arrow-repeat"></i> Sincronizar agora';
+  }
+}
