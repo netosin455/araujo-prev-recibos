@@ -638,22 +638,31 @@ app.post("/api/login", async (req, res) => {
 app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
+    const ext = path.extname(req.file.originalname) || "";
+    const nomeArquivo = `comprovante_${crypto.randomBytes(8).toString("hex")}${ext}`;
+
+    // Prefere Drive (link público, abre no Sheets sem login)
+    if (process.env.GOOGLE_CREDENTIALS) {
+      const driveLink = await uploadParaDrive(req.file.buffer, nomeArquivo, req.file.mimetype);
+      return res.json({ link: driveLink });
+    }
+
+    // Fallback: S3 (link privado, só abre dentro do app)
     const bucket = process.env.BUCKET_NAME;
     if (bucket) {
-      const ext = path.extname(req.file.originalname) || "";
-      const key = `comprovantes/${crypto.randomBytes(16).toString("hex")}${ext}`;
+      const key = `comprovantes/${nomeArquivo}`;
       await s3Client.send(new PutObjectCommand({
         Bucket: bucket,
         Key: key,
         Body: req.file.buffer,
         ContentType: req.file.mimetype,
       }));
-      res.json({ link: `/api/comprovante-s3/${key}` });
-    } else {
-      const filename = crypto.randomBytes(16).toString("hex") + (path.extname(req.file.originalname) || "");
-      fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
-      res.json({ link: `/api/comprovante/${filename}` });
+      return res.json({ link: `/api/comprovante-s3/${key}` });
     }
+
+    // Fallback: arquivo local
+    fs.writeFileSync(path.join(uploadsDir, nomeArquivo), req.file.buffer);
+    res.json({ link: `/api/comprovante/${nomeArquivo}` });
   } catch (e) {
     console.error("Erro upload comprovante:", e);
     res.status(500).json({ erro: "Erro ao salvar comprovante: " + e.message });
