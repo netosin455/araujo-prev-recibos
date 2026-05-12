@@ -17,7 +17,7 @@
 require("dotenv").config();
 const express = require("express");
 const { Pool } = require("pg");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 const Datastore = require("@seald-io/nedb");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -417,9 +417,17 @@ async function corrigirLinksComprovante() {
     let corrigidos = 0;
     for (const r of todos) {
       if (!r.link_comprovante) continue;
-      const match = r.link_comprovante.match(/\/api\/comprovante\/(.+)$/);
-      if (match && r.link_comprovante.startsWith("http")) {
-        await update(dbRecibos, { _id: r._id }, { link_comprovante: `/api/comprovante/${match[1]}` });
+      // Converte URL absoluta local (http://localhost:8080/api/comprovante/...)
+      const matchLocal = r.link_comprovante.match(/\/api\/comprovante\/(.+)$/);
+      if (matchLocal && r.link_comprovante.startsWith("http")) {
+        await update(dbRecibos, { _id: r._id }, { link_comprovante: `/api/comprovante/${matchLocal[1]}` });
+        corrigidos++;
+        continue;
+      }
+      // Converte URL pública S3 (https://bucket.s3.region.amazonaws.com/comprovantes/...)
+      const matchS3 = r.link_comprovante.match(/amazonaws\.com\/(.+)$/);
+      if (matchS3) {
+        await update(dbRecibos, { _id: r._id }, { link_comprovante: `/api/comprovante-s3/${matchS3[1]}` });
         corrigidos++;
       }
     }
@@ -542,8 +550,7 @@ app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (r
         Body: req.file.buffer,
         ContentType: req.file.mimetype,
       }));
-      const region = process.env.AWS_REGION || "us-east-1";
-      res.json({ link: `https://${bucket}.s3.${region}.amazonaws.com/${key}` });
+      res.json({ link: `/api/comprovante-s3/${key}` });
     } else {
       const filename = crypto.randomBytes(16).toString("hex") + (path.extname(req.file.originalname) || "");
       fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
@@ -552,6 +559,22 @@ app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (r
   } catch (e) {
     console.error("Erro upload comprovante:", e);
     res.status(500).json({ erro: "Erro ao salvar comprovante: " + e.message });
+  }
+});
+
+// ── PROXY S3: serve arquivo do bucket privado ──────────────────────────────
+app.get("/api/comprovante-s3/*", auth, async (req, res) => {
+  try {
+    const key = req.params[0];
+    const bucket = process.env.BUCKET_NAME;
+    if (!bucket) return res.status(404).json({ erro: "Bucket não configurado." });
+    const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
+    const obj = await s3Client.send(cmd);
+    res.setHeader("Content-Type", obj.ContentType || "application/octet-stream");
+    obj.Body.pipe(res);
+  } catch (e) {
+    console.error("Erro ao servir comprovante S3:", e);
+    res.status(404).json({ erro: "Arquivo não encontrado." });
   }
 });
 
