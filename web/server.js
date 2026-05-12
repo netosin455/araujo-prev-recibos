@@ -36,7 +36,10 @@ const MESES = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AG
 
 function getSheetsClient() {
   const credsB64 = process.env.GOOGLE_CREDENTIALS;
-  if (!credsB64) return null;
+  if (!credsB64) {
+    console.warn("⚠️  GOOGLE_CREDENTIALS não configurado — integração com Sheets desativada.");
+    return null;
+  }
   try {
     const creds = JSON.parse(Buffer.from(credsB64, "base64").toString("utf8"));
     const auth = new google.auth.GoogleAuth({
@@ -47,6 +50,20 @@ function getSheetsClient() {
   } catch (e) {
     console.error("❌ Erro ao inicializar Google Sheets:", e.message);
     return null;
+  }
+}
+
+// Testa a conexão com o Sheets no startup para detectar problemas cedo
+async function testarConexaoSheets() {
+  const sheets = getSheetsClient();
+  if (!sheets) return;
+  try {
+    await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "spreadsheetId" });
+    console.log("✅ Conexão com Google Sheets OK.");
+  } catch (e) {
+    console.error(`❌ FALHA na conexão com Google Sheets: ${e.message}`);
+    console.error("   → Recibos NÃO serão salvos na planilha enquanto isso persistir.");
+    console.error(`   → Planilha ID: ${SHEET_ID}`);
   }
 }
 
@@ -410,6 +427,7 @@ async function sincronizarDeSheets() {
     console.error("❌ Erro ao sincronizar recibos da planilha:", e.message);
   }
 }
+testarConexaoSheets();
 sincronizarDeSheets();
 initDb().catch(e => console.error("❌ Erro ao inicializar Neon:", e.message));
 
