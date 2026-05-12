@@ -1319,7 +1319,9 @@ async function syncSheets(){
   btn.innerHTML='<i class="bi bi-hourglass-split"></i> Enviando...';
   resultado.style.display="none";
   try{
-    const res=await api("POST","/api/admin/sync-sheets");
+    const response=await api("POST","/api/admin/sync-sheets");
+    if(!response) return;
+    const res=await response.json();
     resultado.style.display="block";
     if(res&&res.ok){
       resultado.style.color="var(--success,#22c55e)";
