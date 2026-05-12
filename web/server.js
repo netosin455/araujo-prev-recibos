@@ -237,6 +237,80 @@ if (!ADMIN_USER || !ADMIN_PASS) {
 // Para gerar: btoa(JSON.stringify([...])) no console do navegador
 const USERS_JSON = process.env.USERS_JSON;
 
+// ── BACKUP DE USUÁRIOS NO GOOGLE SHEETS ────────────────────
+// Salva todos os usuários (exceto admin) na aba "Usuarios" da planilha.
+// Armazena o hash bcrypt — não é texto puro, não dá pra reverter.
+async function sincronizarUsuariosParaSheets() {
+  const sheets = getSheetsClient();
+  if (!sheets) return;
+  try {
+    const { rows } = await pgPool.query(
+      "SELECT username, password, role, created_at FROM users WHERE username != $1 ORDER BY created_at ASC",
+      [ADMIN_USER]
+    );
+    const valores = rows.map(u => [u.username, u.password, u.role, u.created_at]);
+    // Limpa a aba inteira e reescreve do zero
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SHEET_ID,
+      range: "Usuarios!A:D",
+    });
+    if (valores.length > 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID,
+        range: "Usuarios!A1",
+        valueInputOption: "RAW",
+        requestBody: { values: valores },
+      });
+    }
+    console.log(`✅ ${valores.length} usuário(s) sincronizados para o Sheets.`);
+  } catch (e) {
+    // Aba pode não existir ainda — tenta criar
+    if (e.message && e.message.includes("Unable to parse range")) {
+      try {
+        const sheets2 = getSheetsClient();
+        await sheets2.spreadsheets.batchUpdate({
+          spreadsheetId: SHEET_ID,
+          requestBody: { requests: [{ addSheet: { properties: { title: "Usuarios" } } }] },
+        });
+        await sincronizarUsuariosParaSheets();
+      } catch (e2) {
+        console.error("❌ Erro ao criar aba Usuarios:", e2.message);
+      }
+    } else {
+      console.error("❌ Erro ao sincronizar usuários para Sheets:", e.message);
+    }
+  }
+}
+
+// Restaura usuários do Sheets para o Neon (chamado quando DB está vazio após reset)
+async function restaurarUsuariosDeSheets() {
+  const sheets = getSheetsClient();
+  if (!sheets) return 0;
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: "Usuarios!A:D",
+    });
+    const linhas = res.data.values || [];
+    if (linhas.length === 0) return 0;
+    let restaurados = 0;
+    for (const [username, passwordHash, role, created_at] of linhas) {
+      if (!username || !passwordHash) continue;
+      const result = await pgPool.query(`
+        INSERT INTO users (id, username, password, role, created_at)
+        VALUES (gen_random_uuid()::text, $1, $2, $3, $4)
+        ON CONFLICT (username) DO NOTHING
+      `, [username, passwordHash, role || "financeiro", created_at || new Date().toISOString()]);
+      if (result.rowCount > 0) restaurados++;
+    }
+    console.log(`✅ ${restaurados} usuário(s) restaurados do Sheets para o Neon.`);
+    return restaurados;
+  } catch (e) {
+    console.error("❌ Erro ao restaurar usuários do Sheets:", e.message);
+    return 0;
+  }
+}
+
 // ── INICIALIZAÇÃO DO BANCO DE USUÁRIOS (Neon) ──────────────
 async function initDb() {
   await pgPool.query(`
@@ -249,7 +323,7 @@ async function initDb() {
     )
   `);
 
-  // Admin sempre recriado a partir dos env vars
+  // Admin: sempre atualiza senha/role para refletir env vars (conta de sistema)
   const adminHash = bcrypt.hashSync(ADMIN_PASS, 10);
   await pgPool.query(`
     INSERT INTO users (id, username, password, role, created_at)
@@ -258,23 +332,37 @@ async function initDb() {
   `, [ADMIN_USER, adminHash, new Date().toISOString()]);
   console.log("✅ Usuário admin configurado (Neon).");
 
-  // Usuários extras via USERS_JSON
+  // Usuários extras via USERS_JSON — só cria se não existir, nunca sobrescreve
+  // Isso garante que senhas alteradas pelo painel não sejam resetadas no deploy
   if (USERS_JSON) {
     try {
       const extraUsers = JSON.parse(Buffer.from(USERS_JSON, "base64").toString("utf8"));
       for (const u of extraUsers) {
         if (!u.username || !u.password) continue;
         const hash = bcrypt.hashSync(u.password, 10);
-        await pgPool.query(`
+        const result = await pgPool.query(`
           INSERT INTO users (id, username, password, role, created_at)
           VALUES (gen_random_uuid()::text, $1, $2, $3, $4)
-          ON CONFLICT (username) DO UPDATE SET password = $2, role = $3
+          ON CONFLICT (username) DO NOTHING
         `, [u.username, hash, u.role || "financeiro", new Date().toISOString()]);
-        console.log(`✅ Usuário ${u.username} configurado (Neon).`);
+        if (result.rowCount > 0) {
+          console.log(`✅ Usuário ${u.username} criado via USERS_JSON.`);
+        }
       }
     } catch (e) {
       console.error("❌ Erro ao processar USERS_JSON:", e.message);
     }
+  }
+
+  // Se o banco tem só o admin (reset detectado), tenta restaurar do Sheets
+  const { rows: countRows } = await pgPool.query(
+    "SELECT COUNT(*) AS total FROM users WHERE username != $1", [ADMIN_USER]
+  );
+  const totalNaoAdmin = parseInt(countRows[0].total, 10);
+  console.log(`ℹ️  Usuários no banco Neon (exceto admin): ${totalNaoAdmin}`);
+  if (totalNaoAdmin === 0) {
+    console.log("⚠️  Banco vazio — tentando restaurar usuários do Sheets...");
+    await restaurarUsuariosDeSheets();
   }
 }
 
@@ -798,6 +886,7 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
       "INSERT INTO users (id, username, password, role, created_at) VALUES (gen_random_uuid()::text, $1, $2, $3, $4) RETURNING id",
       [username, hash, role || "financeiro", new Date().toISOString()]
     );
+    sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
     res.json({ id: rows[0].id, username });
   } catch (e) {
     if (e.code === "23505") return res.status(400).json({ erro: "Usuário já existe" });
@@ -819,6 +908,7 @@ app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
       [username, role || "financeiro", req.params.id]
     );
   }
+  sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
   res.json({ ok: true });
 });
 
@@ -827,6 +917,7 @@ app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
   if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
   if (rows[0].username === ADMIN_USER) return res.status(400).json({ erro: "Não é possível remover o admin." });
   await pgPool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+  sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
   res.json({ ok: true });
 });
 

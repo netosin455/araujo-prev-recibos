@@ -1,5 +1,22 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-13
+
+### feat: Backup automático de usuários no Google Sheets
+- Toda vez que uma conta é criada, editada ou deletada pelo painel, a lista completa de usuários (exceto admin) é salva na aba `Usuarios` da planilha Google Sheets (armazena hash bcrypt — não texto puro).
+- No startup, se o banco Neon estiver vazio (reset detectado), o servidor restaura automaticamente todos os usuários da planilha com as mesmas senhas.
+- A aba `Usuarios` é criada automaticamente na primeira sincronização se não existir.
+- Sem nenhuma ação manual necessária — contas criadas pelo painel agora sobrevivem a resets do banco.
+
+### fix: Contas de usuário não sobrescritas pelo USERS_JSON no deploy
+- **Causa raiz identificada**: `ON CONFLICT (username) DO UPDATE SET password` no processamento do `USERS_JSON` fazia com que, a cada reinício do servidor (a cada deploy), as senhas dos usuários listados na variável de ambiente fossem resetadas ao valor original do env var — apagando qualquer senha alterada pelo painel.
+- **Causa estrutural do "sumiço" de contas**: O banco Neon no free tier pode ser deletado após ~14 dias de inatividade, deixando apenas as contas recriadas pelas env vars (`ADMIN_USER` e `USERS_JSON`) após o reset.
+- **Correção**:
+  - `USERS_JSON` alterado para `ON CONFLICT (username) DO NOTHING` — só cria usuário se não existir, nunca sobrescreve senha ou role de usuário já cadastrado.
+  - Admin (`ADMIN_USER`) continua com `DO UPDATE` pois é conta de sistema controlada por env var.
+  - Adicionado log de auditoria no startup: exibe total de usuários no banco Neon para facilitar diagnóstico de resets.
+- **Ação necessária**: Adicionar todas as contas importantes no `USERS_JSON` no Elastic Beanstalk — assim elas são recriadas automaticamente se o banco for resetado.
+
 ## 2026-05-12
 
 ### ci: Pipeline CodePipeline corrigido (backslash no ZIP)
