@@ -81,9 +81,11 @@ async function iniciarApp(){
     document.getElementById("nav-usuarios").style.display = "";
     document.getElementById("bn-usuarios").style.display = "";
   }
-  // Esconde ações de edição para recepção
+  // Esconde ações e menus restritos para recepção
   if(roleLogado === "recepcao"){
     document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
+    document.getElementById("nav-admin").style.display = "none";
+    document.getElementById("bn-admin").style.display = "none";
   }
   await carregarRecibos();
   await atualizarNumRecibo();
