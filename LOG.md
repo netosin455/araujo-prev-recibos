@@ -1,5 +1,56 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-13 (2)
+
+### fix: Sincronização inserindo dados no meio da planilha
+- **Causa raiz**: `values.append` com `insertDataOption: "INSERT_ROWS"` detecta o "fim da tabela" como o fim do último bloco contíguo — se houver linhas vazias no meio dos dados, insere ali em vez de no final
+- **Correção**: removido `insertDataOption: "INSERT_ROWS"` de `registrarNoSheets` e do endpoint `/api/admin/sync-sheets`; o comportamento padrão `OVERWRITE` sempre acrescenta após a última linha não-vazia
+
+### fix: Datas em formato americano (MM/DD/YYYY) na planilha
+- **Causa raiz**: `new Date("08/05/2026")` no JavaScript interpreta a string como MM/DD/YYYY (padrão americano), convertendo 08/05/2026 para agosto de 2026 em vez de maio
+- **Correção**: criada função `parseDateBR(str)` que faz split manual em "/" e constrói a data com `new Date(Number(y), Number(m)-1, Number(d))` — evita a interpretação automática errada
+- Aplicada em todos os pontos que formatam datas para a planilha (`sync-sheets`, `reescrever-planilha`, `corrigir-datas`)
+
+### fix: Duplicatas na planilha (até 11 cópias do mesmo recibo)
+- **Causa raiz**: múltiplas execuções de sync + `INSERT_ROWS` inserindo no meio + dados originais do Google Forms já presentes
+- **Correção**: adicionado endpoint `POST /api/admin/limpar-duplicatas` que lê todas as linhas, identifica duplicatas pela coluna M (num_recibo) mantendo apenas a primeira ocorrência, e deleta as extras de baixo para cima usando `batchUpdate/deleteDimension`
+- **Solução nuclear**: endpoint `POST /api/admin/reescrever-planilha` que limpa o intervalo A4:Z e reescreve todos os registros do NeDB do zero, usando `Promise.all` com `async map` para processar comprovantes em paralelo
+
+### feat: Endpoint para corrigir datas retroativamente na planilha
+- `POST /api/admin/corrigir-datas`: cruza os registros do NeDB com as linhas da planilha pelo num_recibo (coluna M) e atualiza colunas A (data_emissao), E (competencia_inicio), F (competencia_fim) e L (data_pagamento) com datas no formato brasileiro correto
+
+### fix: Comprovante não carregava no app (dois bugs distintos)
+- **Bug 1 — Link Drive com formato `?id=`**: regex antiga `/\/d\/([^/]+)\//` só detectava links no formato `/d/ID/preview`. Links antigos salvos como `open?id=ID` não eram reconhecidos
+  - **Correção**: regex atualizada para também detectar `[?&]id=([a-zA-Z0-9_-]{10,})`
+- **Bug 2 — Comprovante local retornava 401**: `<iframe src="/api/comprovante/arquivo">` não envia o header `Authorization: Bearer <token>` automaticamente
+  - **Correção**: `abrirComprovante()` reescrita em `app.js` — detecta links `/api/comprovante*`, faz `fetch()` com header Authorization, converte resposta para Blob URL e injeta no modal via `<img>` (imagens) ou `<iframe>` (PDFs)
+
+### fix: Links S3 na planilha não abriam externamente
+- **Causa**: comprovantes ficavam salvos como `/api/comprovante-s3/comprovantes/HASH.pdf` — URL relativa que requer JWT, inacessível direto do Google Sheets
+- **Tentativa 1** (descartada): presigned URLs do S3 — credenciais IAM temporárias do Elastic Beanstalk não conseguem gerar URLs de longa duração
+- **Correção final**: função `linkParaSheets(link, reciboId)` em `server.js`:
+  - Se `GOOGLE_CREDENTIALS` estiver disponível: baixa o arquivo do S3, faz upload para o Google Drive, salva o link do Drive de volta no NeDB (`link_comprovante` atualizado) e retorna o link público do Drive — migração permanente
+  - Fallback: tenta presigned URL do S3 (7 dias)
+  - Chamada em `sync-sheets` e `reescrever-planilha` para todos os registros com link S3
+- **Dependência adicionada**: `@aws-sdk/s3-request-presigner` no `package.json`
+
+### fix: Acesso ao painel administrativo removido para role "recepcao"
+- Em `app.js`, dentro de `iniciarApp()`, quando `roleLogado === "recepcao"`: oculta todos os elementos `.somente-financeiro`, o item de navegação `#nav-admin` e o botão `#bn-admin`
+- Em `index.html`: adicionado `id="nav-admin"` ao item de navegação do Administrativo
+
+### feat: Refinamentos visuais no frontend
+- **Variáveis CSS**: `--radius:12px`, `--radius-sm:8px`, `--shadow-hover` adicionadas
+- **Sidebar**: gradiente `linear-gradient(180deg,#252525,#1e1e1e)`, nav items com border-radius e indicador ativo `inset 3px 0 0 var(--gold)`
+- **Login**: fundo com gradiente escuro, sombra dourada no card, border-radius 16px
+- **Cards e modais**: border-radius 12px, `backdrop-filter:blur(2px)` no overlay do modal
+- **Dash cards**: gradiente `linear-gradient(145deg,#ffffff,#faf7f2)`, efeito hover de elevação (`translateY(-2px)`)
+- **Botões** `btn-primary` e `btn-gold`: gradiente + hover lift
+- **Lista de recibos**: transição `cubic-bezier(.4,0,.2,1)` + `translateY(-1px)` no hover
+- **Badges**: borda adicionada para melhor contraste
+- **Tema escuro**: cor de card atualizada para `#1c1c1c`
+
+---
+
 ## 2026-05-13
 
 ### feat: Backup automático de usuários no Google Sheets
