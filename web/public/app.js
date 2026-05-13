@@ -248,33 +248,31 @@ function abrirComprovante(link) {
   body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Carregando...</div>`;
   document.getElementById("modal-comprovante").classList.add("active");
 
-  // Extrai fileId de qualquer formato do Drive: /d/ID/ ou ?id=ID ou open?id=ID
-  const driveId = (link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/) || [])[1];
-  const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(link);
-
+  // Drive: qualquer formato (/d/ID/, ?id=ID, open?id=ID) → preview nativo do Drive
+  const driveId = (link.match(/\/d\/([a-zA-Z0-9_-]{10,})/) || link.match(/[?&]id=([a-zA-Z0-9_-]{10,})/) || [])[1];
   if (driveId) {
-    if (isImg) {
-      body.innerHTML = `<img src="https://drive.google.com/uc?id=${driveId}" style="max-width:100%;border-radius:8px" />`;
-    } else {
-      body.innerHTML = `<iframe src="https://drive.google.com/file/d/${driveId}/preview" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
-    }
-  } else if (link.startsWith("/api/comprovante-s3/")) {
+    body.innerHTML = `<iframe src="https://drive.google.com/file/d/${driveId}/preview" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
+    return;
+  }
+
+  // Links autenticados (S3 proxy ou arquivo local) → fetch com JWT → blob
+  const isLocal = link.startsWith("/api/comprovante");
+  if (isLocal) {
     fetch(link, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
       .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
       .then(blob => {
         const url = URL.createObjectURL(blob);
-        if (isImg) {
-          body.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:8px" />`;
-        } else {
-          body.innerHTML = `<iframe src="${url}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
-        }
+        const isImg = /^image\//.test(blob.type);
+        body.innerHTML = isImg
+          ? `<img src="${url}" style="max-width:100%;border-radius:8px" />`
+          : `<iframe src="${url}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
       })
-      .catch(() => { body.innerHTML = `<p style="color:red;text-align:center">Erro ao carregar comprovante.</p>`; });
-  } else if (isImg) {
-    body.innerHTML = `<img src="${link}" style="max-width:100%;border-radius:8px" />`;
-  } else {
-    body.innerHTML = `<iframe src="${link}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
+      .catch(e => { body.innerHTML = `<p style="color:red;text-align:center;padding:20px">Erro ao carregar comprovante (${e.message}).</p>`; });
+    return;
   }
+
+  // Fallback: abre direto (ex: URL pública externa)
+  body.innerHTML = `<iframe src="${link}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
 }
 
 // ── FORMATAÇÃO ─────────────────────────────────────────────
