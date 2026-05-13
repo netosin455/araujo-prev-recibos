@@ -18,6 +18,7 @@ require("dotenv").config();
 const express = require("express");
 const { Pool } = require("pg");
 const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const Datastore = require("@seald-io/nedb");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -125,7 +126,7 @@ async function registrarNoSheets(dados) {
       dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // H: Motivo de pagamento
       dados.escritorio || "",                           // I: Escritório
       "",                                               // J: Alguma observação (não usado)
-      dados.link_comprovante || "",                     // K: Anexo comprovante
+      await linkParaSheets(dados.link_comprovante || ""), // K: Anexo comprovante
       mes,                                              // L: Mês
       dados.num_recibo || "",                           // M: Número do recibo (backup para restauração)
     ];
@@ -225,6 +226,25 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 // S3 — usado quando BUCKET_NAME estiver configurado
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
+
+// Converte link de comprovante para formato adequado à planilha (público/acessível)
+// Links S3 proxy (/api/comprovante-s3/KEY) viram URLs pré-assinadas válidas por 1 ano
+async function linkParaSheets(link) {
+  if (!link) return "";
+  const s3Match = link.match(/^\/api\/comprovante-s3\/(.+)$/);
+  if (s3Match) {
+    const bucket = process.env.BUCKET_NAME;
+    if (!bucket) return link;
+    try {
+      const cmd = new GetObjectCommand({ Bucket: bucket, Key: s3Match[1] });
+      return await getSignedUrl(s3Client, cmd, { expiresIn: 365 * 24 * 3600 });
+    } catch (e) {
+      console.error("❌ Erro ao gerar URL pré-assinada:", e.message);
+      return link;
+    }
+  }
+  return link;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -974,11 +994,10 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
       const dt = new Date(Number(y), Number(m) - 1, Number(d));
       return isNaN(dt.getTime()) ? null : dt;
     }
-    const linhas = faltando.map(r => {
+    const linhas = await Promise.all(faltando.map(async r => {
       const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
       const mes = MESES_LOCAL[dt.getMonth()] || "";
       const dataFmt = dt.toLocaleDateString("pt-BR");
-      // Para o carimbo usa o timestamp se disponível (tem hora), senão usa a data
       const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
       const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
       return [
@@ -992,11 +1011,11 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
         r.motivo_pagamento || r.complemento || "Honorários Advocatícios", // H: Motivo
         r.escritorio || "",                                               // I: Escritório
         "",                                                               // J: Observação
-        r.link_comprovante || "",                                         // K: Comprovante
+        await linkParaSheets(r.link_comprovante || ""),                   // K: Comprovante
         mes,                                                              // L: Mês
         r.num || "",                                                      // M: Número recibo
       ];
-    });
+    }));
 
     // append com OVERWRITE escreve após a última linha não-vazia sem inserir no meio
     const appendResult = await sheets.spreadsheets.values.append({
@@ -1102,8 +1121,8 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       range: `${SHEET_NAME}!A4:Z`,
     });
 
-    // 2. Monta todas as linhas com datas corretas
-    const linhas = todos.map(r => {
+    // 2. Monta todas as linhas com datas corretas (links S3 viram URLs pré-assinadas)
+    const linhas = await Promise.all(todos.map(async r => {
       const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
       const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
       const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -1120,11 +1139,11 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
         r.motivo_pagamento || r.complemento || "Honorários Advocatícios",
         r.escritorio || "",
         "",
-        r.link_comprovante || "",
+        await linkParaSheets(r.link_comprovante || ""),
         mes,
         r.num || "",
       ];
-    });
+    }));
 
     // 3. Escreve tudo de uma vez a partir da linha 4
     await sheets.spreadsheets.values.update({
