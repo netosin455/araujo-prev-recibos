@@ -227,6 +227,18 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 // S3 — usado quando BUCKET_NAME estiver configurado
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
 
+// Cliente S3 com credenciais IAM estáticas — necessário para presigned URLs longas.
+// Credenciais do instance profile são temporárias e invalidam a URL antes do prazo.
+const s3SignerClient = (process.env.S3_SIGNER_KEY_ID && process.env.S3_SIGNER_SECRET)
+  ? new S3Client({
+      region: process.env.AWS_REGION || "us-east-1",
+      credentials: {
+        accessKeyId: process.env.S3_SIGNER_KEY_ID,
+        secretAccessKey: process.env.S3_SIGNER_SECRET,
+      },
+    })
+  : s3Client; // fallback para instance profile se env vars não estiverem definidas
+
 // Gera URL pré-assinada do S3 para links de comprovante na planilha.
 // Serviço de conta Google (service account) não tem cota de armazenamento no Drive,
 // portanto não é possível fazer upload; presigned URL é o único caminho viável.
@@ -240,7 +252,7 @@ async function linkParaSheets(link) {
 
   try {
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: s3Match[1] });
-    return await getSignedUrl(s3Client, cmd, { expiresIn: 7 * 24 * 3600 });
+    return await getSignedUrl(s3SignerClient, cmd, { expiresIn: 7 * 24 * 3600 });
   } catch (e) {
     console.error("❌ Presigned URL falhou:", e.message);
     return link;
