@@ -477,7 +477,10 @@ async function sincronizarComprovantes() {
       if (num) recibo = await findOne(dbRecibos, { num });
       if (!recibo && cpf) recibo = await findOne(dbRecibos, { cpf, data: row[4] || "" });
       if (!recibo) continue;
-      if (recibo.link_comprovante === link) continue;
+      // Nunca sobrescreve link existente — só preenche se banco estiver vazio
+      if (recibo.link_comprovante) continue;
+      // Nunca salva presigned URL (expira em horas) — só Drive links
+      if (link.includes("amazonaws.com")) continue;
       await update(dbRecibos, { _id: recibo._id }, { link_comprovante: link });
       atualizados++;
     }
