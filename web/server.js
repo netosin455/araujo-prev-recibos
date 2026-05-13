@@ -666,13 +666,7 @@ app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (r
     const ext = path.extname(req.file.originalname) || "";
     const nomeArquivo = `comprovante_${crypto.randomBytes(8).toString("hex")}${ext}`;
 
-    // Prefere Drive (link público permanente, abre no Sheets sem login)
-    if (process.env.GOOGLE_CREDENTIALS) {
-      const driveLink = await uploadParaDrive(req.file.buffer, nomeArquivo, req.file.mimetype);
-      return res.json({ link: driveLink });
-    }
-
-    // Fallback: S3
+    // S3 quando bucket configurado
     const bucket = process.env.BUCKET_NAME;
     if (bucket) {
       const key = `comprovantes/${nomeArquivo}`;
