@@ -681,7 +681,10 @@
             <div class="card" style="max-width:none;grid-column:span 2;border:1px solid var(--warning,#f59e0b)">
               <div class="card-title"><i class="bi bi-cloud-upload"></i> Sincronizar com Google Sheets</div>
               <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Envia todos os recibos do banco que ainda não estão na planilha. Use quando a planilha estiver desatualizada.</p>
-              <button class="btn-gold btn-sm" id="btn-sync-sheets" onclick="syncSheets()"><i class="bi bi-arrow-repeat"></i> Sincronizar agora</button>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn-gold btn-sm" id="btn-sync-sheets" onclick="syncSheets()"><i class="bi bi-arrow-repeat"></i> Sincronizar agora</button>
+                <button class="btn-danger btn-sm" id="btn-limpar-duplicatas" onclick="limparDuplicatas()"><i class="bi bi-trash"></i> Remover duplicatas</button>
+              </div>
               <div id="sync-sheets-resultado" style="margin-top:12px;font-size:13px;display:none"></div>
             </div>
 

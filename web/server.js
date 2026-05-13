@@ -1008,6 +1008,64 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
   }
 });
 
+// ── LIMPAR DUPLICATAS NA PLANILHA ────────────────────────────
+app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
+  const sheets = getSheetsClient();
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado." });
+
+  try {
+    // Descobre o sheetId numérico da aba
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "sheets.properties" });
+    const sheetMeta = meta.data.sheets.find(s => s.properties.title === SHEET_NAME);
+    if (!sheetMeta) return res.status(404).json({ erro: `Aba "${SHEET_NAME}" não encontrada.` });
+    const sheetId = sheetMeta.properties.sheetId;
+
+    // Lê todas as linhas (col M = num_recibo, índice 12)
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A1:M`,
+    });
+    const rows = result.data.values || [];
+
+    // Identifica linhas duplicadas pelo num_recibo (col M)
+    // Mantém a PRIMEIRA ocorrência, marca as demais para deletar
+    const seen = new Set();
+    const toDelete = []; // índices de linha (0-based) a deletar, do maior pro menor
+    rows.forEach((row, idx) => {
+      const num = String(row[12] || "").trim();
+      if (!num) return; // linha sem número — ignora
+      if (seen.has(num)) {
+        toDelete.push(idx);
+      } else {
+        seen.add(num);
+      }
+    });
+
+    if (toDelete.length === 0) {
+      return res.json({ ok: true, removidas: 0, mensagem: "Nenhuma duplicata encontrada na planilha." });
+    }
+
+    // Deleta do fim para o começo para não deslocar índices
+    toDelete.sort((a, b) => b - a);
+    const requests = toDelete.map(rowIdx => ({
+      deleteDimension: {
+        range: { sheetId, dimension: "ROWS", startIndex: rowIdx, endIndex: rowIdx + 1 },
+      },
+    }));
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: { requests },
+    });
+
+    console.log(`✅ Limpeza: ${toDelete.length} linha(s) duplicada(s) removida(s).`);
+    res.json({ ok: true, removidas: toDelete.length, mensagem: `${toDelete.length} linha(s) duplicada(s) removida(s) com sucesso.` });
+  } catch (e) {
+    console.error("❌ Erro ao limpar duplicatas:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // ── GOV.BR — ASSINATURA DIGITAL ────────────────────────────
 // Credenciais fornecidas pelo Gov.br após cadastro em:
 // https://www.gov.br/governodigital/pt-br/privacidade-e-seguranca/login-unico

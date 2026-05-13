@@ -1339,3 +1339,32 @@ async function syncSheets(){
     btn.innerHTML='<i class="bi bi-arrow-repeat"></i> Sincronizar agora';
   }
 }
+
+async function limparDuplicatas(){
+  if(!confirm("Isso vai remover linhas duplicadas da planilha (mantém a primeira ocorrência de cada recibo). Continuar?")) return;
+  const btn=document.getElementById("btn-limpar-duplicatas");
+  const resultado=document.getElementById("sync-sheets-resultado");
+  btn.disabled=true;
+  btn.innerHTML='<i class="bi bi-hourglass-split"></i> Limpando...';
+  resultado.style.display="none";
+  try{
+    const response=await api("POST","/api/admin/limpar-duplicatas");
+    if(!response) return;
+    const res=await response.json();
+    resultado.style.display="block";
+    if(res&&res.ok){
+      resultado.style.color="var(--success,#22c55e)";
+      resultado.textContent=res.mensagem||"Limpeza concluída.";
+    }else{
+      resultado.style.color="var(--danger,#ef4444)";
+      resultado.textContent=res?.erro||"Erro inesperado: "+JSON.stringify(res);
+    }
+  }catch(e){
+    resultado.style.display="block";
+    resultado.style.color="var(--danger,#ef4444)";
+    resultado.textContent="Erro de conexão.";
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='<i class="bi bi-trash"></i> Remover duplicatas';
+  }
+}
