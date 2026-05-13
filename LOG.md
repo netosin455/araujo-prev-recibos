@@ -1,5 +1,32 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-13 (3)
+
+### fix: Causa raiz definitiva — comprovantes expirando no app
+- **Causa raiz real**: `sincronizarComprovantes()` rodava no startup, lia todos os links da coluna K da planilha (que continha presigned URLs temporárias geradas durante syncs anteriores) e os **sobrescrevia no banco NeDB**, trocando proxy URLs permanentes por URLs que expiravam em horas
+- **Efeito**: a cada reinício do servidor (deploy), o banco recebia presigned URLs expiradas → app mostrava XML de erro do S3 ("ExpiredToken") no modal de comprovante
+- **Correções**:
+  - `sincronizarComprovantes`: adicionada guarda dupla — só preenche registros sem `link_comprovante` (nunca sobrescreve) e ignora qualquer URL contendo `amazonaws.com` (presigned ou pública)
+  - `corrigirLinksComprovante`: regex atualizada de `/amazonaws\.com\/(.+)$/` para `/amazonaws\.com\/(.+?)(?:\?|$)/` — extrai só o path, descartando query string com tokens expirados; converte de volta para proxy URL
+  - `abrirComprovante` (frontend): detecta presigned URL expirada (`amazonaws.com` + `X-Amz-`) e exibe mensagem amigável em vez do XML de erro do S3
+
+### fix: Upload de comprovante retornava erro de cota do Drive
+- **Causa**: rota `/api/upload-comprovante` tentava fazer upload para o Google Drive via service account antes de tentar o S3 — service accounts não têm cota de armazenamento no Drive pessoal
+- **Tentativas**: compartilhamento de pasta com service account (não resolve — cota é da SA, não do dono da pasta); OAuth2 com refresh token (bloqueado por 2FA na conta)
+- **Correção**: removido bloco Drive do upload — arquivos vão direto para S3; proxy URL `/api/comprovante-s3/...` nunca expira no app
+
+### fix: Novo recibo não aparecia na planilha automaticamente
+- **Causa**: `registrarNoSheets` chamava `await linkParaSheets(...)` internamente para gerar presigned URL — se a chamada falhava ou travava silenciosamente (função é fire-and-forget), o append ao Sheets nunca acontecia
+- **Correção**: `registrarNoSheets` salva `link_comprovante` diretamente como está (proxy URL); presigned URL só é gerada no sync explícito, onde erros são visíveis
+
+### feat: IAM user estático para presigned URLs de 7 dias reais
+- **Problema**: credenciais IAM temporárias do instance profile do EB expiram em horas — presigned URLs assinadas com elas também expiram antes do prazo configurado
+- **Solução**: criado usuário IAM `araujo-prev-s3-reader` com política `s3:GetObject` somente no bucket `araujo-prev-comprovantes`; Access Key permanente gerada e configurada no EB como `S3_SIGNER_KEY_ID` e `S3_SIGNER_SECRET`
+- `s3SignerClient` criado no servidor usando essas credenciais fixas — presigned URLs de 7 dias agora são reais
+- Fallback para `s3Client` (instance profile) se env vars não estiverem definidas
+
+---
+
 ## 2026-05-13 (2)
 
 ### fix: Sincronização inserindo dados no meio da planilha
