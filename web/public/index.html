@@ -683,8 +683,7 @@
               <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Envia todos os recibos do banco que ainda não estão na planilha. Use quando a planilha estiver desatualizada.</p>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <button class="btn-gold btn-sm" id="btn-sync-sheets" onclick="syncSheets()"><i class="bi bi-arrow-repeat"></i> Sincronizar agora</button>
-                <button class="btn-danger btn-sm" id="btn-limpar-duplicatas" onclick="limparDuplicatas()"><i class="bi bi-trash"></i> Remover duplicatas</button>
-                <button class="btn-primary btn-sm" id="btn-corrigir-datas" onclick="corrigirDatas()"><i class="bi bi-calendar-check"></i> Corrigir datas</button>
+                <button class="btn-danger btn-sm" id="btn-reescrever-planilha" onclick="reescreverPlanilha()"><i class="bi bi-arrow-clockwise"></i> Limpar e reescrever do zero</button>
               </div>
               <div id="sync-sheets-resultado" style="margin-top:12px;font-size:13px;display:none"></div>
             </div>

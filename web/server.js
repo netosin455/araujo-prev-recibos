@@ -1077,6 +1077,71 @@ app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
   }
 });
 
+// ── LIMPAR PLANILHA E REESCREVER DO ZERO ────────────────────
+app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => {
+  const sheets = getSheetsClient();
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado." });
+
+  try {
+    // Lê todos os recibos do banco ordenados por timestamp
+    const todos = await find(dbRecibos, {}, { timestamp: 1 });
+    if (todos.length === 0) return res.json({ ok: true, mensagem: "Nenhum recibo no banco." });
+
+    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+    function parseDateBR(str) {
+      if (!str) return null;
+      const [d, m, y] = String(str).split("/");
+      if (!d || !m || !y) return null;
+      const dt = new Date(Number(y), Number(m) - 1, Number(d));
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    // 1. Limpa tudo da linha 4 em diante (mantém cabeçalhos)
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A4:Z`,
+    });
+
+    // 2. Monta todas as linhas com datas corretas
+    const linhas = todos.map(r => {
+      const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
+      const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
+      const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      const mes = MESES_LOCAL[dt.getMonth()] || "";
+      const dataFmt = dt.toLocaleDateString("pt-BR");
+      return [
+        carimbo,
+        r.nome || "",
+        r.cpf || "",
+        r.valor ? `R$ ${r.valor}` : "",
+        r.data || dataFmt,
+        r.data || dataFmt,
+        r.forma_pagamento || "",
+        r.motivo_pagamento || r.complemento || "Honorários Advocatícios",
+        r.escritorio || "",
+        "",
+        r.link_comprovante || "",
+        mes,
+        r.num || "",
+      ];
+    });
+
+    // 3. Escreve tudo de uma vez a partir da linha 4
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A4:M${3 + linhas.length}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: linhas },
+    });
+
+    console.log(`✅ Planilha reescrita: ${linhas.length} recibo(s) do banco.`);
+    res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco. Datas corrigidas.` });
+  } catch (e) {
+    console.error("❌ Erro ao reescrever planilha:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // ── CORRIGIR DATAS NA PLANILHA ────────────────────────────
 app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();

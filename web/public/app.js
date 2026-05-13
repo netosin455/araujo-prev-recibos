@@ -1340,6 +1340,35 @@ async function syncSheets(){
   }
 }
 
+async function reescreverPlanilha(){
+  if(!confirm("ATENÇÃO: isso vai APAGAR tudo da planilha e reescrever do zero com os dados do banco (datas corrigidas). Continuar?")) return;
+  const btn=document.getElementById("btn-reescrever-planilha");
+  const resultado=document.getElementById("sync-sheets-resultado");
+  btn.disabled=true;
+  btn.innerHTML='<i class="bi bi-hourglass-split"></i> Reescrevendo...';
+  resultado.style.display="none";
+  try{
+    const response=await api("POST","/api/admin/reescrever-planilha");
+    if(!response) return;
+    const res=await response.json();
+    resultado.style.display="block";
+    if(res&&res.ok){
+      resultado.style.color="var(--success,#22c55e)";
+      resultado.textContent=res.mensagem||"Planilha reescrita.";
+    }else{
+      resultado.style.color="var(--danger,#ef4444)";
+      resultado.textContent=res?.erro||"Erro: "+JSON.stringify(res);
+    }
+  }catch(e){
+    resultado.style.display="block";
+    resultado.style.color="var(--danger,#ef4444)";
+    resultado.textContent="Erro de conexão.";
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='<i class="bi bi-arrow-clockwise"></i> Limpar e reescrever do zero';
+  }
+}
+
 async function corrigirDatas(){
   const btn=document.getElementById("btn-corrigir-datas");
   const resultado=document.getElementById("sync-sheets-resultado");
