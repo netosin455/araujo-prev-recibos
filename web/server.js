@@ -227,23 +227,44 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 // S3 — usado quando BUCKET_NAME estiver configurado
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
 
-// Converte link de comprovante para formato adequado à planilha (público/acessível)
-// Links S3 proxy (/api/comprovante-s3/KEY) viram URLs pré-assinadas válidas por 1 ano
-async function linkParaSheets(link) {
+// Converte link S3 proxy para Drive (permanente, abre no Sheets sem login).
+// Se Google Drive não estiver disponível, tenta URL pré-assinada como fallback.
+async function linkParaSheets(link, reciboId) {
   if (!link) return "";
   const s3Match = link.match(/^\/api\/comprovante-s3\/(.+)$/);
-  if (s3Match) {
-    const bucket = process.env.BUCKET_NAME;
-    if (!bucket) return link;
+  if (!s3Match) return link;
+
+  const bucket = process.env.BUCKET_NAME;
+  if (!bucket) return link;
+
+  // Prefere migrar para Drive (link permanente)
+  if (process.env.GOOGLE_CREDENTIALS) {
     try {
       const cmd = new GetObjectCommand({ Bucket: bucket, Key: s3Match[1] });
-      return await getSignedUrl(s3Client, cmd, { expiresIn: 365 * 24 * 3600 });
+      const obj = await s3Client.send(cmd);
+      const chunks = [];
+      for await (const chunk of obj.Body) chunks.push(chunk);
+      const buffer = Buffer.concat(chunks);
+      const nomeArquivo = s3Match[1].split("/").pop();
+      const mimeType = obj.ContentType || "application/octet-stream";
+      const driveLink = await uploadParaDrive(buffer, nomeArquivo, mimeType);
+      // Atualiza o banco para que próximos acessos já usem o link do Drive
+      if (reciboId) await update(dbRecibos, { _id: reciboId }, { link_comprovante: driveLink });
+      console.log(`✅ Comprovante migrado S3→Drive: ${nomeArquivo}`);
+      return driveLink;
     } catch (e) {
-      console.error("❌ Erro ao gerar URL pré-assinada:", e.message);
-      return link;
+      console.error("❌ Migração S3→Drive falhou:", e.message);
     }
   }
-  return link;
+
+  // Fallback: URL pré-assinada (7 dias)
+  try {
+    const cmd = new GetObjectCommand({ Bucket: bucket, Key: s3Match[1] });
+    return await getSignedUrl(s3Client, cmd, { expiresIn: 7 * 24 * 3600 });
+  } catch (e) {
+    console.error("❌ Presigned URL falhou:", e.message);
+    return link;
+  }
 }
 
 const upload = multer({
@@ -1011,7 +1032,7 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
         r.motivo_pagamento || r.complemento || "Honorários Advocatícios", // H: Motivo
         r.escritorio || "",                                               // I: Escritório
         "",                                                               // J: Observação
-        await linkParaSheets(r.link_comprovante || ""),                   // K: Comprovante
+        await linkParaSheets(r.link_comprovante || "", r._id),             // K: Comprovante
         mes,                                                              // L: Mês
         r.num || "",                                                      // M: Número recibo
       ];
