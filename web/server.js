@@ -559,8 +559,8 @@ async function corrigirLinksComprovante() {
         corrigidos++;
         continue;
       }
-      // Converte URL pública S3 (https://bucket.s3.region.amazonaws.com/comprovantes/...)
-      const matchS3 = r.link_comprovante.match(/amazonaws\.com\/(.+)$/);
+      // Converte URL pública S3 ou presigned URL (https://bucket.s3.*.amazonaws.com/KEY?X-Amz-...)
+      const matchS3 = r.link_comprovante.match(/amazonaws\.com\/(.+?)(?:\?|$)/);
       if (matchS3) {
         await update(dbRecibos, { _id: r._id }, { link_comprovante: `/api/comprovante-s3/${matchS3[1]}` });
         corrigidos++;

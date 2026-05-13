@@ -273,6 +273,12 @@ function abrirComprovante(link) {
     return;
   }
 
+  // Presigned URL S3 expirada → mostra mensagem amigável
+  if (link.includes("amazonaws.com") && link.includes("X-Amz-")) {
+    body.innerHTML = `<p style="text-align:center;padding:30px;color:var(--muted)">Link do comprovante expirado.<br>Clique em "Limpar e reescrever do zero" no painel Admin para renovar.</p>`;
+    return;
+  }
+
   // Fallback: abre direto (ex: URL pública externa)
   body.innerHTML = `<iframe src="${link}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
 }
