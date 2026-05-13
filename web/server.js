@@ -68,7 +68,7 @@ async function testarConexaoSheets() {
   }
 }
 
-const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1tAZamgITcl9NtATn7zujEhBTZ_TSIbLRI3vs9k5V9XAaZPvazb59NfqiKNnjcjwzbiaWQsb6";
+const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1BUAPGfIIyehGWkmYlas0SYER3kriQK_H";
 
 async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
   const credsB64 = process.env.GOOGLE_CREDENTIALS;
@@ -666,7 +666,13 @@ app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (r
     const ext = path.extname(req.file.originalname) || "";
     const nomeArquivo = `comprovante_${crypto.randomBytes(8).toString("hex")}${ext}`;
 
-    // S3 quando bucket configurado; service account não tem cota no Drive pessoal
+    // Prefere Drive (link público permanente, abre no Sheets sem login)
+    if (process.env.GOOGLE_CREDENTIALS) {
+      const driveLink = await uploadParaDrive(req.file.buffer, nomeArquivo, req.file.mimetype);
+      return res.json({ link: driveLink });
+    }
+
+    // Fallback: S3
     const bucket = process.env.BUCKET_NAME;
     if (bucket) {
       const key = `comprovantes/${nomeArquivo}`;
