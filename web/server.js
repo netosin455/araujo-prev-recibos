@@ -126,7 +126,7 @@ async function registrarNoSheets(dados) {
       dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // H: Motivo de pagamento
       dados.escritorio || "",                           // I: Escritório
       "",                                               // J: Alguma observação (não usado)
-      await linkParaSheets(dados.link_comprovante || ""), // K: Anexo comprovante
+      dados.link_comprovante || "",                       // K: Anexo comprovante (presigned gerada no sync)
       mes,                                              // L: Mês
       dados.num_recibo || "",                           // M: Número do recibo (backup para restauração)
     ];
