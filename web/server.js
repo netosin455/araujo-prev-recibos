@@ -134,7 +134,6 @@ async function registrarNoSheets(dados) {
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A4:M`,
       valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
       requestBody: { values: [linha] },
     });
     console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets`);
@@ -988,12 +987,11 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
       ];
     });
 
-    // append cria novas linhas automaticamente, sem limite de grid
+    // append com OVERWRITE escreve após a última linha não-vazia sem inserir no meio
     const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A4:M`,
       valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
       requestBody: { values: linhas },
     });
 
