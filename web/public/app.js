@@ -248,15 +248,15 @@ function abrirComprovante(link) {
   body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Carregando...</div>`;
   document.getElementById("modal-comprovante").classList.add("active");
 
-  const driveMatch = link.match(/\/d\/([^/]+)\//);
+  // Extrai fileId de qualquer formato do Drive: /d/ID/ ou ?id=ID ou open?id=ID
+  const driveId = (link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/) || [])[1];
   const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(link);
 
-  if (driveMatch) {
-    const fileId = driveMatch[1];
+  if (driveId) {
     if (isImg) {
-      body.innerHTML = `<img src="https://drive.google.com/uc?id=${fileId}" style="max-width:100%;border-radius:8px" />`;
+      body.innerHTML = `<img src="https://drive.google.com/uc?id=${driveId}" style="max-width:100%;border-radius:8px" />`;
     } else {
-      body.innerHTML = `<iframe src="https://drive.google.com/file/d/${fileId}/preview" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
+      body.innerHTML = `<iframe src="https://drive.google.com/file/d/${driveId}/preview" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
     }
   } else if (link.startsWith("/api/comprovante-s3/")) {
     fetch(link, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
