@@ -966,12 +966,23 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
 
     // Monta as linhas para inserção em lote
     const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+    // r.data vem como "DD/MM/YYYY" do banco — new Date() interpreta como MM/DD, invertendo mês/dia
+    function parseDateBR(str) {
+      if (!str) return null;
+      const [d, m, y] = String(str).split("/");
+      if (!d || !m || !y) return null;
+      const dt = new Date(Number(y), Number(m) - 1, Number(d));
+      return isNaN(dt.getTime()) ? null : dt;
+    }
     const linhas = faltando.map(r => {
-      const dt = r.data ? new Date(r.data) : new Date(r.timestamp || Date.now());
+      const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
       const mes = MESES_LOCAL[dt.getMonth()] || "";
       const dataFmt = dt.toLocaleDateString("pt-BR");
+      // Para o carimbo usa o timestamp se disponível (tem hora), senão usa a data
+      const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
+      const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
       return [
-        dataFmt,                                                          // A: Carimbo
+        carimbo,                                                          // A: Carimbo
         r.nome || "",                                                     // B: Nome
         r.cpf || "",                                                      // C: CPF
         r.valor ? `R$ ${r.valor}` : "",                                   // D: Valor
@@ -1062,6 +1073,79 @@ app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
     res.json({ ok: true, removidas: toDelete.length, mensagem: `${toDelete.length} linha(s) duplicada(s) removida(s) com sucesso.` });
   } catch (e) {
     console.error("❌ Erro ao limpar duplicatas:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+// ── CORRIGIR DATAS NA PLANILHA ────────────────────────────
+app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
+  const sheets = getSheetsClient();
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado." });
+
+  try {
+    // Lê todos os recibos do banco indexados por num_recibo
+    const todos = await find(dbRecibos, {});
+    const dbMap = new Map(todos.map(r => [String(r.num || "").trim(), r]));
+
+    // Lê todas as linhas da planilha
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A1:M`,
+    });
+    const rows = result.data.values || [];
+
+    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+    function parseDateBR(str) {
+      if (!str) return null;
+      const [d, m, y] = String(str).split("/");
+      if (!d || !m || !y) return null;
+      const dt = new Date(Number(y), Number(m) - 1, Number(d));
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    const updates = [];
+    rows.forEach((row, idx) => {
+      const num = String(row[12] || "").trim();
+      if (!num) return;
+      const rec = dbMap.get(num);
+      if (!rec) return;
+
+      // Reconstrói carimbo e mês a partir do timestamp do banco
+      const dt = parseDateBR(rec.data) || new Date(rec.timestamp || Date.now());
+      const tsDate = rec.timestamp ? new Date(rec.timestamp) : dt;
+      const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      const mes = MESES_LOCAL[dt.getMonth()] || "";
+      const dataFmt = dt.toLocaleDateString("pt-BR");
+
+      const rowNum = idx + 1; // planilha é 1-based
+      updates.push({ rowNum, carimbo, mes, dataFmt, dataBR: rec.data || dataFmt });
+    });
+
+    if (updates.length === 0) {
+      return res.json({ ok: true, corrigidas: 0, mensagem: "Nenhuma linha para corrigir." });
+    }
+
+    // Atualiza em lote: coluna A (carimbo), E (data pag), F (data dep), L (mês)
+    const data = updates.map(u => ({
+      range: `${SHEET_NAME}!A${u.rowNum}`,
+      values: [[u.carimbo]],
+    })).concat(updates.map(u => ({
+      range: `${SHEET_NAME}!E${u.rowNum}:F${u.rowNum}`,
+      values: [[u.dataBR, u.dataBR]],
+    }))).concat(updates.map(u => ({
+      range: `${SHEET_NAME}!L${u.rowNum}`,
+      values: [[u.mes]],
+    })));
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: { valueInputOption: "USER_ENTERED", data },
+    });
+
+    console.log(`✅ Datas corrigidas em ${updates.length} linha(s).`);
+    res.json({ ok: true, corrigidas: updates.length, mensagem: `Datas corrigidas em ${updates.length} linha(s) da planilha.` });
+  } catch (e) {
+    console.error("❌ Erro ao corrigir datas:", e.message);
     res.status(500).json({ erro: e.message });
   }
 });
