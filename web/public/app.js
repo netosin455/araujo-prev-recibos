@@ -458,7 +458,7 @@ async function gerarRecibo(){
   }
 
   // Salvar no banco
-  await api("POST","/api/recibos",{
+  const salvarRes = await api("POST","/api/recibos",{
     num:dados.num_recibo,nome:dados.nome,cpf:dados.cpf,
     municipio_uf:dados.municipio_uf,valor:dados.valor,
     data:dados.data,emitido_por:dados.emitido_por,
@@ -467,6 +467,12 @@ async function gerarRecibo(){
     motivo_pagamento:dados.motivo_pagamento,link_comprovante,
     timestamp:new Date().toISOString()
   });
+  if (salvarRes) {
+    const salvarJson = await salvarRes.json();
+    if (salvarJson.sheets_ok === false) {
+      alert("⚠️ Recibo salvo, mas NÃO foi registrado na planilha Google Sheets.\nVerifique a configuração do servidor.");
+    }
+  }
 
   await carregarRecibos();
   await atualizarNumRecibo();
