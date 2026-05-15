@@ -470,7 +470,7 @@ async function gerarRecibo(){
   if (salvarRes) {
     const salvarJson = await salvarRes.json();
     if (salvarJson.sheets_ok === false) {
-      alert("⚠️ Recibo salvo, mas NÃO foi registrado na planilha Google Sheets.\nVerifique a configuração do servidor.");
+      alert("⚠️ Recibo salvo, mas NÃO foi registrado na planilha.\nErro: " + (salvarJson.sheets_erro || "desconhecido"));
     }
   }
 

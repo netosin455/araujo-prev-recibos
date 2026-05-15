@@ -147,7 +147,7 @@ async function registrarNoSheets(dados) {
     return true;
   } catch (e) {
     console.error("❌ Erro ao registrar no Google Sheets:", e.message);
-    return false;
+    return e.message;
   }
 }
 
@@ -749,8 +749,8 @@ app.post("/api/recibos", auth, async (req, res) => {
     ? existente.nome
     : (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
-  const sheets_ok = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
-  res.json({ id: doc._id, sheets_ok });
+  const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
+  res.json({ id: doc._id, sheets_ok: sheets_result === true, sheets_erro: sheets_result !== true ? sheets_result : null });
 });
 
 app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
