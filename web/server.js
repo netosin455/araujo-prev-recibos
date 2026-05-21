@@ -203,20 +203,7 @@ if (!DATABASE_URL) {
 }
 const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
-// ── RATE LIMIT LOGIN ───────────────────────────────────────
-const loginAttempts = new Map();
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const entry = loginAttempts.get(ip) || { count: 0, resetAt: now + 15 * 60 * 1000 };
-  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + 15 * 60 * 1000; }
-  entry.count++;
-  loginAttempts.set(ip, entry);
-  return entry.count > 10;
-}
-// Usa o IP real da conexão TCP — ignora X-Forwarded-For que pode ser forjado pelo cliente
-function getClientIp(req) {
-  return req.socket.remoteAddress || "unknown";
-}
+
 
 // ── BANCO DE DADOS ─────────────────────────────────────────
 const dbDir = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -650,8 +637,6 @@ function count(db, query) {
 
 // ── ROTAS AUTH ─────────────────────────────────────────────
 app.post("/api/login", async (req, res) => {
-  const ip = getClientIp(req);
-  if (checkRateLimit(ip)) return res.status(429).json({ erro: "Muitas tentativas. Aguarde 15 minutos." });
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
   if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ erro: "Dados inválidos" });

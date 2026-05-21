@@ -1,5 +1,12 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-21
+
+### remove: Bloqueio de 15 minutos por tentativas de login
+- Removida lógica de rate limit (`loginAttempts`, `checkRateLimit`, `getClientIp`) do `web/server.js`
+- O sistema não bloqueia mais o IP após 10 tentativas erradas de senha
+- Motivação: bloqueio estava impedindo usuários legítimos que erravam a senha
+
 ## 2026-05-13 (3)
 
 ### fix: Causa raiz definitiva — comprovantes expirando no app
