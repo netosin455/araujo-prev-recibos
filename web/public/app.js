@@ -938,24 +938,39 @@ async function renderUsuarios(){
   if(!res) return;
   const users=await res.json();
   const el=document.getElementById("lista-usuarios");
-  el.innerHTML=users.map(u=>`
+  el.innerHTML=users.map(u=>{
+    const perfilLabel = u.role==="recepcao"
+      ? `Recepção · Escritório: ${esc(u.escritorio||"não definido")}`
+      : "Financeiro";
+    return `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
       <div>
         <div style="font-weight:600">${esc(u.username)}</div>
-        <div style="font-size:11px;color:var(--muted)">Perfil: ${u.role==="recepcao"?"Recepção":"Financeiro"} · Criado em ${new Date(u.created_at).toLocaleDateString("pt-BR")}</div>
+        <div style="font-size:11px;color:var(--muted)">Perfil: ${perfilLabel} · Criado em ${new Date(u.created_at).toLocaleDateString("pt-BR")}</div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn-sm" onclick="editarUsuario('${u.id}','${esc(u.username)}','${u.role||"financeiro"}')">Editar</button>
+        <button class="btn-sm" onclick="editarUsuario('${u.id}','${esc(u.username)}','${u.role||"financeiro"}','${esc(u.escritorio||"")}')">Editar</button>
         <button class="btn-danger btn-sm" onclick="excluirUsuario('${u.id}')">Remover</button>
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 }
 
-function editarUsuario(id, usernameAtual, roleAtual){
+function toggleEscritorioNovo(role){
+  document.getElementById("novo-escritorio-group").style.display = role==="recepcao" ? "" : "none";
+}
+
+function toggleEscritorioEdit(role){
+  document.getElementById("edit-escritorio-group").style.display = role==="recepcao" ? "" : "none";
+}
+
+function editarUsuario(id, usernameAtual, roleAtual, escritorioAtual){
   document.getElementById("edit-user-id").value = id;
   document.getElementById("edit-user-nome").value = usernameAtual;
   document.getElementById("edit-user-senha").value = "";
   document.getElementById("edit-user-role").value = roleAtual || "financeiro";
+  document.getElementById("edit-user-escritorio").value = escritorioAtual || "";
+  toggleEscritorioEdit(roleAtual || "financeiro");
   document.getElementById("modal-editar-usuario").classList.add("active");
 }
 
@@ -964,8 +979,9 @@ async function salvarEdicaoUsuario(){
   const username = document.getElementById("edit-user-nome").value.trim();
   const password = document.getElementById("edit-user-senha").value;
   const role = document.getElementById("edit-user-role").value;
+  const escritorio = document.getElementById("edit-user-escritorio").value.trim().toUpperCase();
   if(!username) return alert("Preencha o nome de usuário.");
-  const body = { username, role };
+  const body = { username, role, escritorio };
   if(password) body.password = password;
   const res = await api("PUT", `/api/users/${id}`, body);
   const data = await res.json();
@@ -979,13 +995,16 @@ async function adicionarUsuario(){
   const username=document.getElementById("novo-usuario").value.trim();
   const password=document.getElementById("nova-senha").value;
   const role=document.getElementById("novo-role").value;
+  const escritorio=document.getElementById("novo-escritorio").value.trim().toUpperCase();
   if(!username||!password) return alert("Preencha usuário e senha.");
-  const res=await api("POST","/api/users",{username,password,role});
+  const res=await api("POST","/api/users",{username,password,role,escritorio});
   const data=await res.json();
   if(!res.ok) return alert(data.erro||"Erro ao criar usuário.");
   document.getElementById("novo-usuario").value="";
   document.getElementById("nova-senha").value="";
   document.getElementById("novo-role").value="financeiro";
+  document.getElementById("novo-escritorio").value="";
+  toggleEscritorioNovo("financeiro");
   mostrarToast(`Usuário "${username}" criado com sucesso!`);
   renderUsuarios();
 }

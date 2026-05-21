@@ -2,6 +2,16 @@
 
 ## 2026-05-21
 
+### feat: Recepção visualiza apenas recibos do próprio escritório
+- Adicionado campo `escritorio` na tabela `users` (Neon) com migração automática via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+- JWT de login agora carrega `escritorio` no payload
+- `GET /api/recibos`: usuários com `role = recepcao` recebem apenas os recibos cujo campo `escritorio` bate com o escritório do seu usuário (comparação case-insensitive)
+- `POST /api/users` e `PUT /api/users/:id`: aceitam e persistem `escritorio`; retornam erro 400 se `role = recepcao` e `escritorio` estiver vazio
+- `GET /api/users`: retorna campo `escritorio`
+- Sync e restauração do Google Sheets atualizados para coluna A:E (adicionada coluna escritório)
+- Frontend: campo "Escritório" aparece nos formulários de adicionar/editar usuário apenas quando perfil = Recepção
+- Lista de usuários exibe o escritório vinculado para perfil Recepção
+
 ### remove: Bloqueio de 15 minutos por tentativas de login
 - Removida lógica de rate limit (`loginAttempts`, `checkRateLimit`, `getClientIp`) do `web/server.js`
 - O sistema não bloqueia mais o IP após 10 tentativas erradas de senha

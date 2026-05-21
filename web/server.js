@@ -276,14 +276,14 @@ async function sincronizarUsuariosParaSheets() {
   if (!sheets) return;
   try {
     const { rows } = await pgPool.query(
-      "SELECT username, password, role, created_at FROM users WHERE username != $1 ORDER BY created_at ASC",
+      "SELECT username, password, role, escritorio, created_at FROM users WHERE username != $1 ORDER BY created_at ASC",
       [ADMIN_USER]
     );
-    const valores = rows.map(u => [u.username, u.password, u.role, u.created_at]);
+    const valores = rows.map(u => [u.username, u.password, u.role, u.escritorio || "", u.created_at]);
     // Limpa a aba inteira e reescreve do zero
     await sheets.spreadsheets.values.clear({
       spreadsheetId: SHEET_ID,
-      range: "Usuarios!A:D",
+      range: "Usuarios!A:E",
     });
     if (valores.length > 0) {
       await sheets.spreadsheets.values.update({
@@ -320,18 +320,18 @@ async function restaurarUsuariosDeSheets() {
   try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Usuarios!A:D",
+      range: "Usuarios!A:E",
     });
     const linhas = res.data.values || [];
     if (linhas.length === 0) return 0;
     let restaurados = 0;
-    for (const [username, passwordHash, role, created_at] of linhas) {
+    for (const [username, passwordHash, role, escritorio, created_at] of linhas) {
       if (!username || !passwordHash) continue;
       const result = await pgPool.query(`
-        INSERT INTO users (id, username, password, role, created_at)
-        VALUES (gen_random_uuid()::text, $1, $2, $3, $4)
+        INSERT INTO users (id, username, password, role, escritorio, created_at)
+        VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)
         ON CONFLICT (username) DO NOTHING
-      `, [username, passwordHash, role || "financeiro", created_at || new Date().toISOString()]);
+      `, [username, passwordHash, role || "financeiro", escritorio || "", created_at || new Date().toISOString()]);
       if (result.rowCount > 0) restaurados++;
     }
     console.log(`✅ ${restaurados} usuário(s) restaurados do Sheets para o Neon.`);
@@ -350,8 +350,13 @@ async function initDb() {
       username TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       role     TEXT NOT NULL DEFAULT 'financeiro',
+      escritorio TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL
     )
+  `);
+  // Migração: adiciona coluna caso a tabela já exista sem ela
+  await pgPool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS escritorio TEXT NOT NULL DEFAULT ''
   `);
 
   // Admin: sempre atualiza senha/role para refletir env vars (conta de sistema)
@@ -372,10 +377,10 @@ async function initDb() {
         if (!u.username || !u.password) continue;
         const hash = bcrypt.hashSync(u.password, 10);
         const result = await pgPool.query(`
-          INSERT INTO users (id, username, password, role, created_at)
-          VALUES (gen_random_uuid()::text, $1, $2, $3, $4)
+          INSERT INTO users (id, username, password, role, escritorio, created_at)
+          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)
           ON CONFLICT (username) DO NOTHING
-        `, [u.username, hash, u.role || "financeiro", new Date().toISOString()]);
+        `, [u.username, hash, u.role || "financeiro", u.escritorio || "", new Date().toISOString()]);
         if (result.rowCount > 0) {
           console.log(`✅ Usuário ${u.username} criado via USERS_JSON.`);
         }
@@ -645,8 +650,8 @@ app.post("/api/login", async (req, res) => {
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ erro: "Usuário ou senha incorretos" });
   }
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro" }, JWT_SECRET, { expiresIn: "8h" });
-  res.json({ token, username: user.username, role: user.role || "financeiro" });
+  const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" }, JWT_SECRET, { expiresIn: "8h" });
+  res.json({ token, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" });
 });
 
 // ── UPLOAD COMPROVANTE ─────────────────────────────────────
@@ -716,7 +721,11 @@ app.get("/api/comprovante/:filename", auth, (req, res) => {
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────
 app.get("/api/recibos", auth, async (req, res) => {
-  const recibos = await find(dbRecibos, {}, { timestamp: -1 });
+  const todos = await find(dbRecibos, {}, { timestamp: -1 });
+  // Recepção vê apenas os recibos do seu escritório
+  const recibos = req.user.role === "recepcao" && req.user.escritorio
+    ? todos.filter(r => (r.escritorio || "").toUpperCase() === req.user.escritorio.toUpperCase())
+    : todos;
   res.json(recibos.map(r => ({ ...r, id: r._id })));
 });
 
@@ -909,18 +918,20 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
 
 // ── ROTAS USUÁRIOS ─────────────────────────────────────────
 app.get("/api/users", auth, adminOnly, async (req, res) => {
-  const { rows } = await pgPool.query("SELECT id, username, role, created_at FROM users ORDER BY created_at ASC");
+  const { rows } = await pgPool.query("SELECT id, username, role, escritorio, created_at FROM users ORDER BY created_at ASC");
   res.json(rows);
 });
 
 app.post("/api/users", auth, adminOnly, async (req, res) => {
-  const { username, password, role } = req.body;
+  const { username, password, role, escritorio } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
+  // Recepção sem escritório vinculado não filtra nada — força informar
+  if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
   const hash = bcrypt.hashSync(password, 10);
   try {
     const { rows } = await pgPool.query(
-      "INSERT INTO users (id, username, password, role, created_at) VALUES (gen_random_uuid()::text, $1, $2, $3, $4) RETURNING id",
-      [username, hash, role || "financeiro", new Date().toISOString()]
+      "INSERT INTO users (id, username, password, role, escritorio, created_at) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5) RETURNING id",
+      [username, hash, role || "financeiro", escritorio || "", new Date().toISOString()]
     );
     sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
     res.json({ id: rows[0].id, username });
@@ -931,17 +942,18 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
 });
 
 app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
-  const { username, password, role } = req.body;
+  const { username, password, role, escritorio } = req.body;
   if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
+  if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
   if (password) {
     await pgPool.query(
-      "UPDATE users SET username=$1, role=$2, password=$3 WHERE id=$4",
-      [username, role || "financeiro", bcrypt.hashSync(password, 10), req.params.id]
+      "UPDATE users SET username=$1, role=$2, escritorio=$3, password=$4 WHERE id=$5",
+      [username, role || "financeiro", escritorio || "", bcrypt.hashSync(password, 10), req.params.id]
     );
   } else {
     await pgPool.query(
-      "UPDATE users SET username=$1, role=$2 WHERE id=$3",
-      [username, role || "financeiro", req.params.id]
+      "UPDATE users SET username=$1, role=$2, escritorio=$3 WHERE id=$4",
+      [username, role || "financeiro", escritorio || "", req.params.id]
     );
   }
   sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
