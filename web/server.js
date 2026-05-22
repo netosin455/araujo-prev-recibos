@@ -253,7 +253,8 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-const dbRecibos = new Datastore({ filename: path.join(dbDir, "recibos.db"), autoload: true });
+const dbRecibos  = new Datastore({ filename: path.join(dbDir, "recibos.db"),  autoload: true });
+const dbClientes = new Datastore({ filename: path.join(dbDir, "clientes.db"), autoload: true });
 
 // Admin padrão via variáveis de ambiente
 const ADMIN_USER = process.env.ADMIN_USER;
@@ -717,6 +718,72 @@ app.get("/api/comprovante/:filename", auth, (req, res) => {
   const filePath = path.join(uploadsDir, safe);
   if (!fs.existsSync(filePath)) return res.status(404).send("Arquivo não encontrado.");
   res.sendFile(filePath);
+});
+
+// ── ROTAS CLIENTES ─────────────────────────────────────────
+function parseBRL(str) {
+  return parseFloat(String(str || "0").replace(/\./g, "").replace(",", ".")) || 0;
+}
+
+async function enriquecerCliente(c) {
+  const recibos = await find(dbRecibos, { cpf: c.cpf });
+  const parcelas_pagas    = recibos.length;
+  const valor_pago        = recibos.reduce((s, r) => s + parseBRL(r.valor), 0);
+  const valor_parcela     = c.num_parcelas > 0 ? c.valor_contrato / c.num_parcelas : 0;
+  const parcelas_restantes = Math.max(0, c.num_parcelas - parcelas_pagas);
+  const valor_restante    = Math.max(0, c.valor_contrato - valor_pago);
+  return { ...c, id: c._id, valor_parcela, parcelas_pagas, parcelas_restantes, valor_pago, valor_restante };
+}
+
+// Busca por CPF — deve vir antes de /:id para não colidir
+app.get("/api/clientes/cpf/:cpf", auth, async (req, res) => {
+  const cliente = await findOne(dbClientes, { cpf: req.params.cpf });
+  if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
+  res.json(await enriquecerCliente(cliente));
+});
+
+app.get("/api/clientes", auth, async (req, res) => {
+  const clientes = await find(dbClientes, {}, { nome: 1 });
+  const enriquecidos = await Promise.all(clientes.map(enriquecerCliente));
+  res.json(enriquecidos);
+});
+
+app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
+  const { nome, cpf, telefone, endereco, municipio_uf, referencia, valor_contrato, num_parcelas } = req.body;
+  if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
+  if (!valor_contrato || valor_contrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
+  if (!num_parcelas || num_parcelas <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
+  const existente = await findOne(dbClientes, { cpf });
+  if (existente) return res.status(400).json({ erro: "Já existe um cliente cadastrado com este CPF." });
+  const doc = await insert(dbClientes, {
+    nome, cpf, telefone: telefone || "", endereco: endereco || "",
+    municipio_uf, referencia: referencia || "",
+    valor_contrato: Number(valor_contrato), num_parcelas: Number(num_parcelas),
+    created_at: new Date().toISOString()
+  });
+  res.json(await enriquecerCliente(doc));
+});
+
+app.put("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
+  const { nome, cpf, telefone, endereco, municipio_uf, referencia, valor_contrato, num_parcelas } = req.body;
+  if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
+  if (!valor_contrato || valor_contrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
+  if (!num_parcelas || num_parcelas <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
+  // Verifica CPF duplicado em outro cliente
+  const outro = await findOne(dbClientes, { cpf });
+  if (outro && outro._id !== req.params.id) return res.status(400).json({ erro: "CPF já cadastrado em outro cliente." });
+  await update(dbClientes, { _id: req.params.id }, {
+    nome, cpf, telefone: telefone || "", endereco: endereco || "",
+    municipio_uf, referencia: referencia || "",
+    valor_contrato: Number(valor_contrato), num_parcelas: Number(num_parcelas)
+  });
+  const atualizado = await findOne(dbClientes, { _id: req.params.id });
+  res.json(await enriquecerCliente(atualizado));
+});
+
+app.delete("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
+  await remove(dbClientes, { _id: req.params.id });
+  res.json({ ok: true });
 });
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────

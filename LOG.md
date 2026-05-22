@@ -1,5 +1,16 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-22
+
+### feat: Módulo de cadastro de clientes com controle de parcelas
+- Novo banco `clientes.db` (NeDB) com campos: nome, CPF, telefone, endereço, município/UF, referência, valor do contrato, nº de parcelas
+- Novas rotas: `GET/POST/PUT/DELETE /api/clientes` e `GET /api/clientes/cpf/:cpf`
+- API enriquece cada cliente com: valor_parcela, parcelas_pagas (contagem de recibos por CPF), parcelas_restantes, valor_pago, valor_restante
+- Tela Clientes: botão "Cadastrar Cliente", cards com barra de progresso visual (X/Y parcelas · R$ pago · R$ restante)
+- Modal de cadastro/edição com cálculo automático do valor de cada parcela
+- Ao digitar CPF completo no formulário de recibo, preenche automaticamente nome, município, referência e valor da parcela
+- Botão "+ Recibo" no card do cliente pré-preenche o formulário de geração
+
 ## 2026-05-21
 
 ### feat: Recepção visualiza apenas recibos do próprio escritório
