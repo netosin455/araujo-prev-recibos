@@ -732,7 +732,6 @@ async function iniciarAssinaturaGovBr(){
 })();
 
 // ── CLIENTES ───────────────────────────────────────────────
-// ── CLIENTES ───────────────────────────────────────────────
 let listaClientes = [];
 
 async function carregarClientes() {
@@ -743,26 +742,54 @@ async function carregarClientes() {
 
 async function renderClientes() {
   await carregarClientes();
-  const busca = (document.getElementById("busca-clientes").value || "").toLowerCase();
+  const busca        = (document.getElementById("busca-clientes").value || "").toLowerCase();
   const buscaDigitos = busca.replace(/\D/g, "");
-  const grid = document.getElementById("clientes-grid");
+  const grid         = document.getElementById("clientes-grid");
 
-  let clientes = listaClientes.filter(c =>
+  // Agrupa todos os clientes do histórico de recibos (comportamento original)
+  const mapa = {};
+  historicoRecibos.forEach(r => {
+    if (!r.nome) return;
+    const key = r.cpf || r.nome;
+    if (!mapa[key]) mapa[key] = { nome: r.nome, cpf: r.cpf || "", municipio_uf: r.municipio_uf || "", recibos: [], total: 0 };
+    mapa[key].recibos.push(r);
+    mapa[key].total += valorParaNumero(r.valor);
+  });
+
+  let clientes = Object.values(mapa).filter(c =>
     c.nome.toLowerCase().includes(busca) ||
-    (buscaDigitos.length > 0 && (c.cpf || "").replace(/\D/g, "").includes(buscaDigitos))
+    (buscaDigitos.length > 0 && c.cpf.replace(/\D/g, "").includes(buscaDigitos))
   );
+  clientes.sort((a, b) => a.nome.localeCompare(b.nome));
 
   if (!clientes.length) {
-    grid.innerHTML = `<div class="empty-state"><div class="icon">◉</div><p>${busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</p></div>`;
+    grid.innerHTML = `<div class="empty-state"><div class="icon">◉</div><p>${busca ? "Nenhum cliente encontrado." : "Nenhum cliente ainda."}</p></div>`;
     return;
   }
 
   grid.innerHTML = "";
   clientes.forEach(c => {
-    const recibosCliente = historicoRecibos.filter(r => r.cpf === c.cpf);
-    const pct = c.num_parcelas > 0 ? Math.min(100, Math.round((c.parcelas_pagas / c.num_parcelas) * 100)) : 0;
-    const quitado = c.parcelas_restantes === 0 && c.num_parcelas > 0;
-    const corBarra = quitado ? "var(--success)" : "var(--gold)";
+    const cadastro = c.cpf ? listaClientes.find(l => l.cpf === c.cpf) : null;
+    const ultimo   = c.recibos[0];
+
+    // Barra de progresso de parcelas — só se houver cadastro com contrato
+    let blocoContrato = "";
+    if (cadastro && cadastro.num_parcelas > 0) {
+      const pct      = Math.min(100, Math.round((cadastro.parcelas_pagas / cadastro.num_parcelas) * 100));
+      const quitado  = cadastro.parcelas_restantes === 0;
+      const corBarra = quitado ? "var(--success)" : "var(--gold)";
+      blocoContrato  = `
+        <div style="margin-top:8px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+            <span style="color:var(--muted)">${cadastro.parcelas_pagas}/${cadastro.num_parcelas} parcelas${quitado ? " · ✅ Quitado" : ""}</span>
+            <span style="color:var(--muted)">R$ ${formatarValor(cadastro.valor_pago)} / R$ ${formatarValor(cadastro.valor_contrato)}</span>
+          </div>
+          <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
+            <div style="width:${pct}%;background:${corBarra};height:100%;border-radius:4px;transition:width .3s"></div>
+          </div>
+          ${!quitado ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">Faltam R$ ${formatarValor(cadastro.valor_restante)} · ${cadastro.parcelas_restantes} parcela${cadastro.parcelas_restantes !== 1 ? "s" : ""}</div>` : ""}
+        </div>`;
+    }
 
     const card = document.createElement("div");
     card.className = "cliente-card";
@@ -771,71 +798,71 @@ async function renderClientes() {
         <div style="flex:1">
           <div class="cliente-nome">${esc(c.nome)}</div>
           <div class="cliente-stats">
-            <span>${esc(c.cpf)}</span>
-            ${c.telefone ? `<span>·</span><span>${esc(c.telefone)}</span>` : ""}
-            ${c.referencia ? `<span>·</span><span>Ref: ${esc(c.referencia)}</span>` : ""}
+            <span>${c.recibos.length} recibo${c.recibos.length !== 1 ? "s" : ""}</span>
+            <span>·</span><span>Último: ${esc(ultimo.data)}</span>
+            ${cadastro && cadastro.firma ? `<span>·</span><span style="color:var(--gold);font-weight:600">${esc(cadastro.firma)}</span>` : ""}
+            ${cadastro && cadastro.referencia ? `<span>·</span><span>Ref: ${esc(cadastro.referencia)}</span>` : (ultimo.referencia ? `<span>·</span><span>Ref: ${esc(ultimo.referencia)}</span>` : "")}
           </div>
-          <div style="margin-top:8px">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-              <span style="color:var(--muted)">${c.parcelas_pagas}/${c.num_parcelas} parcelas pagas${quitado ? " · ✅ Quitado" : ""}</span>
-              <span style="color:var(--muted)">R$ ${formatarValor(c.valor_pago)} de R$ ${formatarValor(c.valor_contrato)}</span>
-            </div>
-            <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
-              <div style="width:${pct}%;background:${corBarra};height:100%;border-radius:4px;transition:width .3s"></div>
-            </div>
-            ${!quitado ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">Faltam R$ ${formatarValor(c.valor_restante)} · ${c.parcelas_restantes} parcela${c.parcelas_restantes !== 1 ? "s" : ""}</div>` : ""}
-          </div>
+          ${blocoContrato}
         </div>
         <div style="display:flex;align-items:flex-start;gap:8px;margin-left:12px;flex-shrink:0">
-          ${roleLogado !== "recepcao" ? `<button class="btn-sm btn-secondary" onclick="event.stopPropagation();editarCliente('${c.id}')">Editar</button>` : ""}
+          <div style="text-align:right;margin-right:4px">
+            <div class="cliente-total">R$ ${formatarValor(c.total)}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">total pago</div>
+          </div>
+          ${roleLogado !== "recepcao" ? `<button class="btn-sm btn-secondary cadastro-btn">${cadastro ? "Editar cadastro" : "Cadastrar"}</button>` : ""}
           <button class="btn-gold btn-sm novo-recibo-btn">+ Recibo</button>
         </div>
       </div>
       <div class="cliente-body">
-        ${recibosCliente.length === 0
-          ? `<div style="color:var(--muted);font-size:13px;padding:8px 0">Nenhum recibo gerado ainda.</div>`
-          : `<table style="width:100%">
-              <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ações</th></tr></thead>
-              <tbody>
-                ${recibosCliente.map(r => {
-                  const rd = JSON.stringify(r).replace(/"/g, "&quot;");
-                  return `<tr>
-                    <td><span class="badge badge-gold">${esc(r.num)}</span></td>
-                    <td>${esc(r.data)}</td>
-                    <td style="color:var(--success);font-weight:700">R$ ${esc(r.valor)}</td>
-                    <td>${esc(r.emitido_por || "-")}</td>
-                    <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
-                      <button class="btn-secondary btn-sm" onclick="abrirDetalhe(${rd})">Detalhes</button>
-                      <button class="btn-gold btn-sm" onclick="abrirPDFRecibo(${rd})"><i class="bi bi-eye"></i> Ver</button>
-                      ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>` : ""}
-                      <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
-                      ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" onclick="abrirModalUploadComprovante('${r.id || r._id}')">📎 Comprovante</button>` : ""}
-                      ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id || r._id}')">🗑</button>` : ""}
-                    </td>
-                  </tr>`;
-                }).join("")}
-              </tbody>
-            </table>`
-        }
+        <table style="width:100%">
+          <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th>Ações</th></tr></thead>
+          <tbody>
+            ${c.recibos.map(r => {
+              const rd = JSON.stringify(r).replace(/"/g, "&quot;");
+              return `<tr>
+                <td><span class="badge badge-gold">${esc(r.num)}</span></td>
+                <td>${esc(r.data)}</td>
+                <td style="color:var(--success);font-weight:700">R$ ${esc(r.valor)}</td>
+                <td>${esc(r.emitido_por || "-")}</td>
+                <td>${esc(r.referencia || "-")}</td>
+                <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
+                  <button class="btn-secondary btn-sm" onclick="abrirDetalhe(${rd})">Detalhes</button>
+                  <button class="btn-gold btn-sm" onclick="abrirPDFRecibo(${rd})"><i class="bi bi-eye"></i> Ver</button>
+                  ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>` : ""}
+                  <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
+                  ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" onclick="abrirModalUploadComprovante('${r.id || r._id}')">📎 Comprovante</button>` : ""}
+                  ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id || r._id}')">🗑</button>` : ""}
+                </td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
       </div>`;
 
     card.querySelector(".novo-recibo-btn").addEventListener("click", e => {
       e.stopPropagation();
-      novoReciboParaCliente(c);
+      novoReciboParaCliente(c, cadastro);
     });
+    if (roleLogado !== "recepcao") {
+      card.querySelector(".cadastro-btn").addEventListener("click", e => {
+        e.stopPropagation();
+        cadastro ? editarCliente(cadastro.id) : abrirModalClientePreenchido(c);
+      });
+    }
     grid.appendChild(card);
   });
 }
 
-function novoReciboParaCliente(c) {
+function novoReciboParaCliente(c, cadastro) {
   irParaTela("inicio");
   setTimeout(() => {
-    document.getElementById("cpf").value = c.cpf || "";
-    document.getElementById("nome").value = c.nome || "";
-    document.getElementById("municipio_uf").value = c.municipio_uf || "";
-    document.getElementById("referencia").value = c.referencia || "";
-    if (c.valor_parcela > 0) {
-      const vf = c.valor_parcela.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    document.getElementById("cpf").value          = c.cpf || "";
+    document.getElementById("nome").value         = c.nome || "";
+    document.getElementById("municipio_uf").value = cadastro ? cadastro.municipio_uf : (c.municipio_uf || "");
+    document.getElementById("referencia").value   = cadastro ? (cadastro.referencia || "") : (c.recibos[0]?.referencia || "");
+    if (cadastro && cadastro.valor_parcela > 0) {
+      const vf = cadastro.valor_parcela.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
       document.getElementById("valor").value = vf;
     }
     document.getElementById("valor").focus();
@@ -875,26 +902,44 @@ function calcularParcela() {
   }
 }
 
-function abrirModalCliente(id) {
-  document.getElementById("cliente-id").value = "";
-  document.getElementById("modal-cliente-titulo").textContent = "Cadastrar Cliente";
-  ["cliente-nome","cliente-cpf","cliente-telefone","cliente-endereco","cliente-municipio","cliente-referencia","cliente-valor-contrato","cliente-num-parcelas"].forEach(id => {
-    document.getElementById(id).value = "";
+function limparModalCliente() {
+  ["cliente-nome","cliente-cpf","cliente-telefone","cliente-endereco","cliente-municipio","cliente-firma","cliente-referencia","cliente-valor-contrato","cliente-num-parcelas"].forEach(campo => {
+    document.getElementById(campo).value = "";
   });
+  document.getElementById("cliente-id").value = "";
   document.getElementById("cliente-parcela-preview").textContent = "";
+}
+
+function abrirModalCliente() {
+  limparModalCliente();
+  document.getElementById("modal-cliente-titulo").textContent = "Cadastrar Cliente";
+  document.getElementById("modal-cliente").classList.add("active");
+}
+
+// Abre o modal de cadastro pré-preenchido com dados do histórico de recibos
+function abrirModalClientePreenchido(c) {
+  limparModalCliente();
+  document.getElementById("modal-cliente-titulo").textContent = "Cadastrar Cliente";
+  document.getElementById("cliente-nome").value      = c.nome || "";
+  document.getElementById("cliente-cpf").value       = c.cpf || "";
+  document.getElementById("cliente-municipio").value = c.municipio_uf || "";
+  const ref = c.recibos[0]?.referencia || "";
+  document.getElementById("cliente-referencia").value = ref;
   document.getElementById("modal-cliente").classList.add("active");
 }
 
 async function editarCliente(id) {
   const c = listaClientes.find(x => x.id === id);
   if (!c) return;
+  limparModalCliente();
   document.getElementById("cliente-id").value = c.id;
   document.getElementById("modal-cliente-titulo").textContent = "Editar Cliente";
-  document.getElementById("cliente-nome").value     = c.nome || "";
-  document.getElementById("cliente-cpf").value      = c.cpf || "";
-  document.getElementById("cliente-telefone").value = c.telefone || "";
-  document.getElementById("cliente-endereco").value = c.endereco || "";
-  document.getElementById("cliente-municipio").value= c.municipio_uf || "";
+  document.getElementById("cliente-nome").value      = c.nome || "";
+  document.getElementById("cliente-cpf").value       = c.cpf || "";
+  document.getElementById("cliente-telefone").value  = c.telefone || "";
+  document.getElementById("cliente-endereco").value  = c.endereco || "";
+  document.getElementById("cliente-municipio").value = c.municipio_uf || "";
+  document.getElementById("cliente-firma").value     = c.firma || "";
   document.getElementById("cliente-referencia").value = c.referencia || "";
   const vf = c.valor_contrato > 0 ? c.valor_contrato.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
   document.getElementById("cliente-valor-contrato").value = vf;
@@ -910,6 +955,7 @@ async function salvarCliente() {
   const telefone       = document.getElementById("cliente-telefone").value.trim();
   const endereco       = document.getElementById("cliente-endereco").value.trim().toUpperCase();
   const municipio_uf   = document.getElementById("cliente-municipio").value.trim().toUpperCase();
+  const firma          = document.getElementById("cliente-firma").value.trim().toUpperCase();
   const referencia     = document.getElementById("cliente-referencia").value.trim().toUpperCase();
   const valor_contrato = valorParaNumero(document.getElementById("cliente-valor-contrato").value);
   const num_parcelas   = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
@@ -918,7 +964,7 @@ async function salvarCliente() {
   if (valor_contrato <= 0) return alert("Informe o valor total do contrato.");
   if (num_parcelas <= 0)   return alert("Informe o número de parcelas.");
 
-  const body = { nome, cpf, telefone, endereco, municipio_uf, referencia, valor_contrato, num_parcelas };
+  const body = { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_contrato, num_parcelas };
   const res  = id
     ? await api("PUT",  `/api/clientes/${id}`, body)
     : await api("POST", "/api/clientes", body);

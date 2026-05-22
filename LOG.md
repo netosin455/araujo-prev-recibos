@@ -1,5 +1,15 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-22 (2)
+
+### fix: Clientes mostram todos do histórico + campo firma
+- `renderClientes` volta a agrupar todos os clientes do histórico de recibos (comportamento original)
+- Se o cliente já tiver cadastro, exibe barra de progresso de parcelas e firma no card
+- Botão "Cadastrar" aparece para clientes sem cadastro, "Editar cadastro" para os que já têm
+- Ao clicar em "Cadastrar", modal abre pré-preenchido com nome, CPF e município do histórico
+- Adicionado campo `firma` (escritório/filial) no cadastro do cliente — visível no card em dourado
+- Backend: rotas POST/PUT de clientes aceitam e persistem `firma`
+
 ## 2026-05-22
 
 ### feat: Módulo de cadastro de clientes com controle de parcelas

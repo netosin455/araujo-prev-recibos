@@ -749,7 +749,7 @@ app.get("/api/clientes", auth, async (req, res) => {
 });
 
 app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
-  const { nome, cpf, telefone, endereco, municipio_uf, referencia, valor_contrato, num_parcelas } = req.body;
+  const { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_contrato, num_parcelas } = req.body;
   if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
   if (!valor_contrato || valor_contrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
   if (!num_parcelas || num_parcelas <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
@@ -757,7 +757,7 @@ app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
   if (existente) return res.status(400).json({ erro: "Já existe um cliente cadastrado com este CPF." });
   const doc = await insert(dbClientes, {
     nome, cpf, telefone: telefone || "", endereco: endereco || "",
-    municipio_uf, referencia: referencia || "",
+    municipio_uf, firma: firma || "", referencia: referencia || "",
     valor_contrato: Number(valor_contrato), num_parcelas: Number(num_parcelas),
     created_at: new Date().toISOString()
   });
@@ -765,16 +765,15 @@ app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
 });
 
 app.put("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
-  const { nome, cpf, telefone, endereco, municipio_uf, referencia, valor_contrato, num_parcelas } = req.body;
+  const { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_contrato, num_parcelas } = req.body;
   if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
   if (!valor_contrato || valor_contrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
   if (!num_parcelas || num_parcelas <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
-  // Verifica CPF duplicado em outro cliente
   const outro = await findOne(dbClientes, { cpf });
   if (outro && outro._id !== req.params.id) return res.status(400).json({ erro: "CPF já cadastrado em outro cliente." });
   await update(dbClientes, { _id: req.params.id }, {
     nome, cpf, telefone: telefone || "", endereco: endereco || "",
-    municipio_uf, referencia: referencia || "",
+    municipio_uf, firma: firma || "", referencia: referencia || "",
     valor_contrato: Number(valor_contrato), num_parcelas: Number(num_parcelas)
   });
   const atualizado = await findOne(dbClientes, { _id: req.params.id });
