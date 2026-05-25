@@ -18,7 +18,7 @@
 ## Riscos Restantes
 
 - **[MÉDIO]** Sem rate limiting no `POST /api/login` — força bruta de senhas é possível. O EB ALB mitiga em parte, mas não é garantia. Recomendado adicionar `express-rate-limit` em ciclo futuro.
-- **[MÉDIO]** `unsafe-inline` no CSP — necessário para scripts inline do `index.html`, mas abre brecha para XSS se algum dado não escapado vazar para `innerHTML`. Mitigado parcialmente por uso consistente de `esc()` no frontend.
+- **[RESOLVIDO]** `unsafe-inline` removido do CSP — todos os inline handlers migrados para `addEventListener` em `bindStaticHandlers()` e event delegation nos cards dinâmicos. `script-src 'self'` agora sem `'unsafe-inline'`.
 - **[BAIXO]** Sem testes de integração de rotas — as regras de validação de `status`, `role` e `link_comprovante` adicionadas no servidor são exercidas apenas logicamente nos testes unitários, não via chamada HTTP real.
 - **[BAIXO]** `POST /api/recibos` não valida unicidade do `num_recibo` — duplicatas são possíveis via chamada direta à API, embora o frontend controle a numeração.
 - **[BAIXO]** `govbrStates` armazena estado OAuth2 em memória — em caso de restart do servidor durante um fluxo de autenticação, o `state` é perdido e o usuário vê "state_invalido". Aceitável para a escala atual.

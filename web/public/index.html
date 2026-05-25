@@ -28,17 +28,11 @@
   <link rel="apple-touch-icon" href="logo.png" />
   <!-- PWA Android -->
   <meta name="mobile-web-app-capable" content="yes" />
-  <script>
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('/sw.js').catch(()=>{});
-    }
-  </script>
+  <script src="sw-register.js" defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"></noscript>
-  <link rel="preload" as="style" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -361,7 +355,7 @@
   <!-- TELA DE LOGIN -->
   <div id="tela-login">
     <div class="login-box">
-      <img src="logo.png" alt="Logo" onerror="this.style.display='none'" />
+      <img src="logo.png" alt="Logo" id="logo-sidebar" />
       <h1>ARAUJO PREV</h1>
       <p>A ARAUJO SERVIÇOS LTDA ME — Sistema de Recibos</p>
       <div class="form-group">
@@ -372,7 +366,7 @@
         <label>Senha</label>
         <input id="login-senha" type="password" placeholder="Digite sua senha" autocomplete="current-password" />
       </div>
-      <button onclick="fazerLogin()">Entrar</button>
+      <button id="btn-login">Entrar</button>
       <div id="login-erro"></div>
     </div>
   </div>
@@ -385,45 +379,45 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Documentos</div>
-      <div class="nav-item active" onclick="navegarPara('gerar')"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
-      <div class="nav-item" onclick="navegarPara('historico')"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
+      <div class="nav-item active" id="nav-gerar"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
+      <div class="nav-item" id="nav-historico"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
       <div class="nav-section">Gestão</div>
-      <div class="nav-item" onclick="navegarPara('clientes')"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes</div>
-      <div class="nav-item" id="nav-admin" onclick="navegarPara('admin')"><span class="icon"><i class="bi bi-bar-chart-fill"></i></span> Administrativo</div>
+      <div class="nav-item" id="nav-clientes"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes</div>
+      <div class="nav-item" id="nav-admin"><span class="icon"><i class="bi bi-bar-chart-fill"></i></span> Administrativo</div>
       <div class="nav-section">Sistema</div>
-      <div class="nav-item" id="nav-usuarios" style="display:none" onclick="navegarPara('usuarios')"><span class="icon"><i class="bi bi-person-gear"></i></span> Usuários</div>
-      <div class="nav-item" onclick="fazerBackup()"><span class="icon"><i class="bi bi-download"></i></span> Backup</div>
-      <div class="nav-item" onclick="document.getElementById('input-restaurar').click()"><span class="icon"><i class="bi bi-upload"></i></span> Restaurar</div>
-      <input type="file" id="input-restaurar" accept=".json" style="display:none" onchange="restaurarBackup(this)">
+      <div class="nav-item" id="nav-usuarios" style="display:none"><span class="icon"><i class="bi bi-person-gear"></i></span> Usuários</div>
+      <div class="nav-item" id="nav-backup"><span class="icon"><i class="bi bi-download"></i></span> Backup</div>
+      <div class="nav-item" id="nav-restaurar"><span class="icon"><i class="bi bi-upload"></i></span> Restaurar</div>
+      <input type="file" id="input-restaurar" accept=".json" style="display:none">
     </nav>
     <div id="usuario-logado">Logado como: <strong id="nome-usuario">—</strong><br><span id="perfil-usuario" style="font-size:11px;opacity:0.7"></span></div>
-    <div class="nav-item" onclick="fazerLogout()" style="margin-bottom:4px"><span class="icon"><i class="bi bi-box-arrow-right"></i></span> Sair</div>
+    <div class="nav-item" id="nav-sair" style="margin-bottom:4px"><span class="icon"><i class="bi bi-box-arrow-right"></i></span> Sair</div>
     <div class="sidebar-footer">Araujo Prev © 2026</div>
   </aside>
 
   <!-- BOTTOM NAV (só mobile) -->
   <nav class="bottom-nav" id="bottom-nav">
-    <div class="bn-item active" onclick="navegarPara('gerar')" id="bn-gerar">
+    <div class="bn-item active" id="bn-gerar">
       <i class="bi bi-receipt"></i>
       <span>Recibo</span>
     </div>
-    <div class="bn-item" onclick="navegarPara('historico')" id="bn-historico">
+    <div class="bn-item" id="bn-historico">
       <i class="bi bi-clock-history"></i>
       <span>Histórico</span>
     </div>
-    <div class="bn-item" onclick="navegarPara('clientes')" id="bn-clientes">
+    <div class="bn-item" id="bn-clientes">
       <i class="bi bi-people-fill"></i>
       <span>Clientes</span>
     </div>
-    <div class="bn-item" onclick="navegarPara('admin')" id="bn-admin">
+    <div class="bn-item" id="bn-admin">
       <i class="bi bi-bar-chart-fill"></i>
       <span>Admin</span>
     </div>
-    <div class="bn-item" onclick="navegarPara('usuarios')" id="bn-usuarios" style="display:none">
+    <div class="bn-item" id="bn-usuarios" style="display:none">
       <i class="bi bi-person-gear"></i>
       <span>Usuários</span>
     </div>
-    <div class="bn-item" onclick="fazerLogout()" id="bn-sair">
+    <div class="bn-item" id="bn-sair">
       <i class="bi bi-box-arrow-right"></i>
       <span>Sair</span>
     </div>
@@ -434,7 +428,7 @@
       <div class="topbar-title" id="topbar-title">Gerar Recibo</div>
       <div style="display:flex;align-items:center;gap:10px">
         <div class="topbar-badge" id="num-recibo">Nº 0001/2026</div>
-        <button id="btn-tema" onclick="alternarTema()" title="Alternar tema"><i class="bi bi-moon-stars" id="icon-tema"></i></button>
+        <button id="btn-tema" title="Alternar tema"><i class="bi bi-moon-stars" id="icon-tema"></i></button>
       </div>
     </div>
 
@@ -446,8 +440,8 @@
           <div id="alerta-inativos-lista" style="color:var(--mid);margin-top:4px;line-height:1.8"></div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-          <button class="btn-secondary btn-sm" onclick="configurarAlertaInativo()"><i class="bi bi-gear-fill"></i> Configurar</button>
-          <button onclick="document.getElementById('alerta-inativos').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:0;line-height:1"><i class="bi bi-x-lg"></i></button>
+          <button class="btn-secondary btn-sm" id="btn-configurar-inativo"><i class="bi bi-gear-fill"></i> Configurar</button>
+          <button id="btn-fechar-inativo" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:0;line-height:1"><i class="bi bi-x-lg"></i></button>
         </div>
       </div>
 
@@ -456,7 +450,7 @@
         <div class="card">
           <div id="edit-mode-banner">
             <span><i class="bi bi-pencil-fill"></i> Modo de edição — Recibo <strong id="edit-num-banner"></strong></span>
-            <button class="btn-danger btn-sm" onclick="cancelarEdicao()">Cancelar</button>
+            <button class="btn-danger btn-sm" id="btn-cancelar-edicao">Cancelar</button>
           </div>
           <div class="card-title">Novo Recibo de Honorários</div>
           <div class="form-group">
@@ -495,9 +489,9 @@
             </div>
             <div class="form-group" style="flex:1">
               <label>Referência <span style="font-weight:400;text-transform:none;letter-spacing:0">(gaveta)</span>
-                <button type="button" id="btn-ref-padrao-recibo" title="Salvar como minha referência padrão" onclick="salvarReferenciaPadraoRecibo()" style="display:none;background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
+                <button type="button" id="btn-ref-padrao-recibo" title="Salvar como minha referência padrão" style="display:none;background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
               </label>
-              <input id="referencia" type="text" style="text-transform:uppercase" placeholder="Ex: MAI/2026..." maxlength="20" oninput="onReferenciaInput()" />
+              <input id="referencia" type="text" style="text-transform:uppercase" placeholder="Ex: MAI/2026..." maxlength="20" />
             </div>
           </div>
           <div class="form-group">
@@ -543,7 +537,7 @@
             <label for="comprovante" class="comprovante-label" id="comprovante-label">
               <i class="bi bi-upload"></i> <span id="comprovante-label-text">Escolher arquivo (imagem ou PDF)</span>
             </label>
-            <input id="comprovante" type="file" accept="image/*,application/pdf" style="display:none" onchange="atualizarLabelComprovante(this)" />
+            <input id="comprovante" type="file" accept="image/*,application/pdf" style="display:none" />
             <div id="comprovante-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
@@ -556,8 +550,8 @@
             </label>
           </div>
           <div class="btn-group">
-            <button class="btn-primary" id="btn-gerar" onclick="gerarRecibo()">Gerar Recibo</button>
-            <button class="btn-secondary" onclick="limparCampos()">Limpar</button>
+            <button class="btn-primary" id="btn-gerar">Gerar Recibo</button>
+            <button class="btn-secondary" id="btn-limpar-recibo">Limpar</button>
           </div>
           <div id="status" class="status"></div>
         </div>
@@ -568,14 +562,14 @@
         <div class="search-wrap">
           <div class="search-box">
             <i class="bi bi-search"></i>
-            <input id="busca-historico" type="text" placeholder="Buscar por nome ou CPF..." oninput="renderHistorico()" />
+            <input id="busca-historico" type="text" placeholder="Buscar por nome ou CPF..." />
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0;white-space:nowrap">De</label>
-            <input id="filtro-data-ini" type="date" style="width:140px" oninput="renderHistorico()" />
+            <input id="filtro-data-ini" type="date" style="width:140px" />
             <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0;white-space:nowrap">Até</label>
-            <input id="filtro-data-fim" type="date" style="width:140px" oninput="renderHistorico()" />
-            <button class="btn-secondary btn-sm" onclick="limparFiltroData()"><i class="bi bi-x-lg"></i></button>
+            <input id="filtro-data-fim" type="date" style="width:140px" />
+            <button class="btn-secondary btn-sm" id="btn-limpar-data"><i class="bi bi-x-lg"></i></button>
           </div>
           <span id="historico-count" style="color:var(--muted);font-size:12px;white-space:nowrap"></span>
         </div>
@@ -587,9 +581,9 @@
         <div style="display:flex;gap:10px;margin-bottom:20px;align-items:center;flex-wrap:wrap">
           <div class="search-box" style="flex:1;min-width:200px">
             <i class="bi bi-search"></i>
-            <input id="busca-clientes" type="text" placeholder="Buscar cliente..." oninput="renderClientes()" />
+            <input id="busca-clientes" type="text" placeholder="Buscar cliente..." />
           </div>
-          <button class="btn-gold" onclick="abrirModalCliente()">+ Cadastrar Cliente</button>
+          <button class="btn-gold" id="btn-cadastrar-cliente">+ Cadastrar Cliente</button>
         </div>
         <div id="clientes-grid"></div>
       </div>
@@ -597,9 +591,9 @@
       <!-- ADMINISTRATIVO -->
       <div id="screen-admin" class="screen">
         <div class="admin-tabs">
-          <button class="admin-tab active" onclick="abrirAdminTab('dashboard',this)">Dashboard</button>
-          <button class="admin-tab" onclick="abrirAdminTab('financeiro',this)">Financeiro</button>
-          <button class="admin-tab" onclick="abrirAdminTab('relatorios',this)">Relatórios</button>
+          <button class="admin-tab active" data-tab="dashboard">Dashboard</button>
+          <button class="admin-tab" data-tab="financeiro">Financeiro</button>
+          <button class="admin-tab" data-tab="relatorios">Relatórios</button>
         </div>
         <div id="admin-dashboard" class="admin-panel active">
           <div class="cards-grid">
@@ -642,7 +636,7 @@
             </div>
             <div class="form-group"><label>Ano</label><select id="filtro-ano"></select></div>
             <div class="form-group"><label>Responsável</label><select id="filtro-responsavel"><option value="">Todos</option></select></div>
-            <button class="btn-gold btn-sm" style="margin-top:18px" onclick="aplicarFiltros()">Filtrar</button>
+            <button class="btn-gold btn-sm" id="btn-aplicar-filtros" style="margin-top:18px">Filtrar</button>
           </div>
           <div class="table-wrap">
             <table><thead><tr><th>Nº</th><th>Cliente</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th></tr></thead>
@@ -665,16 +659,16 @@
               </div>
               <div class="form-group"><label>Responsável</label><select id="rel-responsavel"><option value="">Todos</option></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn-success btn-sm" onclick="exportarExcel()"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
-                <button class="btn-primary btn-sm" onclick="exportarPDF()"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+                <button class="btn-success btn-sm" id="btn-exportar-excel"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
+                <button class="btn-primary btn-sm" id="btn-exportar-pdf"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
               </div>
             </div>
             <div class="card" style="max-width:none">
               <div class="card-title"><i class="bi bi-person"></i> Relatório por Cliente</div>
               <div class="form-group"><label>Ano</label><select id="rel-cliente-ano"></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn-success btn-sm" onclick="exportarExcelClientes()"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
-                <button class="btn-primary btn-sm" onclick="exportarPDFClientes()"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+                <button class="btn-success btn-sm" id="btn-exportar-excel-clientes"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
+                <button class="btn-primary btn-sm" id="btn-exportar-pdf-clientes"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
               </div>
             </div>
 
@@ -688,8 +682,8 @@
                 <div class="form-group"><label>Ano</label><select id="rel-resp-ano"></select></div>
               </div>
               <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn-success btn-sm" onclick="exportarExcelResponsaveis()"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
-                <button class="btn-primary btn-sm" onclick="exportarPDFResponsaveis()"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+                <button class="btn-success btn-sm" id="btn-exportar-excel-resp"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
+                <button class="btn-primary btn-sm" id="btn-exportar-pdf-resp"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
               </div>
             </div>
 
@@ -698,7 +692,7 @@
               <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Visão geral do ano: faturamento mensal, top clientes e responsáveis.</p>
               <div class="form-group"><label>Ano</label><select id="rel-exec-ano"></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
-                <button class="btn-primary btn-sm" onclick="exportarPDFExecutivo()"><i class="bi bi-file-earmark-pdf"></i> PDF Executivo</button>
+                <button class="btn-primary btn-sm" id="btn-exportar-pdf-exec"><i class="bi bi-file-earmark-pdf"></i> PDF Executivo</button>
               </div>
             </div>
 
@@ -706,8 +700,8 @@
               <div class="card-title"><i class="bi bi-cloud-upload"></i> Sincronizar com Google Sheets</div>
               <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Envia todos os recibos do banco que ainda não estão na planilha. Use quando a planilha estiver desatualizada.</p>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn-gold btn-sm" id="btn-sync-sheets" onclick="syncSheets()"><i class="bi bi-arrow-repeat"></i> Sincronizar agora</button>
-                <button class="btn-danger btn-sm" id="btn-reescrever-planilha" onclick="reescreverPlanilha()"><i class="bi bi-arrow-clockwise"></i> Limpar e reescrever do zero</button>
+                <button class="btn-gold btn-sm" id="btn-sync-sheets"><i class="bi bi-arrow-repeat"></i> Sincronizar agora</button>
+                <button class="btn-danger btn-sm" id="btn-reescrever-planilha"><i class="bi bi-arrow-clockwise"></i> Limpar e reescrever do zero</button>
               </div>
               <div id="sync-sheets-resultado" style="margin-top:12px;font-size:13px;display:none"></div>
             </div>
@@ -729,7 +723,7 @@
             </div>
             <div class="form-group">
               <label>Perfil</label>
-              <select id="novo-role" onchange="toggleEscritorioNovo(this.value)">
+              <select id="novo-role">
                 <option value="financeiro">Financeiro (cria e edita recibos)</option>
                 <option value="recepcao">Recepção (somente visualiza)</option>
               </select>
@@ -738,7 +732,7 @@
               <label>Escritório <span style="color:var(--error);font-weight:700">*</span></label>
               <input id="novo-escritorio" type="text" style="text-transform:uppercase" placeholder="Ex: Terra Rica - PR" />
             </div>
-            <button class="btn-gold" onclick="adicionarUsuario()">Adicionar</button>
+            <button class="btn-gold" id="btn-adicionar-usuario">Adicionar</button>
           </div>
         </div>
       </div>
@@ -751,7 +745,7 @@
     <div class="modal-content" style="max-width:400px">
       <div class="modal-header">
         <h2>Editar Usuário</h2>
-        <button class="modal-close" onclick="fecharModal('modal-editar-usuario')"><i class="bi bi-x-lg"></i></button>
+        <button class="modal-close" id="btn-fechar-modal-usuario"><i class="bi bi-x-lg"></i></button>
       </div>
       <input type="hidden" id="edit-user-id" />
       <div class="form-group" style="margin-top:16px">
@@ -764,7 +758,7 @@
       </div>
       <div class="form-group">
         <label>Perfil</label>
-        <select id="edit-user-role" onchange="toggleEscritorioEdit(this.value)">
+        <select id="edit-user-role">
           <option value="financeiro">Financeiro (cria e edita recibos)</option>
           <option value="recepcao">Recepção (somente visualiza)</option>
         </select>
@@ -774,8 +768,8 @@
         <input id="edit-user-escritorio" type="text" style="text-transform:uppercase" placeholder="Ex: Terra Rica - PR" />
       </div>
       <div style="display:flex;gap:10px;margin-top:20px">
-        <button class="btn-gold" onclick="salvarEdicaoUsuario()">Salvar</button>
-        <button class="btn-secondary" onclick="fecharModal('modal-editar-usuario')">Cancelar</button>
+        <button class="btn-gold" id="btn-salvar-edicao-usuario">Salvar</button>
+        <button class="btn-secondary" id="btn-cancelar-modal-usuario">Cancelar</button>
       </div>
     </div>
   </div>
@@ -785,7 +779,7 @@
     <div class="modal-content" style="max-width:540px">
       <div class="modal-header">
         <h2 id="modal-cliente-titulo">Cadastrar Cliente</h2>
-        <button class="modal-close" onclick="fecharModal('modal-cliente')"><i class="bi bi-x-lg"></i></button>
+        <button class="modal-close" id="btn-fechar-modal-cliente"><i class="bi bi-x-lg"></i></button>
       </div>
       <input type="hidden" id="cliente-id" />
       <div style="margin-top:16px">
@@ -798,7 +792,7 @@
           </div>
           <div class="form-group">
             <label>CPF / CNPJ <span style="color:var(--error);font-weight:700">*</span></label>
-            <input id="cliente-cpf" type="text" placeholder="000.000.000-00" oninput="mascaraCpfCliente(this)" />
+            <input id="cliente-cpf" type="text" placeholder="000.000.000-00" />
           </div>
         </div>
         <div class="form-row">
@@ -822,7 +816,7 @@
           </div>
           <div class="form-group">
             <label>Referência
-              <button type="button" id="btn-salvar-ref-padrao" title="Salvar como minha referência padrão" onclick="salvarReferenciaPadrao()" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
+              <button type="button" id="btn-salvar-ref-padrao" title="Salvar como minha referência padrão" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
             </label>
             <input id="cliente-referencia" type="text" style="text-transform:uppercase" maxlength="20" placeholder="Ex: MAI/2026" />
           </div>
@@ -832,28 +826,28 @@
         <div class="form-row">
           <div class="form-group">
             <label>Valor do benefício (R$) <span style="color:var(--error);font-weight:700">*</span></label>
-            <input id="cliente-valor-beneficio" type="text" placeholder="0,00" oninput="mascaraValorCliente(this)" onchange="calcularContrato()" />
+            <input id="cliente-valor-beneficio" type="text" placeholder="0,00" />
           </div>
           <div class="form-group">
             <label>Nº de benefícios devidos <span style="color:var(--error);font-weight:700">*</span></label>
-            <input id="cliente-num-beneficios" type="number" min="1" placeholder="Ex: 4" oninput="calcularContrato()" />
+            <input id="cliente-num-beneficios" type="number" min="1" placeholder="Ex: 4" />
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label>Valor total do contrato <span style="color:var(--error);font-weight:700">*</span></label>
-            <input id="cliente-valor-contrato" type="text" placeholder="0,00" oninput="mascaraValorCliente(this)" onchange="calcularParcela()" />
+            <input id="cliente-valor-contrato" type="text" placeholder="0,00" />
           </div>
           <div class="form-group">
             <label>Nº de parcelas <span style="color:var(--error);font-weight:700">*</span></label>
-            <input id="cliente-num-parcelas" type="number" min="1" placeholder="Ex: 24" oninput="calcularParcela()" />
+            <input id="cliente-num-parcelas" type="number" min="1" placeholder="Ex: 24" />
           </div>
         </div>
         <div id="cliente-parcela-preview" style="font-size:13px;color:var(--success);font-weight:600;margin-top:4px;margin-bottom:8px"></div>
 
         <div style="display:flex;gap:10px;margin-top:16px">
-          <button class="btn-gold" onclick="salvarCliente()">Salvar</button>
-          <button class="btn-secondary" onclick="fecharModal('modal-cliente')">Cancelar</button>
+          <button class="btn-gold" id="btn-salvar-cliente">Salvar</button>
+          <button class="btn-secondary" id="btn-cancelar-modal-cliente">Cancelar</button>
         </div>
       </div>
     </div>
@@ -864,7 +858,7 @@
     <div class="modal-content" style="max-width:420px">
       <div class="modal-header">
         <h2 id="modal-pagamento-titulo">Registrar Pagamento</h2>
-        <button class="modal-close" onclick="fecharModal('modal-pagamento-parcela')"><i class="bi bi-x-lg"></i></button>
+        <button class="modal-close" id="btn-fechar-modal-pagamento"><i class="bi bi-x-lg"></i></button>
       </div>
       <input type="hidden" id="pag-cliente-id" />
       <input type="hidden" id="pag-parcela-num" />
@@ -892,8 +886,8 @@
           <textarea id="pag-observacao" rows="2" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'Inter',sans-serif;resize:vertical;outline:none" placeholder="Ex: pagamento parcelado"></textarea>
         </div>
         <div style="display:flex;gap:10px;margin-top:8px">
-          <button class="btn-gold" onclick="confirmarPagamentoParcela()">Confirmar Pagamento</button>
-          <button class="btn-secondary" onclick="fecharModal('modal-pagamento-parcela')">Cancelar</button>
+          <button class="btn-gold" id="btn-confirmar-pagamento">Confirmar Pagamento</button>
+          <button class="btn-secondary" id="btn-cancelar-pagamento">Cancelar</button>
         </div>
       </div>
     </div>
@@ -904,7 +898,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Detalhes do Recibo</h2>
-        <button class="modal-close" onclick="fecharModal('modal-detalhe')"><i class="bi bi-x-lg"></i></button>
+        <button class="modal-close" id="btn-fechar-modal-detalhe"><i class="bi bi-x-lg"></i></button>
       </div>
       <div id="modal-detalhe-body"></div>
     </div>
@@ -915,13 +909,13 @@
     <div class="modal-content" style="max-width:420px;text-align:center">
       <div class="modal-header">
         <h2>Assinatura Digital Gov.br</h2>
-        <button class="modal-close" onclick="fecharModal('modal-govbr')"><i class="bi bi-x-lg"></i></button>
+        <button class="modal-close" id="btn-fechar-modal-govbr"><i class="bi bi-x-lg"></i></button>
       </div>
       <div id="modal-govbr-body" style="padding:16px 0">
-        <img src="https://www.gov.br/++theme++padrao_govbr/img/govbr-colorido-b.png" alt="Gov.br" style="height:40px;margin-bottom:20px" onerror="this.style.display='none'" />
+        <img src="https://www.gov.br/++theme++padrao_govbr/img/govbr-colorido-b.png" alt="Gov.br" id="img-govbr" style="height:40px;margin-bottom:20px" />
         <p style="font-size:13px;color:var(--muted);margin-bottom:20px">O cliente será redirecionado para o Gov.br para autenticar e assinar o recibo digitalmente.</p>
         <div id="govbr-status-box" style="display:none;background:#edf7f2;border:1px solid #c0e0d0;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--success);text-align:left"></div>
-        <button class="btn-gold" id="btn-govbr-assinar" onclick="iniciarAssinaturaGovBr()" style="width:100%;font-size:14px;padding:14px">
+        <button class="btn-gold" id="btn-govbr-assinar" style="width:100%;font-size:14px;padding:14px">
           <i class="bi bi-shield-check"></i> Assinar com Gov.br
         </button>
         <p style="font-size:10px;color:var(--muted);margin-top:12px">Requer conta Gov.br nível prata ou ouro</p>
@@ -934,7 +928,7 @@
     <div class="modal-content" style="max-width:480px;width:95%">
       <div class="modal-header">
         <h2>Adicionar Comprovante</h2>
-        <button class="modal-close" onclick="fecharModal('modal-upload-comprovante')"><i class="bi bi-x-lg"></i></button>
+        <button class="modal-close" id="btn-fechar-modal-upload"><i class="bi bi-x-lg"></i></button>
       </div>
       <div style="padding:24px;display:flex;flex-direction:column;gap:16px">
         <p style="font-size:13px;color:var(--muted);margin:0">Selecione o arquivo de comprovante (imagem ou PDF) para este recibo.</p>
@@ -942,9 +936,9 @@
           <i class="bi bi-paperclip" style="font-size:20px;color:var(--gold)"></i>
           <span id="upload-comp-label-text" style="display:block;margin-top:6px;font-size:13px;color:var(--muted)">Escolher arquivo (imagem ou PDF)</span>
         </label>
-        <input type="file" id="upload-comp-input" accept="image/*,.pdf" style="display:none" onchange="onUploadCompFileChange()" />
+        <input type="file" id="upload-comp-input" accept="image/*,.pdf" style="display:none" />
         <div id="upload-comp-status" style="font-size:12px;color:var(--muted);min-height:16px;text-align:center"></div>
-        <button class="btn-gold" id="btn-upload-comp-enviar" onclick="enviarUploadComprovante()" style="width:100%;font-size:14px;padding:12px">
+        <button class="btn-gold" id="btn-upload-comp-enviar" style="width:100%;font-size:14px;padding:12px">
           <i class="bi bi-upload"></i> Enviar comprovante
         </button>
       </div>
@@ -956,7 +950,7 @@
     <div class="modal-content" style="max-width:800px;width:95%">
       <div class="modal-header">
         <h2>Comprovante</h2>
-        <button class="modal-close" onclick="fecharModal('modal-comprovante')"><i class="bi bi-x-lg"></i></button>
+        <button class="modal-close" id="btn-fechar-modal-comprovante"><i class="bi bi-x-lg"></i></button>
       </div>
       <div id="modal-comprovante-body" style="text-align:center;padding:16px"></div>
     </div>
@@ -966,7 +960,7 @@
   <div id="toast">
     <span id="toast-msg" style="flex:1"></span>
     <button id="toast-btn-abrir" style="background:var(--gold);color:white;border:none;border-radius:5px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;display:none;white-space:nowrap">Abrir</button>
-    <button onclick="fecharToast()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0"><i class="bi bi-x-lg"></i></button>
+    <button id="btn-fechar-toast" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0"><i class="bi bi-x-lg"></i></button>
   </div>
 
   <script src="libs/chart.min.js" defer></script>

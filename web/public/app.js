@@ -113,6 +113,8 @@ if(token){
   iniciarApp();
 }
 
+bindStaticHandlers();
+
 // ── CARREGAR RECIBOS ───────────────────────────────────────
 async function carregarRecibos(){
   const res = await api("GET","/api/recibos");
@@ -807,7 +809,7 @@ function _badgeParcela(s) {
 
 function _btnPagarParcela(cadastroId, p) {
   if (roleLogado === "recepcao" || p.status === "pago") return "";
-  return `<button class="btn-success btn-sm" onclick="abrirModalPagamentoParcela('${cadastroId}',${p.num},${p.valor},'')">Registrar Pgto</button>`;
+  return `<button class="btn-success btn-sm" data-action="pagar-parcela" data-id="${esc(cadastroId)}" data-num="${p.num}" data-valor="${p.valor}">Registrar Pgto</button>`;
 }
 
 function _buildBlocoContrato(cadastro) {
@@ -834,7 +836,8 @@ function _buildTabelaRecibos(c) {
       <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th>Ações</th></tr></thead>
       <tbody>
         ${c.recibos.map(r => {
-          const rd = JSON.stringify(r).replace(/"/g, "&quot;");
+          const rd  = esc(JSON.stringify(r));
+          const rid = esc(r.id || r._id);
           return `<tr>
             <td><span class="badge badge-gold">${esc(r.num)}</span></td>
             <td>${esc(r.data)}</td>
@@ -842,12 +845,12 @@ function _buildTabelaRecibos(c) {
             <td>${esc(r.emitido_por || "-")}</td>
             <td>${esc(r.referencia || "-")}</td>
             <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
-              <button class="btn-secondary btn-sm" onclick="abrirDetalhe(${rd})">Detalhes</button>
-              <button class="btn-gold btn-sm" onclick="abrirPDFRecibo(${rd})"><i class="bi bi-eye"></i> Ver</button>
-              ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>` : ""}
-              <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
-              ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" onclick="abrirModalUploadComprovante('${r.id || r._id}')">📎 Comprovante</button>` : ""}
-              ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id || r._id}')">🗑</button>` : ""}
+              <button class="btn-secondary btn-sm" data-action="detalhe-recibo" data-recibo="${rd}">Detalhes</button>
+              <button class="btn-gold btn-sm" data-action="pdf-recibo" data-recibo="${rd}"><i class="bi bi-eye"></i> Ver</button>
+              ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" data-action="editar-recibo" data-recibo="${rd}">Editar</button>` : ""}
+              <button class="btn-secondary btn-sm" data-action="baixar-recibo" data-recibo="${rd}">📄 Baixar</button>
+              ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" data-action="upload-comprovante" data-id="${rid}">📎 Comprovante</button>` : ""}
+              ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" data-action="excluir-recibo" data-id="${rid}">🗑</button>` : ""}
             </td>
           </tr>`;
         }).join("")}
@@ -955,7 +958,7 @@ async function renderClientes() {
     const card = document.createElement("div");
     card.className = "cliente-card";
     card.innerHTML = `
-      <div class="cliente-header" onclick="toggleCliente(this)">
+      <div class="cliente-header">
         <div style="flex:1">
           <div class="cliente-nome">${esc(c.nome)}</div>
           <div class="cliente-stats">
@@ -978,10 +981,10 @@ async function renderClientes() {
       <div class="cliente-body">
         ${temParcelas ? `
         <div class="cliente-tabs">
-          <button class="cliente-tab active" onclick="trocarAbaCliente(this,'${cardId}','parcelamento')">Parcelamento</button>
-          <button class="cliente-tab" onclick="trocarAbaCliente(this,'${cardId}','areceber')">A Receber</button>
-          <button class="cliente-tab" onclick="trocarAbaCliente(this,'${cardId}','recebidos')">Recebidos</button>
-          <button class="cliente-tab" onclick="trocarAbaCliente(this,'${cardId}','historico')">Histórico</button>
+          <button class="cliente-tab active" data-action="trocar-aba" data-card-id="${cardId}" data-aba="parcelamento">Parcelamento</button>
+          <button class="cliente-tab" data-action="trocar-aba" data-card-id="${cardId}" data-aba="areceber">A Receber</button>
+          <button class="cliente-tab" data-action="trocar-aba" data-card-id="${cardId}" data-aba="recebidos">Recebidos</button>
+          <button class="cliente-tab" data-action="trocar-aba" data-card-id="${cardId}" data-aba="historico">Histórico</button>
         </div>
         <div id="${cardId}-parcelamento" class="tab-painel active">${tabelaParcelamento}</div>
         <div id="${cardId}-areceber" class="tab-painel">${tabelaAReceber}</div>
@@ -989,6 +992,22 @@ async function renderClientes() {
         <div id="${cardId}-historico" class="tab-painel">${tabelaRecibos}</div>
         ` : tabelaRecibos}
       </div>`;
+
+    card.querySelector(".cliente-header").addEventListener("click", () => toggleCliente(card.querySelector(".cliente-header")));
+
+    card.addEventListener("click", e => {
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      const action = btn.dataset.action;
+      if (action === "trocar-aba") trocarAbaCliente(btn, btn.dataset.cardId, btn.dataset.aba);
+      else if (action === "pagar-parcela") abrirModalPagamentoParcela(btn.dataset.id, Number(btn.dataset.num), Number(btn.dataset.valor), "");
+      else if (action === "detalhe-recibo") abrirDetalhe(JSON.parse(btn.dataset.recibo));
+      else if (action === "pdf-recibo") abrirPDFRecibo(JSON.parse(btn.dataset.recibo));
+      else if (action === "editar-recibo") editarRecibo(JSON.parse(btn.dataset.recibo));
+      else if (action === "baixar-recibo") reimprimirRecibo(JSON.parse(btn.dataset.recibo));
+      else if (action === "upload-comprovante") abrirModalUploadComprovante(btn.dataset.id);
+      else if (action === "excluir-recibo") excluirReciboById(btn.dataset.id);
+    });
 
     card.querySelector(".novo-recibo-btn").addEventListener("click", e => {
       e.stopPropagation();
@@ -1353,11 +1372,17 @@ async function renderUsuarios(){
         <div style="font-size:11px;color:var(--muted)">Perfil: ${perfilLabel} · Criado em ${new Date(u.created_at).toLocaleDateString("pt-BR")}</div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn-sm" onclick="editarUsuario('${u.id}','${esc(u.username)}','${u.role||"financeiro"}','${esc(u.escritorio||"")}')">Editar</button>
-        <button class="btn-danger btn-sm" onclick="excluirUsuario('${u.id}')">Remover</button>
+        <button class="btn-sm" data-action="editar-usuario" data-id="${esc(u.id)}" data-username="${esc(u.username)}" data-role="${esc(u.role||"financeiro")}" data-escritorio="${esc(u.escritorio||"")}">Editar</button>
+        <button class="btn-danger btn-sm" data-action="excluir-usuario" data-id="${esc(u.id)}">Remover</button>
       </div>
     </div>`;
   }).join("");
+  el.querySelectorAll("[data-action='editar-usuario']").forEach(btn => {
+    btn.addEventListener("click", () => editarUsuario(btn.dataset.id, btn.dataset.username, btn.dataset.role, btn.dataset.escritorio));
+  });
+  el.querySelectorAll("[data-action='excluir-usuario']").forEach(btn => {
+    btn.addEventListener("click", () => excluirUsuario(btn.dataset.id));
+  });
 }
 
 function toggleEscritorioNovo(role){
@@ -1859,4 +1884,121 @@ async function limparDuplicatas(){
     btn.disabled=false;
     btn.innerHTML='<i class="bi bi-trash"></i> Remover duplicatas';
   }
+}
+
+// ── HANDLERS ESTÁTICOS ─────────────────────────────────────
+// Chamado uma vez ao carregar o módulo (script defer). Substitui todos os
+// onclick/oninput/onchange inline que foram removidos do HTML para permitir
+// um CSP script-src sem 'unsafe-inline'.
+function bindStaticHandlers() {
+  // Login
+  document.getElementById("btn-login").addEventListener("click", fazerLogin);
+
+  // Sidebar
+  document.getElementById("nav-gerar").addEventListener("click", () => navegarPara("gerar"));
+  document.getElementById("nav-historico").addEventListener("click", () => navegarPara("historico"));
+  document.getElementById("nav-clientes").addEventListener("click", () => navegarPara("clientes"));
+  document.getElementById("nav-admin").addEventListener("click", () => navegarPara("admin"));
+  document.getElementById("nav-usuarios").addEventListener("click", () => navegarPara("usuarios"));
+  document.getElementById("nav-backup").addEventListener("click", fazerBackup);
+  document.getElementById("nav-restaurar").addEventListener("click", () => document.getElementById("input-restaurar").click());
+  document.getElementById("input-restaurar").addEventListener("change", function() { restaurarBackup(this); });
+  document.getElementById("nav-sair").addEventListener("click", fazerLogout);
+
+  // Bottom nav
+  document.getElementById("bn-gerar").addEventListener("click", () => navegarPara("gerar"));
+  document.getElementById("bn-historico").addEventListener("click", () => navegarPara("historico"));
+  document.getElementById("bn-clientes").addEventListener("click", () => navegarPara("clientes"));
+  document.getElementById("bn-admin").addEventListener("click", () => navegarPara("admin"));
+  document.getElementById("bn-usuarios").addEventListener("click", () => navegarPara("usuarios"));
+
+  // Tema
+  document.getElementById("btn-tema").addEventListener("click", alternarTema);
+
+  // Modal inativo
+  document.getElementById("btn-configurar-inativo").addEventListener("click", () => navegarPara("admin"));
+  document.getElementById("btn-fechar-inativo").addEventListener("click", () => fecharModal("modal-inativo"));
+
+  // Edição
+  document.getElementById("btn-cancelar-edicao").addEventListener("click", cancelarEdicao);
+
+  // Formulário de recibo
+  document.getElementById("btn-gerar").addEventListener("click", gerarRecibo);
+  document.getElementById("btn-limpar-recibo").addEventListener("click", limparCampos);
+  document.getElementById("referencia").addEventListener("input", onReferenciaInput);
+  document.getElementById("btn-ref-padrao-recibo").addEventListener("click", salvarReferenciaPadraoRecibo);
+  document.getElementById("comprovante").addEventListener("change", function() { atualizarLabelComprovante(this); });
+
+  // Histórico
+  document.getElementById("busca-historico").addEventListener("input", renderHistorico);
+  document.getElementById("filtro-data-ini").addEventListener("input", renderHistorico);
+  document.getElementById("filtro-data-fim").addEventListener("input", renderHistorico);
+  document.getElementById("btn-limpar-data").addEventListener("click", limparFiltroData);
+
+  // Clientes
+  document.getElementById("busca-clientes").addEventListener("input", renderClientes);
+  document.getElementById("btn-cadastrar-cliente").addEventListener("click", () => abrirModalCliente());
+
+  // Admin tabs
+  document.querySelectorAll(".admin-tab[data-tab]").forEach(btn => {
+    btn.addEventListener("click", () => abrirAdminTab(btn.dataset.tab, btn));
+  });
+
+  // Relatórios / exportações
+  document.getElementById("btn-aplicar-filtros").addEventListener("click", aplicarFiltros);
+  document.getElementById("btn-exportar-excel").addEventListener("click", exportarExcel);
+  document.getElementById("btn-exportar-pdf").addEventListener("click", exportarPDF);
+  document.getElementById("btn-exportar-excel-clientes").addEventListener("click", exportarExcelClientes);
+  document.getElementById("btn-exportar-pdf-clientes").addEventListener("click", exportarPDFClientes);
+  document.getElementById("btn-exportar-excel-resp").addEventListener("click", exportarExcelResponsaveis);
+  document.getElementById("btn-exportar-pdf-resp").addEventListener("click", exportarPDFResponsaveis);
+  document.getElementById("btn-exportar-pdf-exec").addEventListener("click", exportarPDFExecutivo);
+  document.getElementById("btn-sync-sheets").addEventListener("click", syncSheets);
+  document.getElementById("btn-reescrever-planilha").addEventListener("click", reescreverPlanilha);
+
+  // Usuários
+  document.getElementById("novo-role").addEventListener("change", function() { toggleEscritorioNovo(this.value); });
+  document.getElementById("btn-adicionar-usuario").addEventListener("click", adicionarUsuario);
+  document.getElementById("btn-fechar-modal-usuario").addEventListener("click", () => fecharModal("modal-usuario"));
+  document.getElementById("edit-user-role").addEventListener("change", function() { toggleEscritorioEdit(this.value); });
+  document.getElementById("btn-salvar-edicao-usuario").addEventListener("click", salvarEdicaoUsuario);
+  document.getElementById("btn-cancelar-modal-usuario").addEventListener("click", () => fecharModal("modal-usuario"));
+
+  // Modal cliente
+  document.getElementById("btn-fechar-modal-cliente").addEventListener("click", () => fecharModal("modal-cliente"));
+  document.getElementById("cliente-cpf").addEventListener("input", function() { mascaraCpfCliente(this); preencherDadosCliente(this.value); });
+  document.getElementById("btn-salvar-ref-padrao").addEventListener("click", salvarReferenciaPadrao);
+  document.getElementById("cliente-valor-beneficio").addEventListener("input", function() { mascaraValorCliente(this); calcularContrato(); });
+  document.getElementById("cliente-num-beneficios").addEventListener("input", calcularContrato);
+  document.getElementById("cliente-valor-contrato").addEventListener("input", function() { mascaraValorCliente(this); calcularParcela(); });
+  document.getElementById("cliente-num-parcelas").addEventListener("input", calcularParcela);
+  document.getElementById("btn-salvar-cliente").addEventListener("click", salvarCliente);
+  document.getElementById("btn-cancelar-modal-cliente").addEventListener("click", () => fecharModal("modal-cliente"));
+
+  // Modal pagamento parcela
+  document.getElementById("btn-fechar-modal-pagamento").addEventListener("click", () => fecharModal("modal-pagamento-parcela"));
+  document.getElementById("btn-confirmar-pagamento").addEventListener("click", confirmarPagamentoParcela);
+  document.getElementById("btn-cancelar-pagamento").addEventListener("click", () => fecharModal("modal-pagamento-parcela"));
+
+  // Modal detalhe
+  document.getElementById("btn-fechar-modal-detalhe").addEventListener("click", () => fecharModal("modal-detalhe"));
+
+  // Modal Gov.br
+  document.getElementById("btn-fechar-modal-govbr").addEventListener("click", () => fecharModal("modal-govbr"));
+  document.getElementById("btn-govbr-assinar").addEventListener("click", iniciarAssinaturaGovBr);
+
+  // Modal upload comprovante
+  document.getElementById("btn-fechar-modal-upload").addEventListener("click", () => fecharModal("modal-upload-comprovante"));
+  document.getElementById("upload-comp-input").addEventListener("change", onUploadCompFileChange);
+  document.getElementById("btn-upload-comp-enviar").addEventListener("click", enviarUploadComprovante);
+
+  // Modal comprovante
+  document.getElementById("btn-fechar-modal-comprovante").addEventListener("click", () => fecharModal("modal-comprovante"));
+
+  // Toast
+  document.getElementById("btn-fechar-toast").addEventListener("click", fecharToast);
+
+  // Imagens com fallback (substitui onerror inline)
+  document.getElementById("logo-sidebar").addEventListener("error", function() { this.style.display = "none"; });
+  document.getElementById("img-govbr").addEventListener("error", function() { this.style.display = "none"; });
 }

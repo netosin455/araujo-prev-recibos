@@ -594,7 +594,7 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Content-Security-Policy",
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline'; " +
+    "script-src 'self'; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
     "img-src 'self' data: blob: https:; " +

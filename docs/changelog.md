@@ -2,6 +2,17 @@
 
 ---
 
+## [2026-05-25] — CSP: remoção de unsafe-inline do script-src
+
+### Segurança
+- Removido `'unsafe-inline'` de `script-src` no cabeçalho Content-Security-Policy
+- Todos os handlers inline (`onclick`, `onchange`, `oninput`, `onerror`) removidos de `index.html`
+- Adicionado `bindStaticHandlers()` em `app.js` que reconfigura via `addEventListener` todos os elementos estáticos
+- HTML dinâmico (cards de cliente, tabela de recibos, lista de usuários) migrado para `data-action` + event delegation
+- Bloco `<script>` inline do service worker já estava em `sw-register.js` externo
+
+---
+
 ## [2026-05-25] — Módulo de Clientes: Controle Granular de Parcelas + Segurança
 
 ### Adicionado
