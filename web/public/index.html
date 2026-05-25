@@ -240,6 +240,14 @@
     /* ── TOAST ── */
     #toast{position:fixed;bottom:28px;right:28px;z-index:9999;background:#1a1a1a;color:white;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 30px rgba(0,0,0,0.35);max-width:360px;transform:translateY(calc(100% + 60px));transition:transform 0.3s cubic-bezier(.4,0,.2,1);font-size:13px;border:1px solid rgba(184,151,58,0.3)}
     #toast.show{transform:translateY(0)}
+    #toast.success{background:#1a3a24;border-color:rgba(61,122,94,0.5)}
+    #toast.error{background:#3a1a1a;border-color:rgba(220,50,50,0.5)}
+    .nav-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:var(--error,#dc2626);color:#fff;font-size:10px;font-weight:700;padding:0 5px;margin-left:6px;vertical-align:middle}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .spin{animation:spin 1s linear infinite;display:inline-block}
+    .resumo-tela{font-size:12px;color:var(--muted);margin-bottom:14px;padding:7px 12px;background:var(--card);border-radius:8px;border:1px solid var(--border);display:none}
+    .resumo-tela .alerta{color:var(--error,#dc2626);font-weight:600}
+    #modal-pagamento-cliente-info{font-size:12px;color:var(--muted);margin-bottom:14px;padding:8px 12px;background:var(--bg);border-radius:6px;border:1px solid var(--border)}
     #edit-mode-banner{display:none;background:var(--gold-pale);border:1px solid var(--gold);border-radius:6px;padding:10px 16px;margin-bottom:16px;font-size:12px;color:var(--mid);align-items:center;justify-content:space-between;gap:12px}
     .meta-bar-wrap{margin-top:10px}
     .meta-bar-track{background:var(--border);border-radius:4px;height:6px;overflow:hidden;margin:4px 0}
@@ -382,7 +390,7 @@
       <div class="nav-item active" id="nav-gerar"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
       <div class="nav-item" id="nav-historico"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
       <div class="nav-section">Gestão</div>
-      <div class="nav-item" id="nav-clientes"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes</div>
+      <div class="nav-item" id="nav-clientes"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes<span id="badge-clientes-atraso" class="nav-badge" style="display:none"></span></div>
       <div class="nav-item" id="nav-admin"><span class="icon"><i class="bi bi-bar-chart-fill"></i></span> Administrativo</div>
       <div class="nav-section">Sistema</div>
       <div class="nav-item" id="nav-usuarios" style="display:none"><span class="icon"><i class="bi bi-person-gear"></i></span> Usuários</div>
@@ -573,6 +581,7 @@
           </div>
           <span id="historico-count" style="color:var(--muted);font-size:12px;white-space:nowrap"></span>
         </div>
+        <div id="resumo-historico" class="resumo-tela"></div>
         <div id="historico-grid" class="historico-grid"></div>
       </div>
 
@@ -585,6 +594,7 @@
           </div>
           <button class="btn-gold" id="btn-cadastrar-cliente">+ Cadastrar Cliente</button>
         </div>
+        <div id="resumo-clientes" class="resumo-tela"></div>
         <div id="clientes-grid"></div>
       </div>
 
@@ -862,6 +872,7 @@
       </div>
       <input type="hidden" id="pag-cliente-id" />
       <input type="hidden" id="pag-parcela-num" />
+      <div id="modal-pagamento-cliente-info"></div>
       <div style="margin-top:16px">
         <div class="form-group">
           <label>Valor da parcela</label>

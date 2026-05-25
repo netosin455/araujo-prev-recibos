@@ -95,6 +95,7 @@ async function iniciarApp(){
   atualizarSugestoesNomes();
   preencherFiltrosAnos();
   verificarClientesInativos();
+  carregarClientes().then(atualizarBadgeClientes);
 }
 
 async function carregarReferenciaPadrao() {
@@ -133,12 +134,15 @@ function alternarTema(){ aplicarTema(localStorage.getItem("tema")==="dark"?"ligh
 
 // ── TOAST ──────────────────────────────────────────────────
 let _toastTimer=null;
-function mostrarToast(msg,onAbrir=null){
+function mostrarToast(msg,onAbrir=null,tipo="default"){
   const el=document.getElementById("toast");
   const btnAbrir=document.getElementById("toast-btn-abrir");
   document.getElementById("toast-msg").textContent=msg;
   if(onAbrir){btnAbrir.style.display="block";btnAbrir.onclick=()=>{onAbrir();fecharToast();};}
   else{btnAbrir.style.display="none";}
+  el.classList.remove("success","error");
+  if(tipo==="success") el.classList.add("success");
+  else if(tipo==="error") el.classList.add("error");
   el.classList.add("show");
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(fecharToast,6000);
@@ -433,7 +437,9 @@ async function gerarRecibo(){
   dados.emitido_por=dados.emitido_por.toUpperCase();
 
   const btn=document.getElementById("btn-gerar");
+  const btnTextoOriginal = btn.innerHTML;
   btn.disabled=true;
+  btn.innerHTML='<i class="bi bi-hourglass-split spin"></i> Gerando...';
   setStatus("Gerando recibo...","loading");
 
   // Modo edição
@@ -467,18 +473,19 @@ async function gerarRecibo(){
       await carregarRecibos();
       atualizarSugestoesNomes();
       setStatus("Recibo atualizado!","success");
-      mostrarToast("Recibo atualizado com sucesso!");
+      mostrarToast("Recibo atualizado com sucesso!", null, "success");
       cancelarEdicao();
     } else {
       setStatus("Erro ao atualizar.","error");
+      mostrarToast("Erro ao atualizar o recibo.", null, "error");
     }
-    btn.disabled=false;
+    btn.disabled=false; btn.innerHTML=btnTextoOriginal;
     return;
   }
 
   // Buscar próximo número
   const numRes=await api("GET","/api/proximo-num");
-  if(!numRes){btn.disabled=false;return;}
+  if(!numRes){btn.disabled=false;btn.innerHTML=btnTextoOriginal;return;}
   const {num}=await numRes.json();
   dados.num_recibo=num;
 
@@ -490,7 +497,8 @@ async function gerarRecibo(){
   const res=await api("POST","/api/gerar-recibo",dados);
   if(!res||!res.ok){
     setStatus("Erro ao gerar recibo.","error");
-    btn.disabled=false;
+    mostrarToast("Erro ao gerar recibo.", null, "error");
+    btn.disabled=false; btn.innerHTML=btnTextoOriginal;
     return;
   }
 
@@ -543,12 +551,12 @@ async function gerarRecibo(){
   atualizarSugestoesNomes();
   verificarClientesInativos();
   setStatus("Recibo gerado com sucesso!","success");
-  mostrarToast(`Recibo ${num} gerado! Baixando...`);
+  mostrarToast(`Recibo ${num} gerado! Baixando...`, null, "success");
 
   // Oferece vinculação com parcela se o recibo foi para um cliente cadastrado
   const ctx = _clienteContexto;
   limparCampos();
-  btn.disabled=false;
+  btn.disabled=false; btn.innerHTML=btnTextoOriginal;
   if (ctx && ctx.id) {
     const parcelasPendentes = (ctx.parcelas || []).filter(p => p.status !== "pago");
     if (parcelasPendentes.length > 0 && confirm(`Deseja marcar a parcela ${parcelasPendentes[0].num} de "${ctx.nome}" como paga com o recibo ${num}?`)) {
@@ -591,8 +599,14 @@ function renderHistorico(){
   const grid=document.getElementById("historico-grid");
   const count=document.getElementById("historico-count");
   count.textContent=`${lista.length} recibo${lista.length!==1?"s":""}`;
+  const resumoHist = document.getElementById("resumo-historico");
+  if (resumoHist && historicoRecibos.length) {
+    const totalGeral = historicoRecibos.reduce((s, r) => s + valorParaNumero(r.valor), 0);
+    resumoHist.textContent = `${historicoRecibos.length} recibo${historicoRecibos.length !== 1 ? "s" : ""} · R$ ${formatarValor(totalGeral)} total`;
+    resumoHist.style.display = "";
+  }
   if(!lista.length){
-    grid.innerHTML=`<div class="empty-state"><div class="icon">◈</div><p>${busca?"Nenhum recibo encontrado.":"Nenhum recibo gerado ainda."}</p></div>`;
+    grid.innerHTML=`<div class="empty-state"><div class="icon">🧾</div><p>${busca?"Nenhum recibo encontrado.":"Nenhum recibo gerado ainda."}</p></div>`;
     return;
   }
   grid.innerHTML="";
@@ -795,6 +809,16 @@ async function iniciarAssinaturaGovBr(){
 // ── CLIENTES ───────────────────────────────────────────────
 let listaClientes = [];
 
+function atualizarBadgeClientes() {
+  const atrasados = listaClientes.filter(c =>
+    Array.isArray(c.parcelas) && c.parcelas.some(p => p.status === "atrasado")
+  ).length;
+  const badge = document.getElementById("badge-clientes-atraso");
+  if (!badge) return;
+  if (atrasados > 0) { badge.textContent = atrasados; badge.style.display = ""; }
+  else { badge.style.display = "none"; }
+}
+
 async function carregarClientes() {
   const res = await api("GET", "/api/clientes");
   if (!res || !res.ok) return;
@@ -939,8 +963,25 @@ async function renderClientes() {
   );
   clientes.sort((a, b) => a.nome.localeCompare(b.nome));
 
+  // Resumo contextual
+  const resumoEl = document.getElementById("resumo-clientes");
+  if (resumoEl) {
+    const totalAReceber = listaClientes.reduce((s, c) => s + (c.valor_restante || 0), 0);
+    const atrasados = listaClientes.filter(c => Array.isArray(c.parcelas) && c.parcelas.some(p => p.status === "atrasado")).length;
+    const partes = [`${clientes.length} cliente${clientes.length !== 1 ? "s" : ""}`];
+    if (totalAReceber > 0) partes.push(`R$ ${formatarValor(totalAReceber)} a receber`);
+    if (atrasados > 0) partes.push(`<span class="alerta">⚠️ ${atrasados} atrasado${atrasados !== 1 ? "s" : ""}</span>`);
+    resumoEl.innerHTML = partes.join(" · ");
+    resumoEl.style.display = "";
+  }
+  atualizarBadgeClientes();
+
   if (!clientes.length) {
-    grid.innerHTML = `<div class="empty-state"><div class="icon">◉</div><p>${busca ? "Nenhum cliente encontrado." : "Nenhum cliente ainda."}</p></div>`;
+    grid.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>${busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado."}</p>${!busca ? '<button class="btn-gold" style="margin-top:12px" id="btn-empty-cadastrar">+ Cadastrar Cliente</button>' : ""}</div>`;
+    if (!busca) {
+      const btnEmpty = document.getElementById("btn-empty-cadastrar");
+      if (btnEmpty) btnEmpty.addEventListener("click", () => abrirModalCliente());
+    }
     return;
   }
 
@@ -1061,6 +1102,15 @@ function abrirModalPagamentoParcela(clienteId, parcelaNum, valorParcela, reciboN
   const vf = Number(valorParcela).toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   document.getElementById("pag-valor").value = "R$ " + vf;
   document.getElementById("modal-pagamento-titulo").textContent = `Registrar Pagamento — Parcela ${parcelaNum}`;
+  const infoEl = document.getElementById("modal-pagamento-cliente-info");
+  const cli = listaClientes.find(x => x.id === clienteId);
+  if (cli && infoEl) {
+    const total = cli.num_parcelas || 0;
+    infoEl.textContent = `${esc(cli.nome)}${total ? ` · Parcela ${parcelaNum} de ${total}` : ""}`;
+    infoEl.style.display = "block";
+  } else if (infoEl) {
+    infoEl.style.display = "none";
+  }
   const hoje = new Date().toISOString().split("T")[0];
   document.getElementById("pag-data-recebimento").value = hoje;
   document.getElementById("pag-data-deposito").value    = hoje;
@@ -1092,7 +1142,7 @@ async function confirmarPagamentoParcela() {
     return alert(data.erro || "Erro ao registrar pagamento.");
   }
   fecharModal("modal-pagamento-parcela");
-  mostrarToast("Parcela marcada como paga!");
+  mostrarToast("Parcela marcada como paga!", null, "success");
   renderClientes();
 }
 
