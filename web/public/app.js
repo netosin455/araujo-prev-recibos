@@ -69,6 +69,8 @@ let historicoRecibos = [];
 let graficoMensal = null;
 let modoEdicao = null;
 let idEdicao = null;
+let referenciaPadrao = "";
+let _clienteContexto = null; // cliente ativo ao clicar em "+ Recibo"
 
 // ── INICIAR ────────────────────────────────────────────────
 async function iniciarApp(){
@@ -89,9 +91,19 @@ async function iniciarApp(){
   }
   await carregarRecibos();
   await atualizarNumRecibo();
+  await carregarReferenciaPadrao();
   atualizarSugestoesNomes();
   preencherFiltrosAnos();
   verificarClientesInativos();
+}
+
+async function carregarReferenciaPadrao() {
+  const res = await api("GET", "/api/me");
+  if (!res || !res.ok) return;
+  const me = await res.json();
+  referenciaPadrao = me.referencia_padrao || "";
+  const el = document.getElementById("referencia");
+  if (el && referenciaPadrao && !el.value) el.value = referenciaPadrao;
 }
 
 // Verifica token ao carregar
@@ -239,12 +251,42 @@ function limparCampos(){
   if(comp) comp.value="";
   const compStatus = document.getElementById("comprovante-status");
   if(compStatus) compStatus.textContent="";
-  // Reseta label do comprovante
   const label = document.getElementById("comprovante-label");
   const labelText = document.getElementById("comprovante-label-text");
   if(label) label.classList.remove("has-file");
   if(labelText) labelText.textContent = "Escolher arquivo (imagem ou PDF)";
+  // Restaura referência padrão do usuário
+  const refEl = document.getElementById("referencia");
+  if(refEl && referenciaPadrao) refEl.value = referenciaPadrao;
+  const btnRef = document.getElementById("btn-ref-padrao-recibo");
+  if(btnRef) btnRef.style.display = "none";
+  _clienteContexto = null;
   setStatus("","");
+}
+
+function onReferenciaInput() {
+  const val = (document.getElementById("referencia").value || "").trim().toUpperCase();
+  const btn = document.getElementById("btn-ref-padrao-recibo");
+  if (btn) btn.style.display = (val && val !== referenciaPadrao) ? "" : "none";
+}
+
+async function salvarReferenciaPadraoRecibo() {
+  const val = (document.getElementById("referencia").value || "").trim().toUpperCase();
+  if (!val) return mostrarToast("Preencha o campo de referência primeiro.");
+  const res = await api("PUT", "/api/me/referencia", { referencia_padrao: val });
+  if (!res || !res.ok) return mostrarToast("Erro ao salvar referência padrão.");
+  referenciaPadrao = val;
+  document.getElementById("btn-ref-padrao-recibo").style.display = "none";
+  mostrarToast("Referência padrão salva!");
+}
+
+async function salvarReferenciaPadrao() {
+  const val = (document.getElementById("cliente-referencia").value || "").trim().toUpperCase();
+  if (!val) return mostrarToast("Preencha o campo de referência primeiro.");
+  const res = await api("PUT", "/api/me/referencia", { referencia_padrao: val });
+  if (!res || !res.ok) return mostrarToast("Erro ao salvar referência padrão.");
+  referenciaPadrao = val;
+  mostrarToast("Referência padrão salva!");
 }
 
 function fecharModal(id){document.getElementById(id).classList.remove("active");}
@@ -496,8 +538,17 @@ async function gerarRecibo(){
   verificarClientesInativos();
   setStatus("Recibo gerado com sucesso!","success");
   mostrarToast(`Recibo ${num} gerado! Baixando...`);
+
+  // Oferece vinculação com parcela se o recibo foi para um cliente cadastrado
+  const ctx = _clienteContexto;
   limparCampos();
   btn.disabled=false;
+  if (ctx && ctx.id) {
+    const parcelasPendentes = (ctx.parcelas || []).filter(p => p.status !== "pago");
+    if (parcelasPendentes.length > 0 && confirm(`Deseja marcar a parcela ${parcelasPendentes[0].num} de "${ctx.nome}" como paga com o recibo ${num}?`)) {
+      abrirModalPagamentoParcela(ctx.id, parcelasPendentes[0].num, parcelasPendentes[0].valor, num);
+    }
+  }
 }
 
 // ── HISTÓRICO ──────────────────────────────────────────────
@@ -791,6 +842,101 @@ async function renderClientes() {
         </div>`;
     }
 
+    // Monta as 3 abas do card de cliente
+    const tabelaRecibos = `
+      <table style="width:100%">
+        <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${c.recibos.map(r => {
+            const rd = JSON.stringify(r).replace(/"/g, "&quot;");
+            return `<tr>
+              <td><span class="badge badge-gold">${esc(r.num)}</span></td>
+              <td>${esc(r.data)}</td>
+              <td style="color:var(--success);font-weight:700">R$ ${esc(r.valor)}</td>
+              <td>${esc(r.emitido_por || "-")}</td>
+              <td>${esc(r.referencia || "-")}</td>
+              <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
+                <button class="btn-secondary btn-sm" onclick="abrirDetalhe(${rd})">Detalhes</button>
+                <button class="btn-gold btn-sm" onclick="abrirPDFRecibo(${rd})"><i class="bi bi-eye"></i> Ver</button>
+                ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>` : ""}
+                <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
+                ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" onclick="abrirModalUploadComprovante('${r.id || r._id}')">📎 Comprovante</button>` : ""}
+                ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id || r._id}')">🗑</button>` : ""}
+              </td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
+
+    let tabelaParcelamento = "";
+    let tabelaAReceber = "";
+    let tabelaRecebidos = "";
+    if (cadastro && Array.isArray(cadastro.parcelas) && cadastro.parcelas.length > 0) {
+      const parcelas = cadastro.parcelas;
+      const badgeParcela = s => {
+        if (s === "pago")     return `<span class="badge badge-pago">Pago</span>`;
+        if (s === "atrasado") return `<span class="badge badge-atrasado">Atrasado</span>`;
+        return `<span class="badge badge-pendente">Pendente</span>`;
+      };
+      const btnPagar = (p) => roleLogado !== "recepcao" && p.status !== "pago"
+        ? `<button class="btn-success btn-sm" onclick="abrirModalPagamentoParcela('${cadastro.id}',${p.num},${p.valor},'')">Registrar Pgto</button>`
+        : "";
+
+      tabelaParcelamento = `
+        <table style="width:100%">
+          <thead><tr><th>Nº</th><th>Valor</th><th>Status</th><th>Recebimento</th><th>Depósito</th><th>Recibo</th><th>Ações</th></tr></thead>
+          <tbody>
+            ${parcelas.map(p => `<tr>
+              <td>${p.num}</td>
+              <td style="font-weight:600">R$ ${formatarValor(p.valor)}</td>
+              <td>${badgeParcela(p.status)}</td>
+              <td style="color:var(--muted)">${esc(p.data_recebimento || "-")}</td>
+              <td style="color:var(--muted)">${esc(p.data_deposito || "-")}</td>
+              <td>${p.recibo_num ? `<span class="badge badge-gold">${esc(p.recibo_num)}</span>` : "-"}</td>
+              <td>${btnPagar(p)}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>`;
+
+      const pendentes = parcelas.filter(p => p.status !== "pago");
+      const totalAReceber = pendentes.reduce((s, p) => s + p.valor, 0);
+      tabelaAReceber = pendentes.length === 0
+        ? `<p style="color:var(--success);font-weight:600;padding:8px 0">✅ Nenhuma parcela pendente — contrato quitado!</p>`
+        : `<table style="width:100%">
+            <thead><tr><th>Nº Parcela</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody>
+              ${pendentes.map(p => `<tr>
+                <td>${p.num}</td>
+                <td style="font-weight:600">R$ ${formatarValor(p.valor)}</td>
+                <td>${badgeParcela(p.status)}</td>
+                <td>${btnPagar(p)}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+          <div class="tab-total" style="color:var(--error)">Total a receber: R$ ${formatarValor(totalAReceber)}</div>`;
+
+      const pagas = parcelas.filter(p => p.status === "pago");
+      const totalRecebido = pagas.reduce((s, p) => s + p.valor, 0);
+      tabelaRecebidos = pagas.length === 0
+        ? `<p style="color:var(--muted);padding:8px 0">Nenhuma parcela paga ainda.</p>`
+        : `<table style="width:100%">
+            <thead><tr><th>Nº Parcela</th><th>Valor</th><th>Recebimento</th><th>Depósito</th><th>Nº Recibo</th></tr></thead>
+            <tbody>
+              ${pagas.map(p => `<tr>
+                <td>${p.num}</td>
+                <td style="color:var(--success);font-weight:600">R$ ${formatarValor(p.valor)}</td>
+                <td>${esc(p.data_recebimento || "-")}</td>
+                <td>${esc(p.data_deposito || "-")}</td>
+                <td>${p.recibo_num ? `<span class="badge badge-gold">${esc(p.recibo_num)}</span>` : "-"}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+          <div class="tab-total" style="color:var(--success)">Total recebido: R$ ${formatarValor(totalRecebido)}</div>`;
+    }
+
+    const temParcelas = cadastro && Array.isArray(cadastro.parcelas) && cadastro.parcelas.length > 0;
+    const cardId = `card-cli-${(c.cpf||c.nome).replace(/\W/g,"")}-${Math.random().toString(36).slice(2,6)}`;
+
     const card = document.createElement("div");
     card.className = "cliente-card";
     card.innerHTML = `
@@ -815,29 +961,18 @@ async function renderClientes() {
         </div>
       </div>
       <div class="cliente-body">
-        <table style="width:100%">
-          <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th>Ações</th></tr></thead>
-          <tbody>
-            ${c.recibos.map(r => {
-              const rd = JSON.stringify(r).replace(/"/g, "&quot;");
-              return `<tr>
-                <td><span class="badge badge-gold">${esc(r.num)}</span></td>
-                <td>${esc(r.data)}</td>
-                <td style="color:var(--success);font-weight:700">R$ ${esc(r.valor)}</td>
-                <td>${esc(r.emitido_por || "-")}</td>
-                <td>${esc(r.referencia || "-")}</td>
-                <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
-                  <button class="btn-secondary btn-sm" onclick="abrirDetalhe(${rd})">Detalhes</button>
-                  <button class="btn-gold btn-sm" onclick="abrirPDFRecibo(${rd})"><i class="bi bi-eye"></i> Ver</button>
-                  ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>` : ""}
-                  <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
-                  ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" onclick="abrirModalUploadComprovante('${r.id || r._id}')">📎 Comprovante</button>` : ""}
-                  ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id || r._id}')">🗑</button>` : ""}
-                </td>
-              </tr>`;
-            }).join("")}
-          </tbody>
-        </table>
+        ${temParcelas ? `
+        <div class="cliente-tabs">
+          <button class="cliente-tab active" onclick="trocarAbaCliente(this,'${cardId}','parcelamento')">Parcelamento</button>
+          <button class="cliente-tab" onclick="trocarAbaCliente(this,'${cardId}','areceber')">A Receber</button>
+          <button class="cliente-tab" onclick="trocarAbaCliente(this,'${cardId}','recebidos')">Recebidos</button>
+          <button class="cliente-tab" onclick="trocarAbaCliente(this,'${cardId}','historico')">Histórico</button>
+        </div>
+        <div id="${cardId}-parcelamento" class="tab-painel active">${tabelaParcelamento}</div>
+        <div id="${cardId}-areceber" class="tab-painel">${tabelaAReceber}</div>
+        <div id="${cardId}-recebidos" class="tab-painel">${tabelaRecebidos}</div>
+        <div id="${cardId}-historico" class="tab-painel">${tabelaRecibos}</div>
+        ` : tabelaRecibos}
       </div>`;
 
     card.querySelector(".novo-recibo-btn").addEventListener("click", e => {
@@ -855,13 +990,17 @@ async function renderClientes() {
 }
 
 function novoReciboParaCliente(c, cadastro) {
-  irParaTela("inicio");
+  _clienteContexto = cadastro || null;
+  navegarPara("gerar");
   setTimeout(() => {
     document.getElementById("cpf").value          = c.cpf || "";
     document.getElementById("nome").value         = c.nome || "";
     document.getElementById("municipio_uf").value = cadastro ? cadastro.municipio_uf : (c.municipio_uf || "");
-    document.getElementById("referencia").value   = cadastro ? (cadastro.referencia || "") : (c.recibos[0]?.referencia || "");
-    if (cadastro && cadastro.valor_parcela > 0) {
+    document.getElementById("referencia").value   = cadastro ? (cadastro.referencia || referenciaPadrao || "") : (c.recibos[0]?.referencia || referenciaPadrao || "");
+    document.getElementById("escritorio").value   = (cadastro?.firma || c.recibos[0]?.escritorio || "").toUpperCase();
+    const btn = document.getElementById("btn-ref-padrao-recibo");
+    if (btn) btn.style.display = "none";
+    if (cadastro && (cadastro.valor_parcela || 0) > 0) {
       const vf = cadastro.valor_parcela.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
       document.getElementById("valor").value = vf;
     }
@@ -871,6 +1010,56 @@ function novoReciboParaCliente(c, cadastro) {
 
 function toggleCliente(header) {
   header.nextElementSibling.classList.toggle("open");
+}
+
+function trocarAbaCliente(btn, cardId, aba) {
+  const corpo = btn.closest(".cliente-body");
+  corpo.querySelectorAll(".cliente-tab").forEach(t => t.classList.remove("active"));
+  corpo.querySelectorAll(".tab-painel").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  const painel = document.getElementById(`${cardId}-${aba}`);
+  if (painel) painel.classList.add("active");
+}
+
+function abrirModalPagamentoParcela(clienteId, parcelaNum, valorParcela, reciboNumPreenchido) {
+  document.getElementById("pag-cliente-id").value  = clienteId;
+  document.getElementById("pag-parcela-num").value = parcelaNum;
+  const vf = Number(valorParcela).toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  document.getElementById("pag-valor").value = "R$ " + vf;
+  document.getElementById("modal-pagamento-titulo").textContent = `Registrar Pagamento — Parcela ${parcelaNum}`;
+  const hoje = new Date().toISOString().split("T")[0];
+  document.getElementById("pag-data-recebimento").value = hoje;
+  document.getElementById("pag-data-deposito").value    = hoje;
+  document.getElementById("pag-recibo-num").value       = reciboNumPreenchido || "";
+  document.getElementById("pag-observacao").value       = "";
+  document.getElementById("modal-pagamento-parcela").classList.add("active");
+}
+
+async function confirmarPagamentoParcela() {
+  const clienteId  = document.getElementById("pag-cliente-id").value;
+  const parcelaNum = parseInt(document.getElementById("pag-parcela-num").value);
+  const dataRec    = document.getElementById("pag-data-recebimento").value;
+  const dataDep    = document.getElementById("pag-data-deposito").value;
+  const reciboNum  = (document.getElementById("pag-recibo-num").value || "").trim().toUpperCase();
+  const observacao = (document.getElementById("pag-observacao").value || "").trim();
+
+  if (!dataRec || !dataDep) return alert("Preencha as datas de recebimento e depósito.");
+
+  const fmt = d => d ? d.split("-").reverse().join("/") : "";
+  const res = await api("PATCH", `/api/clientes/${clienteId}/parcela/${parcelaNum}`, {
+    status: "pago",
+    data_recebimento: fmt(dataRec),
+    data_deposito: fmt(dataDep),
+    recibo_num: reciboNum,
+    observacao,
+  });
+  if (!res || !res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return alert(data.erro || "Erro ao registrar pagamento.");
+  }
+  fecharModal("modal-pagamento-parcela");
+  mostrarToast("Parcela marcada como paga!");
+  renderClientes();
 }
 
 // ── CRUD CLIENTES ──────────────────────────────────────────
@@ -891,6 +1080,17 @@ function mascaraValorCliente(el) {
   el.value = v.replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+function calcularContrato() {
+  const beneficio = valorParaNumero(document.getElementById("cliente-valor-beneficio").value);
+  const numBen    = parseInt(document.getElementById("cliente-num-beneficios").value) || 0;
+  if (beneficio > 0 && numBen > 0) {
+    const contrato = beneficio * numBen;
+    const vf = contrato.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    document.getElementById("cliente-valor-contrato").value = vf;
+    calcularParcela();
+  }
+}
+
 function calcularParcela() {
   const contrato = valorParaNumero(document.getElementById("cliente-valor-contrato").value);
   const parcelas = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
@@ -903,11 +1103,15 @@ function calcularParcela() {
 }
 
 function limparModalCliente() {
-  ["cliente-nome","cliente-cpf","cliente-telefone","cliente-endereco","cliente-municipio","cliente-firma","cliente-referencia","cliente-valor-contrato","cliente-num-parcelas"].forEach(campo => {
-    document.getElementById(campo).value = "";
+  ["cliente-nome","cliente-cpf","cliente-telefone","cliente-endereco","cliente-municipio",
+   "cliente-firma","cliente-referencia","cliente-valor-beneficio","cliente-num-beneficios",
+   "cliente-valor-contrato","cliente-num-parcelas"].forEach(campo => {
+    const el = document.getElementById(campo);
+    if (el) el.value = "";
   });
   document.getElementById("cliente-id").value = "";
   document.getElementById("cliente-parcela-preview").textContent = "";
+  if (referenciaPadrao) document.getElementById("cliente-referencia").value = referenciaPadrao;
 }
 
 function abrirModalCliente() {
@@ -923,7 +1127,7 @@ function abrirModalClientePreenchido(c) {
   document.getElementById("cliente-nome").value      = c.nome || "";
   document.getElementById("cliente-cpf").value       = c.cpf || "";
   document.getElementById("cliente-municipio").value = c.municipio_uf || "";
-  const ref = c.recibos[0]?.referencia || "";
+  const ref = c.recibos[0]?.referencia || referenciaPadrao || "";
   document.getElementById("cliente-referencia").value = ref;
   document.getElementById("modal-cliente").classList.add("active");
 }
@@ -941,7 +1145,10 @@ async function editarCliente(id) {
   document.getElementById("cliente-municipio").value = c.municipio_uf || "";
   document.getElementById("cliente-firma").value     = c.firma || "";
   document.getElementById("cliente-referencia").value = c.referencia || "";
-  const vf = c.valor_contrato > 0 ? c.valor_contrato.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
+  const vb = (c.valor_beneficio||0) > 0 ? (c.valor_beneficio).toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
+  document.getElementById("cliente-valor-beneficio").value = vb;
+  document.getElementById("cliente-num-beneficios").value  = c.num_beneficios || "";
+  const vf = (c.valor_contrato||0) > 0 ? (c.valor_contrato).toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
   document.getElementById("cliente-valor-contrato").value = vf;
   document.getElementById("cliente-num-parcelas").value   = c.num_parcelas || "";
   calcularParcela();
@@ -949,22 +1156,24 @@ async function editarCliente(id) {
 }
 
 async function salvarCliente() {
-  const id             = document.getElementById("cliente-id").value;
-  const nome           = document.getElementById("cliente-nome").value.trim().toUpperCase();
-  const cpf            = document.getElementById("cliente-cpf").value.trim();
-  const telefone       = document.getElementById("cliente-telefone").value.trim();
-  const endereco       = document.getElementById("cliente-endereco").value.trim().toUpperCase();
-  const municipio_uf   = document.getElementById("cliente-municipio").value.trim().toUpperCase();
-  const firma          = document.getElementById("cliente-firma").value.trim().toUpperCase();
-  const referencia     = document.getElementById("cliente-referencia").value.trim().toUpperCase();
-  const valor_contrato = valorParaNumero(document.getElementById("cliente-valor-contrato").value);
-  const num_parcelas   = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
+  const id              = document.getElementById("cliente-id").value;
+  const nome            = document.getElementById("cliente-nome").value.trim().toUpperCase();
+  const cpf             = document.getElementById("cliente-cpf").value.trim();
+  const telefone        = document.getElementById("cliente-telefone").value.trim();
+  const endereco        = document.getElementById("cliente-endereco").value.trim().toUpperCase();
+  const municipio_uf    = document.getElementById("cliente-municipio").value.trim().toUpperCase();
+  const firma           = document.getElementById("cliente-firma").value.trim().toUpperCase();
+  const referencia      = document.getElementById("cliente-referencia").value.trim().toUpperCase();
+  const valor_beneficio = valorParaNumero(document.getElementById("cliente-valor-beneficio").value);
+  const num_beneficios  = parseInt(document.getElementById("cliente-num-beneficios").value) || 0;
+  const valor_contrato  = valorParaNumero(document.getElementById("cliente-valor-contrato").value);
+  const num_parcelas    = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
 
   if (!nome || !cpf || !municipio_uf) return alert("Preencha Nome, CPF e Município.");
   if (valor_contrato <= 0) return alert("Informe o valor total do contrato.");
   if (num_parcelas <= 0)   return alert("Informe o número de parcelas.");
 
-  const body = { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_contrato, num_parcelas };
+  const body = { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_beneficio, num_beneficios, valor_contrato, num_parcelas };
   const res  = id
     ? await api("PUT",  `/api/clientes/${id}`, body)
     : await api("POST", "/api/clientes", body);

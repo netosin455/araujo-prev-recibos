@@ -355,9 +355,12 @@ async function initDb() {
       created_at TEXT NOT NULL
     )
   `);
-  // Migração: adiciona coluna caso a tabela já exista sem ela
+  // Migração: adiciona colunas caso a tabela já exista sem elas
   await pgPool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS escritorio TEXT NOT NULL DEFAULT ''
+  `);
+  await pgPool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS referencia_padrao TEXT DEFAULT ''
   `);
 
   // Admin: sempre atualiza senha/role para refletir env vars (conta de sistema)
@@ -655,6 +658,26 @@ app.post("/api/login", async (req, res) => {
   res.json({ token, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" });
 });
 
+// ── DADOS DO USUÁRIO LOGADO ────────────────────────────────
+app.get("/api/me", auth, async (req, res) => {
+  const { rows } = await pgPool.query(
+    "SELECT id, username, role, escritorio, referencia_padrao FROM users WHERE id=$1",
+    [req.user.id]
+  );
+  if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado" });
+  res.json(rows[0]);
+});
+
+app.put("/api/me/referencia", auth, async (req, res) => {
+  const { referencia_padrao } = req.body;
+  if (typeof referencia_padrao !== "string") return res.status(400).json({ erro: "Valor inválido" });
+  await pgPool.query(
+    "UPDATE users SET referencia_padrao=$1 WHERE id=$2",
+    [referencia_padrao.toUpperCase(), req.user.id]
+  );
+  res.json({ ok: true });
+});
+
 // ── UPLOAD COMPROVANTE ─────────────────────────────────────
 app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
   try {
@@ -725,14 +748,59 @@ function parseBRL(str) {
   return parseFloat(String(str || "0").replace(/\./g, "").replace(",", ".")) || 0;
 }
 
+function gerarParcelas(numParcelas, valorContrato) {
+  const valorParcela = numParcelas > 0 ? valorContrato / numParcelas : 0;
+  return Array.from({ length: numParcelas }, (_, i) => ({
+    num: i + 1,
+    valor: valorParcela,
+    status: "pendente",
+    data_vencimento: "",
+    data_recebimento: "",
+    data_deposito: "",
+    recibo_id: "",
+    recibo_num: "",
+    observacao: "",
+  }));
+}
+
+function recalcularResumo(parcelas) {
+  const pagas     = parcelas.filter(p => p.status === "pago");
+  const restantes = parcelas.filter(p => p.status !== "pago");
+  return {
+    parcelas_pagas:     pagas.length,
+    parcelas_restantes: restantes.length,
+    valor_pago:         pagas.reduce((s, p) => s + (p.valor || 0), 0),
+    valor_restante:     restantes.reduce((s, p) => s + (p.valor || 0), 0),
+    updated_at:         new Date().toISOString(),
+  };
+}
+
+// Migração on-the-fly: clientes sem campo parcelas recebem array inicializado
+function inicializarParcelasLegado(c) {
+  if (c.parcelas && c.parcelas.length > 0) return c;
+  const numParcelas   = c.num_parcelas || 0;
+  const valorContrato = c.valor_contrato || 0;
+  const valorParcela  = numParcelas > 0 ? valorContrato / numParcelas : 0;
+  const jaPagess      = c.parcelas_pagas || 0;
+  const parcelas = Array.from({ length: numParcelas }, (_, i) => ({
+    num: i + 1,
+    valor: valorParcela,
+    status: i < jaPagess ? "pago" : "pendente",
+    data_vencimento: "",
+    data_recebimento: "",
+    data_deposito: "",
+    recibo_id: "",
+    recibo_num: "",
+    observacao: "",
+  }));
+  const resumo = recalcularResumo(parcelas);
+  return { ...c, parcelas, ...resumo };
+}
+
 async function enriquecerCliente(c) {
-  const recibos = await find(dbRecibos, { cpf: c.cpf });
-  const parcelas_pagas    = recibos.length;
-  const valor_pago        = recibos.reduce((s, r) => s + parseBRL(r.valor), 0);
-  const valor_parcela     = c.num_parcelas > 0 ? c.valor_contrato / c.num_parcelas : 0;
-  const parcelas_restantes = Math.max(0, c.num_parcelas - parcelas_pagas);
-  const valor_restante    = Math.max(0, c.valor_contrato - valor_pago);
-  return { ...c, id: c._id, valor_parcela, parcelas_pagas, parcelas_restantes, valor_pago, valor_restante };
+  const cliente = inicializarParcelasLegado(c);
+  const valorParcela = cliente.num_parcelas > 0 ? cliente.valor_contrato / cliente.num_parcelas : 0;
+  return { ...cliente, id: cliente._id, valor_parcela: valorParcela };
 }
 
 // Busca por CPF — deve vir antes de /:id para não colidir
@@ -749,32 +817,95 @@ app.get("/api/clientes", auth, async (req, res) => {
 });
 
 app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
-  const { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_contrato, num_parcelas } = req.body;
+  const {
+    nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
+    valor_beneficio, num_beneficios, valor_contrato, num_parcelas,
+  } = req.body;
   if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
-  if (!valor_contrato || valor_contrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
-  if (!num_parcelas || num_parcelas <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
+  if (!num_parcelas || Number(num_parcelas) <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
+
+  // Calcula valor_contrato: prefere o enviado, senão calcula a partir dos benefícios
+  const vBeneficio  = Number(valor_beneficio) || 0;
+  const nBeneficios = Number(num_beneficios) || 0;
+  const vContrato   = Number(valor_contrato) || (vBeneficio * nBeneficios) || 0;
+  if (vContrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
+
   const existente = await findOne(dbClientes, { cpf });
   if (existente) return res.status(400).json({ erro: "Já existe um cliente cadastrado com este CPF." });
+
+  const nParcelas = Number(num_parcelas);
+  const parcelas  = gerarParcelas(nParcelas, vContrato);
+  const resumo    = recalcularResumo(parcelas);
+
   const doc = await insert(dbClientes, {
-    nome, cpf, telefone: telefone || "", endereco: endereco || "",
-    municipio_uf, firma: firma || "", referencia: referencia || "",
-    valor_contrato: Number(valor_contrato), num_parcelas: Number(num_parcelas),
-    created_at: new Date().toISOString()
+    nome, cpf,
+    telefone: telefone || "",
+    endereco: endereco || "",
+    municipio_uf,
+    firma: firma || "",
+    referencia: referencia || "",
+    valor_beneficio: vBeneficio,
+    num_beneficios: nBeneficios,
+    valor_contrato: vContrato,
+    num_parcelas: nParcelas,
+    valor_parcela: nParcelas > 0 ? vContrato / nParcelas : 0,
+    parcelas,
+    ...resumo,
+    created_at: new Date().toISOString(),
   });
   res.json(await enriquecerCliente(doc));
 });
 
 app.put("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
-  const { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_contrato, num_parcelas } = req.body;
+  const {
+    nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
+    valor_beneficio, num_beneficios, valor_contrato, num_parcelas, parcelas,
+  } = req.body;
   if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
-  if (!valor_contrato || valor_contrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
-  if (!num_parcelas || num_parcelas <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
+  if (!num_parcelas || Number(num_parcelas) <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
+
+  const vBeneficio  = Number(valor_beneficio) || 0;
+  const nBeneficios = Number(num_beneficios) || 0;
+  const vContrato   = Number(valor_contrato) || (vBeneficio * nBeneficios) || 0;
+  if (vContrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
+
   const outro = await findOne(dbClientes, { cpf });
   if (outro && outro._id !== req.params.id) return res.status(400).json({ erro: "CPF já cadastrado em outro cliente." });
+
+  const nParcelas = Number(num_parcelas);
+  const atual     = await findOne(dbClientes, { _id: req.params.id });
+
+  // Usa o array de parcelas enviado pelo front; se não veio, mantém o existente ou regenera
+  let novasParcelas;
+  if (Array.isArray(parcelas) && parcelas.length > 0) {
+    novasParcelas = parcelas;
+  } else if (atual && Array.isArray(atual.parcelas) && atual.parcelas.length === nParcelas) {
+    novasParcelas = atual.parcelas;
+  } else {
+    // Número de parcelas mudou: regenera preservando as pagas
+    const parcelasAntigas = (atual && Array.isArray(atual.parcelas)) ? atual.parcelas : [];
+    novasParcelas = gerarParcelas(nParcelas, vContrato).map((p, i) => {
+      const antiga = parcelasAntigas[i];
+      return antiga ? { ...p, ...antiga, num: p.num, valor: p.valor } : p;
+    });
+  }
+
+  const resumo = recalcularResumo(novasParcelas);
+
   await update(dbClientes, { _id: req.params.id }, {
-    nome, cpf, telefone: telefone || "", endereco: endereco || "",
-    municipio_uf, firma: firma || "", referencia: referencia || "",
-    valor_contrato: Number(valor_contrato), num_parcelas: Number(num_parcelas)
+    nome, cpf,
+    telefone: telefone || "",
+    endereco: endereco || "",
+    municipio_uf,
+    firma: firma || "",
+    referencia: referencia || "",
+    valor_beneficio: vBeneficio,
+    num_beneficios: nBeneficios,
+    valor_contrato: vContrato,
+    num_parcelas: nParcelas,
+    valor_parcela: nParcelas > 0 ? vContrato / nParcelas : 0,
+    parcelas: novasParcelas,
+    ...resumo,
   });
   const atualizado = await findOne(dbClientes, { _id: req.params.id });
   res.json(await enriquecerCliente(atualizado));
@@ -783,6 +914,21 @@ app.put("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
 app.delete("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
   await remove(dbClientes, { _id: req.params.id });
   res.json({ ok: true });
+});
+
+app.patch("/api/clientes/:id/parcela/:num", auth, financeiroOnly, async (req, res) => {
+  const cliente = await findOne(dbClientes, { _id: req.params.id });
+  if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
+  const num = Number(req.params.num);
+  if (!num || num < 1) return res.status(400).json({ erro: "Número de parcela inválido." });
+  const parcelasAtuais = inicializarParcelasLegado(cliente).parcelas;
+  const parcelas = parcelasAtuais.map(p =>
+    p.num === num ? { ...p, ...req.body, num: p.num, valor: p.valor } : p
+  );
+  const resumo = recalcularResumo(parcelas);
+  await update(dbClientes, { _id: req.params.id }, { parcelas, ...resumo });
+  const salvo = await findOne(dbClientes, { _id: req.params.id });
+  res.json(await enriquecerCliente(salvo));
 });
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────

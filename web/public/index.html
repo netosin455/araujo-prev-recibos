@@ -222,6 +222,19 @@
     [data-theme="dark"] td{color:var(--dark)}
     [data-theme="dark"] .btn-secondary{background:#252525;border-color:var(--border);color:var(--mid)}
 
+    /* ── ABAS CLIENTE ── */
+    .cliente-tabs{display:flex;gap:3px;margin-bottom:12px;background:var(--bg);padding:3px;border-radius:var(--radius-sm);width:fit-content}
+    .cliente-tab{padding:6px 16px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:var(--muted);border:none;background:none;font-family:'Inter',sans-serif;transition:all 0.18s}
+    .cliente-tab.active{background:var(--dark);color:white;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+    [data-theme="dark"] .cliente-tabs{background:#222}
+    [data-theme="dark"] .cliente-tab.active{background:var(--gold);color:#1a1a1a}
+    .tab-painel{display:none}.tab-painel.active{display:block}
+    .badge-pendente{background:#fff8e6;color:#b8700a;border:1px solid #f0d080}
+    .badge-atrasado{background:#fdf0f0;color:var(--error);border:1px solid #f0d0d0}
+    .badge-pago{background:#edf7f2;color:var(--success);border:1px solid #c0e0d0}
+    .tab-total{font-size:13px;font-weight:700;margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:var(--radius-sm);display:inline-block}
+    .secao-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin:14px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
     /* ── COMPROVANTE UPLOAD ── */
     .comprovante-label{display:flex;align-items:center;gap:10px;padding:12px 16px;border:2px dashed var(--border);border-radius:8px;cursor:pointer;font-size:13px;color:var(--mid);transition:all 0.2s;background:var(--bg);font-weight:500}
     .comprovante-label:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-pale)}
@@ -481,8 +494,10 @@
               <input id="complemento" type="text" placeholder="Ex: Aposentadoria por Invalidez..." />
             </div>
             <div class="form-group" style="flex:1">
-              <label>Referência <span style="font-weight:400;text-transform:none;letter-spacing:0">(gaveta)</span></label>
-              <input id="referencia" type="text" style="text-transform:uppercase" placeholder="Ex: A1, C2..." maxlength="10" />
+              <label>Referência <span style="font-weight:400;text-transform:none;letter-spacing:0">(gaveta)</span>
+                <button type="button" id="btn-ref-padrao-recibo" title="Salvar como minha referência padrão" onclick="salvarReferenciaPadraoRecibo()" style="display:none;background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
+              </label>
+              <input id="referencia" type="text" style="text-transform:uppercase" placeholder="Ex: MAI/2026..." maxlength="20" oninput="onReferenciaInput()" />
             </div>
           </div>
           <div class="form-group">
@@ -767,13 +782,15 @@
 
   <!-- Modal cadastro/edição de cliente -->
   <div id="modal-cliente" class="modal">
-    <div class="modal-content" style="max-width:520px">
+    <div class="modal-content" style="max-width:540px">
       <div class="modal-header">
         <h2 id="modal-cliente-titulo">Cadastrar Cliente</h2>
         <button class="modal-close" onclick="fecharModal('modal-cliente')"><i class="bi bi-x-lg"></i></button>
       </div>
       <input type="hidden" id="cliente-id" />
       <div style="margin-top:16px">
+
+        <div class="secao-label">Dados Pessoais</div>
         <div class="form-row">
           <div class="form-group">
             <label>Nome <span style="color:var(--error);font-weight:700">*</span></label>
@@ -804,27 +821,79 @@
             <input id="cliente-firma" type="text" style="text-transform:uppercase" placeholder="Ex: Escritório Terra Rica" />
           </div>
           <div class="form-group">
-            <label>Referência</label>
-            <input id="cliente-referencia" type="text" style="text-transform:uppercase" maxlength="10" placeholder="Ex: A1" />
+            <label>Referência
+              <button type="button" id="btn-salvar-ref-padrao" title="Salvar como minha referência padrão" onclick="salvarReferenciaPadrao()" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
+            </label>
+            <input id="cliente-referencia" type="text" style="text-transform:uppercase" maxlength="20" placeholder="Ex: MAI/2026" />
           </div>
         </div>
-        <div style="border-top:1px solid var(--border);margin:16px 0;padding-top:16px">
-          <div style="font-size:12px;font-weight:600;color:var(--mid);margin-bottom:12px">CONTRATO</div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Valor total do contrato <span style="color:var(--error);font-weight:700">*</span></label>
-              <input id="cliente-valor-contrato" type="text" placeholder="0,00" oninput="mascaraValorCliente(this)" onchange="calcularParcela()" />
-            </div>
-            <div class="form-group">
-              <label>Nº de parcelas <span style="color:var(--error);font-weight:700">*</span></label>
-              <input id="cliente-num-parcelas" type="number" min="1" placeholder="Ex: 8" oninput="calcularParcela()" />
-            </div>
+
+        <div class="secao-label" style="margin-top:16px">Benefício / Contrato</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Valor do benefício (R$) <span style="color:var(--error);font-weight:700">*</span></label>
+            <input id="cliente-valor-beneficio" type="text" placeholder="0,00" oninput="mascaraValorCliente(this)" onchange="calcularContrato()" />
           </div>
-          <div id="cliente-parcela-preview" style="font-size:13px;color:var(--success);font-weight:600;margin-top:4px"></div>
+          <div class="form-group">
+            <label>Nº de benefícios devidos <span style="color:var(--error);font-weight:700">*</span></label>
+            <input id="cliente-num-beneficios" type="number" min="1" placeholder="Ex: 4" oninput="calcularContrato()" />
+          </div>
         </div>
-        <div style="display:flex;gap:10px;margin-top:8px">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Valor total do contrato <span style="color:var(--error);font-weight:700">*</span></label>
+            <input id="cliente-valor-contrato" type="text" placeholder="0,00" oninput="mascaraValorCliente(this)" onchange="calcularParcela()" />
+          </div>
+          <div class="form-group">
+            <label>Nº de parcelas <span style="color:var(--error);font-weight:700">*</span></label>
+            <input id="cliente-num-parcelas" type="number" min="1" placeholder="Ex: 24" oninput="calcularParcela()" />
+          </div>
+        </div>
+        <div id="cliente-parcela-preview" style="font-size:13px;color:var(--success);font-weight:600;margin-top:4px;margin-bottom:8px"></div>
+
+        <div style="display:flex;gap:10px;margin-top:16px">
           <button class="btn-gold" onclick="salvarCliente()">Salvar</button>
           <button class="btn-secondary" onclick="fecharModal('modal-cliente')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal registrar pagamento de parcela -->
+  <div id="modal-pagamento-parcela" class="modal">
+    <div class="modal-content" style="max-width:420px">
+      <div class="modal-header">
+        <h2 id="modal-pagamento-titulo">Registrar Pagamento</h2>
+        <button class="modal-close" onclick="fecharModal('modal-pagamento-parcela')"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <input type="hidden" id="pag-cliente-id" />
+      <input type="hidden" id="pag-parcela-num" />
+      <div style="margin-top:16px">
+        <div class="form-group">
+          <label>Valor da parcela</label>
+          <input id="pag-valor" type="text" readonly style="background:var(--bg);color:var(--success);font-weight:700" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Data de recebimento <span style="color:var(--error);font-weight:700">*</span></label>
+            <input id="pag-data-recebimento" type="date" />
+          </div>
+          <div class="form-group">
+            <label>Data de depósito <span style="color:var(--error);font-weight:700">*</span></label>
+            <input id="pag-data-deposito" type="date" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Nº do recibo vinculado <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+          <input id="pag-recibo-num" type="text" placeholder="Ex: 0042/2026" style="text-transform:uppercase" />
+        </div>
+        <div class="form-group">
+          <label>Observação <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+          <textarea id="pag-observacao" rows="2" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'Inter',sans-serif;resize:vertical;outline:none" placeholder="Ex: pagamento parcelado"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <button class="btn-gold" onclick="confirmarPagamentoParcela()">Confirmar Pagamento</button>
+          <button class="btn-secondary" onclick="fecharModal('modal-pagamento-parcela')">Cancelar</button>
         </div>
       </div>
     </div>

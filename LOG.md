@@ -1,5 +1,23 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-25
+
+### feat: Refatoração completa do módulo de clientes — parcelas individuais + referência padrão
+- **Schema novo do cliente:** array `parcelas` com controle por parcela (status pago/pendente/atrasado, data recebimento, data depósito, recibo vinculado, observação)
+- **Campos novos:** `valor_beneficio`, `num_beneficios`, `valor_parcela`, `updated_at`; cálculo automático `valor_contrato = beneficio × nº benefícios`
+- **Migração on-the-fly:** clientes antigos sem campo `parcelas` recebem array inicializado automaticamente na leitura (parcelas já pagas marcadas como `pago`, restantes como `pendente`) — sem perda de dados
+- **Neon:** `ALTER TABLE users ADD COLUMN IF NOT EXISTS referencia_padrao` — rodado no startup via `initDb()`
+- **Rotas novas (server.js):**
+  - `GET /api/me` — retorna dados do usuário logado com `referencia_padrao`
+  - `PUT /api/me/referencia` — salva referência padrão do usuário logado
+  - `PATCH /api/clientes/:id/parcela/:num` — marca parcela como paga com datas e vínculo de recibo
+- **Rotas atualizadas (server.js):** POST e PUT `/api/clientes` agora aceitam e persistem todos os novos campos; `enriquecerCliente` usa o array `parcelas` diretamente em vez de contar recibos
+- **Modal de cliente reformulado (index.html):** 3 seções (Dados Pessoais / Benefício-Contrato / Botões), campos novos, botão pin para salvar referência padrão
+- **Modal "Registrar Pagamento de Parcela" (index.html):** novo modal com valor readonly, date pickers para recebimento/depósito, nº do recibo e observação
+- **Abas no card do cliente (app.js):** 4 abas — Parcelamento (tabela completa + botão Registrar Pgto), A Receber, Recebidos, Histórico
+- **Referência padrão (app.js):** carregada via `GET /api/me` após login; auto-preenchida no campo `referencia` do formulário de recibo e no modal de cadastro; botão pin exibe opção de salvar quando valor diferente do padrão
+- **Fluxo "+ Recibo" (app.js):** ao clicar em "+ Recibo" no card do cliente, preenche campos do formulário (incluindo `escritorio` da firma); após gerar recibo com sucesso, pergunta se deseja marcar a próxima parcela pendente como paga
+
 ## 2026-05-22 (2)
 
 ### fix: Clientes mostram todos do histórico + campo firma
