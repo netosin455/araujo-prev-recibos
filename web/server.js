@@ -592,6 +592,15 @@ app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Content-Security-Policy",
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
+    "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
+    "img-src 'self' data: blob: https:; " +
+    "connect-src 'self'; " +
+    "frame-src https://drive.google.com blob:;"
+  );
   next();
 });
 
@@ -671,6 +680,7 @@ app.get("/api/me", auth, async (req, res) => {
 app.put("/api/me/referencia", auth, async (req, res) => {
   const { referencia_padrao } = req.body;
   if (typeof referencia_padrao !== "string") return res.status(400).json({ erro: "Valor inválido" });
+  if (referencia_padrao.length > 20) return res.status(400).json({ erro: "Referência muito longa (máx. 20 caracteres)." });
   await pgPool.query(
     "UPDATE users SET referencia_padrao=$1 WHERE id=$2",
     [referencia_padrao.toUpperCase(), req.user.id]
@@ -727,6 +737,8 @@ app.get("/api/comprovante-s3/*", auth, async (req, res) => {
 app.patch("/api/recibos/:id/comprovante", auth, async (req, res) => {
   const { link_comprovante } = req.body;
   if (!link_comprovante) return res.status(400).json({ erro: "link_comprovante é obrigatório." });
+  const linkValido = /^(\/api\/comprovante|https:\/\/drive\.google\.com|https:\/\/.*\.amazonaws\.com)/.test(link_comprovante);
+  if (!linkValido) return res.status(400).json({ erro: "Formato de link inválido." });
   await update(dbRecibos, { _id: req.params.id }, { link_comprovante });
   const recibo = await findOne(dbRecibos, { _id: req.params.id });
   if (recibo && recibo.num) {
@@ -781,11 +793,11 @@ function inicializarParcelasLegado(c) {
   const numParcelas   = c.num_parcelas || 0;
   const valorContrato = c.valor_contrato || 0;
   const valorParcela  = numParcelas > 0 ? valorContrato / numParcelas : 0;
-  const jaPagess      = c.parcelas_pagas || 0;
+  const jaPagas       = c.parcelas_pagas || 0;
   const parcelas = Array.from({ length: numParcelas }, (_, i) => ({
     num: i + 1,
     valor: valorParcela,
-    status: i < jaPagess ? "pago" : "pendente",
+    status: i < jaPagas ? "pago" : "pendente",
     data_vencimento: "",
     data_recebimento: "",
     data_deposito: "",
@@ -874,6 +886,7 @@ app.put("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
 
   const nParcelas = Number(num_parcelas);
   const atual     = await findOne(dbClientes, { _id: req.params.id });
+  if (!atual) return res.status(404).json({ erro: "Cliente não encontrado." });
 
   // Usa o array de parcelas enviado pelo front; se não veio, mantém o existente ou regenera
   let novasParcelas;
@@ -921,9 +934,25 @@ app.patch("/api/clientes/:id/parcela/:num", auth, financeiroOnly, async (req, re
   if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
   const num = Number(req.params.num);
   if (!num || num < 1) return res.status(400).json({ erro: "Número de parcela inválido." });
+
+  // Whitelist de campos aceitos — evita sobrescrever num/valor por engano
+  const { status, data_recebimento, data_deposito, recibo_id, recibo_num, observacao, data_vencimento } = req.body;
+  const STATUS_VALIDOS = ["pendente", "pago", "atrasado"];
+  if (status !== undefined && !STATUS_VALIDOS.includes(status)) {
+    return res.status(400).json({ erro: "Status inválido. Use: pendente, pago ou atrasado." });
+  }
+  const atualizacao = {};
+  if (status           !== undefined) atualizacao.status           = status;
+  if (data_recebimento !== undefined) atualizacao.data_recebimento = data_recebimento;
+  if (data_deposito    !== undefined) atualizacao.data_deposito    = data_deposito;
+  if (recibo_id        !== undefined) atualizacao.recibo_id        = recibo_id;
+  if (recibo_num       !== undefined) atualizacao.recibo_num       = recibo_num;
+  if (observacao       !== undefined) atualizacao.observacao       = observacao;
+  if (data_vencimento  !== undefined) atualizacao.data_vencimento  = data_vencimento;
+
   const parcelasAtuais = inicializarParcelasLegado(cliente).parcelas;
   const parcelas = parcelasAtuais.map(p =>
-    p.num === num ? { ...p, ...req.body, num: p.num, valor: p.valor } : p
+    p.num === num ? { ...p, ...atualizacao } : p
   );
   const resumo = recalcularResumo(parcelas);
   await update(dbClientes, { _id: req.params.id }, { parcelas, ...resumo });
@@ -1137,6 +1166,8 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
 app.post("/api/users", auth, adminOnly, async (req, res) => {
   const { username, password, role, escritorio } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
+  const ROLES_VALIDOS = ["admin", "financeiro", "recepcao"];
+  if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
   // Recepção sem escritório vinculado não filtra nada — força informar
   if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
   const hash = bcrypt.hashSync(password, 10);
@@ -1156,6 +1187,8 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
 app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
   const { username, password, role, escritorio } = req.body;
   if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
+  const ROLES_VALIDOS = ["admin", "financeiro", "recepcao"];
+  if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
   if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
   if (password) {
     await pgPool.query(
@@ -1255,7 +1288,7 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
     });
   } catch (e) {
     console.error("❌ Erro no sync forçado para Sheets:", e.message);
-    res.status(500).json({ erro: e.message });
+    res.status(500).json({ erro: "Erro ao sincronizar planilha." });
   }
 });
 
@@ -1313,7 +1346,7 @@ app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
     res.json({ ok: true, removidas: toDelete.length, mensagem: `${toDelete.length} linha(s) duplicada(s) removida(s) com sucesso.` });
   } catch (e) {
     console.error("❌ Erro ao limpar duplicatas:", e.message);
-    res.status(500).json({ erro: e.message });
+    res.status(500).json({ erro: "Erro ao limpar duplicatas." });
   }
 });
 
@@ -1378,7 +1411,7 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
     res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco. Datas corrigidas.` });
   } catch (e) {
     console.error("❌ Erro ao reescrever planilha:", e.message);
-    res.status(500).json({ erro: e.message });
+    res.status(500).json({ erro: "Erro ao reescrever planilha." });
   }
 });
 
@@ -1451,7 +1484,7 @@ app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
     res.json({ ok: true, corrigidas: updates.length, mensagem: `Datas corrigidas em ${updates.length} linha(s) da planilha.` });
   } catch (e) {
     console.error("❌ Erro ao corrigir datas:", e.message);
-    res.status(500).json({ erro: e.message });
+    res.status(500).json({ erro: "Erro ao corrigir datas." });
   }
 });
 

@@ -18,6 +18,13 @@
 - **Referência padrão (app.js):** carregada via `GET /api/me` após login; auto-preenchida no campo `referencia` do formulário de recibo e no modal de cadastro; botão pin exibe opção de salvar quando valor diferente do padrão
 - **Fluxo "+ Recibo" (app.js):** ao clicar em "+ Recibo" no card do cliente, preenche campos do formulário (incluindo `escritorio` da firma); após gerar recibo com sucesso, pergunta se deseja marcar a próxima parcela pendente como paga
 
+### fix+sec: Etapas 4-9 CLAUDE.md — bugs, segurança, testes, refactoring, documentação
+- **5 bugs corrigidos** (ver `reports/bugs_found.md`): null check no `confirmarPagamentoParcela`, 404 no PUT cliente, whitelist no PATCH parcela, typo `jaPagess→jaPagas`, validação de tamanho na referência
+- **7 vulnerabilidades corrigidas** (ver `reports/security_report.md`): XSS no onclick inline, iframe src sem protocolo, sem validação de enum status/role, e.message exposto ao cliente, CSP ausente, link_comprovante sem whitelist
+- **22 testes unitários Jest** em `tests/clientes.test.js` — cobrindo `gerarParcelas`, `recalcularResumo`, `inicializarParcelasLegado`, validações de entrada
+- **Refactoring** de `renderClientes()` em app.js: extraídas 5 funções auxiliares `_badgeParcela`, `_btnPagarParcela`, `_buildBlocoContrato`, `_buildTabelaRecibos`, `_buildTabelasParcelamento`
+- **Documentação criada:** `docs/changelog.md`, `docs/architecture.md`, `reports/final_review.md`
+
 ## 2026-05-22 (2)
 
 ### fix: Clientes mostram todos do histórico + campo firma

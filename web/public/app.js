@@ -337,8 +337,12 @@ function abrirComprovante(link) {
     return;
   }
 
-  // Fallback: abre direto (ex: URL pública externa)
-  body.innerHTML = `<iframe src="${link}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
+  // Fallback: abre direto (ex: URL pública externa) — só permite https
+  if (!link.startsWith("https://")) {
+    body.innerHTML = `<p style="color:red;text-align:center;padding:20px">Link de comprovante inválido.</p>`;
+    return;
+  }
+  body.innerHTML = `<iframe src="${esc(link)}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
 }
 
 // ── FORMATAÇÃO ─────────────────────────────────────────────
@@ -704,13 +708,17 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">Responsável</div><div class="detail-value">${esc(r.emitido_por||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Referência</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
-    <div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value">${r.link_comprovante ? `<button class="btn-gold btn-sm" onclick="abrirComprovante('${esc(r.link_comprovante)}')"><i class="bi bi-paperclip"></i> Ver comprovante</button>` : `<span style="color:var(--muted);font-size:13px;font-style:italic">Nenhum comprovante adicionado</span>`}</div></div>
+    <div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value">${r.link_comprovante ? `<button class="btn-gold btn-sm" id="btn-ver-comprovante-modal"><i class="bi bi-paperclip"></i> Ver comprovante</button>` : `<span style="color:var(--muted);font-size:13px;font-style:italic">Nenhum comprovante adicionado</span>`}</div></div>
     ${r.assinatura_govbr ? `<div class="detail-row"><div class="detail-label">Assinatura</div><div class="detail-value" style="color:var(--success)"><i class="bi bi-shield-check"></i> Assinado por ${esc(r.assinatura_govbr.nome_assinante)} em ${esc(r.assinatura_govbr.assinado_em)}</div></div>` : ""}
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-primary" id="btn-reimprimir-modal">📄 Baixar .docx</button>
       ${!r.assinatura_govbr ? `<button class="btn-success" id="btn-assinar-modal" style="display:none"><i class="bi bi-shield-check"></i> Assinar Gov.br</button>` : ""}
     </div>`;
+  if (r.link_comprovante) {
+    const btnComp = document.getElementById("btn-ver-comprovante-modal");
+    if (btnComp) btnComp.onclick = () => abrirComprovante(r.link_comprovante);
+  }
   document.getElementById("btn-ver-modal").onclick=()=>{ abrirPDFRecibo(r); fecharModal("modal-detalhe"); };
   document.getElementById("btn-reimprimir-modal").onclick=()=>{ reimprimirRecibo(r); fecharModal("modal-detalhe"); };
   // Botão de assinatura Gov.br — só aparece no mobile/app
@@ -791,13 +799,128 @@ async function carregarClientes() {
   listaClientes = await res.json();
 }
 
+function _badgeParcela(s) {
+  if (s === "pago")     return `<span class="badge badge-pago">Pago</span>`;
+  if (s === "atrasado") return `<span class="badge badge-atrasado">Atrasado</span>`;
+  return `<span class="badge badge-pendente">Pendente</span>`;
+}
+
+function _btnPagarParcela(cadastroId, p) {
+  if (roleLogado === "recepcao" || p.status === "pago") return "";
+  return `<button class="btn-success btn-sm" onclick="abrirModalPagamentoParcela('${cadastroId}',${p.num},${p.valor},'')">Registrar Pgto</button>`;
+}
+
+function _buildBlocoContrato(cadastro) {
+  if (!cadastro || cadastro.num_parcelas <= 0) return "";
+  const pct      = Math.min(100, Math.round((cadastro.parcelas_pagas / cadastro.num_parcelas) * 100));
+  const quitado  = cadastro.parcelas_restantes === 0;
+  const corBarra = quitado ? "var(--success)" : "var(--gold)";
+  return `
+    <div style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="color:var(--muted)">${cadastro.parcelas_pagas}/${cadastro.num_parcelas} parcelas${quitado ? " · ✅ Quitado" : ""}</span>
+        <span style="color:var(--muted)">R$ ${formatarValor(cadastro.valor_pago)} / R$ ${formatarValor(cadastro.valor_contrato)}</span>
+      </div>
+      <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
+        <div style="width:${pct}%;background:${corBarra};height:100%;border-radius:4px;transition:width .3s"></div>
+      </div>
+      ${!quitado ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">Faltam R$ ${formatarValor(cadastro.valor_restante)} · ${cadastro.parcelas_restantes} parcela${cadastro.parcelas_restantes !== 1 ? "s" : ""}</div>` : ""}
+    </div>`;
+}
+
+function _buildTabelaRecibos(c) {
+  return `
+    <table style="width:100%">
+      <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th>Ações</th></tr></thead>
+      <tbody>
+        ${c.recibos.map(r => {
+          const rd = JSON.stringify(r).replace(/"/g, "&quot;");
+          return `<tr>
+            <td><span class="badge badge-gold">${esc(r.num)}</span></td>
+            <td>${esc(r.data)}</td>
+            <td style="color:var(--success);font-weight:700">R$ ${esc(r.valor)}</td>
+            <td>${esc(r.emitido_por || "-")}</td>
+            <td>${esc(r.referencia || "-")}</td>
+            <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
+              <button class="btn-secondary btn-sm" onclick="abrirDetalhe(${rd})">Detalhes</button>
+              <button class="btn-gold btn-sm" onclick="abrirPDFRecibo(${rd})"><i class="bi bi-eye"></i> Ver</button>
+              ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>` : ""}
+              <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
+              ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" onclick="abrirModalUploadComprovante('${r.id || r._id}')">📎 Comprovante</button>` : ""}
+              ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id || r._id}')">🗑</button>` : ""}
+            </td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>`;
+}
+
+function _buildTabelasParcelamento(cadastro) {
+  if (!cadastro || !Array.isArray(cadastro.parcelas) || cadastro.parcelas.length === 0) {
+    return { tabelaParcelamento: "", tabelaAReceber: "", tabelaRecebidos: "" };
+  }
+  const { parcelas, id: cadastroId } = cadastro;
+
+  const tabelaParcelamento = `
+    <table style="width:100%">
+      <thead><tr><th>Nº</th><th>Valor</th><th>Status</th><th>Recebimento</th><th>Depósito</th><th>Recibo</th><th>Ações</th></tr></thead>
+      <tbody>
+        ${parcelas.map(p => `<tr>
+          <td>${p.num}</td>
+          <td style="font-weight:600">R$ ${formatarValor(p.valor)}</td>
+          <td>${_badgeParcela(p.status)}</td>
+          <td style="color:var(--muted)">${esc(p.data_recebimento || "-")}</td>
+          <td style="color:var(--muted)">${esc(p.data_deposito || "-")}</td>
+          <td>${p.recibo_num ? `<span class="badge badge-gold">${esc(p.recibo_num)}</span>` : "-"}</td>
+          <td>${_btnPagarParcela(cadastroId, p)}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`;
+
+  const pendentes = parcelas.filter(p => p.status !== "pago");
+  const totalAReceber = pendentes.reduce((s, p) => s + p.valor, 0);
+  const tabelaAReceber = pendentes.length === 0
+    ? `<p style="color:var(--success);font-weight:600;padding:8px 0">✅ Nenhuma parcela pendente — contrato quitado!</p>`
+    : `<table style="width:100%">
+        <thead><tr><th>Nº Parcela</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${pendentes.map(p => `<tr>
+            <td>${p.num}</td>
+            <td style="font-weight:600">R$ ${formatarValor(p.valor)}</td>
+            <td>${_badgeParcela(p.status)}</td>
+            <td>${_btnPagarParcela(cadastroId, p)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+      <div class="tab-total" style="color:var(--error)">Total a receber: R$ ${formatarValor(totalAReceber)}</div>`;
+
+  const pagas = parcelas.filter(p => p.status === "pago");
+  const totalRecebido = pagas.reduce((s, p) => s + p.valor, 0);
+  const tabelaRecebidos = pagas.length === 0
+    ? `<p style="color:var(--muted);padding:8px 0">Nenhuma parcela paga ainda.</p>`
+    : `<table style="width:100%">
+        <thead><tr><th>Nº Parcela</th><th>Valor</th><th>Recebimento</th><th>Depósito</th><th>Nº Recibo</th></tr></thead>
+        <tbody>
+          ${pagas.map(p => `<tr>
+            <td>${p.num}</td>
+            <td style="color:var(--success);font-weight:600">R$ ${formatarValor(p.valor)}</td>
+            <td>${esc(p.data_recebimento || "-")}</td>
+            <td>${esc(p.data_deposito || "-")}</td>
+            <td>${p.recibo_num ? `<span class="badge badge-gold">${esc(p.recibo_num)}</span>` : "-"}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+      <div class="tab-total" style="color:var(--success)">Total recebido: R$ ${formatarValor(totalRecebido)}</div>`;
+
+  return { tabelaParcelamento, tabelaAReceber, tabelaRecebidos };
+}
+
 async function renderClientes() {
   await carregarClientes();
   const busca        = (document.getElementById("busca-clientes").value || "").toLowerCase();
   const buscaDigitos = busca.replace(/\D/g, "");
   const grid         = document.getElementById("clientes-grid");
 
-  // Agrupa todos os clientes do histórico de recibos (comportamento original)
   const mapa = {};
   historicoRecibos.forEach(r => {
     if (!r.nome) return;
@@ -822,120 +945,12 @@ async function renderClientes() {
   clientes.forEach(c => {
     const cadastro = c.cpf ? listaClientes.find(l => l.cpf === c.cpf) : null;
     const ultimo   = c.recibos[0];
-
-    // Barra de progresso de parcelas — só se houver cadastro com contrato
-    let blocoContrato = "";
-    if (cadastro && cadastro.num_parcelas > 0) {
-      const pct      = Math.min(100, Math.round((cadastro.parcelas_pagas / cadastro.num_parcelas) * 100));
-      const quitado  = cadastro.parcelas_restantes === 0;
-      const corBarra = quitado ? "var(--success)" : "var(--gold)";
-      blocoContrato  = `
-        <div style="margin-top:8px">
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-            <span style="color:var(--muted)">${cadastro.parcelas_pagas}/${cadastro.num_parcelas} parcelas${quitado ? " · ✅ Quitado" : ""}</span>
-            <span style="color:var(--muted)">R$ ${formatarValor(cadastro.valor_pago)} / R$ ${formatarValor(cadastro.valor_contrato)}</span>
-          </div>
-          <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
-            <div style="width:${pct}%;background:${corBarra};height:100%;border-radius:4px;transition:width .3s"></div>
-          </div>
-          ${!quitado ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">Faltam R$ ${formatarValor(cadastro.valor_restante)} · ${cadastro.parcelas_restantes} parcela${cadastro.parcelas_restantes !== 1 ? "s" : ""}</div>` : ""}
-        </div>`;
-    }
-
-    // Monta as 3 abas do card de cliente
-    const tabelaRecibos = `
-      <table style="width:100%">
-        <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th>Ações</th></tr></thead>
-        <tbody>
-          ${c.recibos.map(r => {
-            const rd = JSON.stringify(r).replace(/"/g, "&quot;");
-            return `<tr>
-              <td><span class="badge badge-gold">${esc(r.num)}</span></td>
-              <td>${esc(r.data)}</td>
-              <td style="color:var(--success);font-weight:700">R$ ${esc(r.valor)}</td>
-              <td>${esc(r.emitido_por || "-")}</td>
-              <td>${esc(r.referencia || "-")}</td>
-              <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
-                <button class="btn-secondary btn-sm" onclick="abrirDetalhe(${rd})">Detalhes</button>
-                <button class="btn-gold btn-sm" onclick="abrirPDFRecibo(${rd})"><i class="bi bi-eye"></i> Ver</button>
-                ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" onclick="editarRecibo(${rd})">Editar</button>` : ""}
-                <button class="btn-secondary btn-sm" onclick="reimprimirRecibo(${rd})">📄 Baixar</button>
-                ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" onclick="abrirModalUploadComprovante('${r.id || r._id}')">📎 Comprovante</button>` : ""}
-                ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" onclick="excluirReciboById('${r.id || r._id}')">🗑</button>` : ""}
-              </td>
-            </tr>`;
-          }).join("")}
-        </tbody>
-      </table>`;
-
-    let tabelaParcelamento = "";
-    let tabelaAReceber = "";
-    let tabelaRecebidos = "";
-    if (cadastro && Array.isArray(cadastro.parcelas) && cadastro.parcelas.length > 0) {
-      const parcelas = cadastro.parcelas;
-      const badgeParcela = s => {
-        if (s === "pago")     return `<span class="badge badge-pago">Pago</span>`;
-        if (s === "atrasado") return `<span class="badge badge-atrasado">Atrasado</span>`;
-        return `<span class="badge badge-pendente">Pendente</span>`;
-      };
-      const btnPagar = (p) => roleLogado !== "recepcao" && p.status !== "pago"
-        ? `<button class="btn-success btn-sm" onclick="abrirModalPagamentoParcela('${cadastro.id}',${p.num},${p.valor},'')">Registrar Pgto</button>`
-        : "";
-
-      tabelaParcelamento = `
-        <table style="width:100%">
-          <thead><tr><th>Nº</th><th>Valor</th><th>Status</th><th>Recebimento</th><th>Depósito</th><th>Recibo</th><th>Ações</th></tr></thead>
-          <tbody>
-            ${parcelas.map(p => `<tr>
-              <td>${p.num}</td>
-              <td style="font-weight:600">R$ ${formatarValor(p.valor)}</td>
-              <td>${badgeParcela(p.status)}</td>
-              <td style="color:var(--muted)">${esc(p.data_recebimento || "-")}</td>
-              <td style="color:var(--muted)">${esc(p.data_deposito || "-")}</td>
-              <td>${p.recibo_num ? `<span class="badge badge-gold">${esc(p.recibo_num)}</span>` : "-"}</td>
-              <td>${btnPagar(p)}</td>
-            </tr>`).join("")}
-          </tbody>
-        </table>`;
-
-      const pendentes = parcelas.filter(p => p.status !== "pago");
-      const totalAReceber = pendentes.reduce((s, p) => s + p.valor, 0);
-      tabelaAReceber = pendentes.length === 0
-        ? `<p style="color:var(--success);font-weight:600;padding:8px 0">✅ Nenhuma parcela pendente — contrato quitado!</p>`
-        : `<table style="width:100%">
-            <thead><tr><th>Nº Parcela</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody>
-              ${pendentes.map(p => `<tr>
-                <td>${p.num}</td>
-                <td style="font-weight:600">R$ ${formatarValor(p.valor)}</td>
-                <td>${badgeParcela(p.status)}</td>
-                <td>${btnPagar(p)}</td>
-              </tr>`).join("")}
-            </tbody>
-          </table>
-          <div class="tab-total" style="color:var(--error)">Total a receber: R$ ${formatarValor(totalAReceber)}</div>`;
-
-      const pagas = parcelas.filter(p => p.status === "pago");
-      const totalRecebido = pagas.reduce((s, p) => s + p.valor, 0);
-      tabelaRecebidos = pagas.length === 0
-        ? `<p style="color:var(--muted);padding:8px 0">Nenhuma parcela paga ainda.</p>`
-        : `<table style="width:100%">
-            <thead><tr><th>Nº Parcela</th><th>Valor</th><th>Recebimento</th><th>Depósito</th><th>Nº Recibo</th></tr></thead>
-            <tbody>
-              ${pagas.map(p => `<tr>
-                <td>${p.num}</td>
-                <td style="color:var(--success);font-weight:600">R$ ${formatarValor(p.valor)}</td>
-                <td>${esc(p.data_recebimento || "-")}</td>
-                <td>${esc(p.data_deposito || "-")}</td>
-                <td>${p.recibo_num ? `<span class="badge badge-gold">${esc(p.recibo_num)}</span>` : "-"}</td>
-              </tr>`).join("")}
-            </tbody>
-          </table>
-          <div class="tab-total" style="color:var(--success)">Total recebido: R$ ${formatarValor(totalRecebido)}</div>`;
-    }
-
+    const cardId   = `card-cli-${(c.cpf||c.nome).replace(/\W/g,"")}-${Math.random().toString(36).slice(2,6)}`;
     const temParcelas = cadastro && Array.isArray(cadastro.parcelas) && cadastro.parcelas.length > 0;
-    const cardId = `card-cli-${(c.cpf||c.nome).replace(/\W/g,"")}-${Math.random().toString(36).slice(2,6)}`;
+
+    const blocoContrato = _buildBlocoContrato(cadastro);
+    const tabelaRecibos = _buildTabelaRecibos(c);
+    const { tabelaParcelamento, tabelaAReceber, tabelaRecebidos } = _buildTabelasParcelamento(cadastro);
 
     const card = document.createElement("div");
     card.className = "cliente-card";
@@ -1054,7 +1069,7 @@ async function confirmarPagamentoParcela() {
     observacao,
   });
   if (!res || !res.ok) {
-    const data = await res.json().catch(() => ({}));
+    const data = res ? await res.json().catch(() => ({})) : {};
     return alert(data.erro || "Erro ao registrar pagamento.");
   }
   fecharModal("modal-pagamento-parcela");

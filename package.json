@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "Sistema de recibos A Araujo Serviços Ltda ME",
   "scripts": {
-    "start": "node web/server.js"
+    "start": "node web/server.js",
+    "test": "jest tests/"
+  },
+  "jest": {
+    "testEnvironment": "node"
   },
   "dependencies": {
     "@seald-io/nedb": "^4.0.4",
@@ -16,5 +20,8 @@
     "multer": "^2.1.1",
     "pdfkit": "^0.18.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2"
   }
 }
