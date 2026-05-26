@@ -1420,6 +1420,51 @@ app.post("/api/admin/importar-de-sheets", auth, adminOnly, async (req, res) => {
   }
 });
 
+// ── IMPORTAÇÃO EM MASSA VIA JSON (para restaurar dados do Excel/backup) ──────
+app.post("/api/admin/importar-bulk", auth, adminOnly, async (req, res) => {
+  const registros = req.body;
+  if (!Array.isArray(registros) || registros.length === 0)
+    return res.status(400).json({ erro: "Envie um array de registros." });
+
+  let importados = 0;
+  let ignorados = 0;
+  const erros = [];
+
+  for (const r of registros) {
+    try {
+      const num = r.num || "";
+      if (!num) { ignorados++; continue; }
+
+      const existente = await findOne(dbRecibos, { num });
+      if (existente) { ignorados++; continue; }
+
+      await insert(dbRecibos, {
+        num,
+        nome:             (r.nome || "").replace(/\b\w/g, c => c.toUpperCase()),
+        cpf:              r.cpf || "",
+        municipio_uf:     r.municipio_uf || "",
+        valor:            r.valor || "",
+        data:             r.data || "",
+        emitido_por:      r.emitido_por || "",
+        complemento:      r.complemento || "",
+        referencia:       r.referencia || "",
+        forma_pagamento:  r.forma_pagamento || "",
+        escritorio:       r.escritorio || "",
+        motivo_pagamento: r.motivo_pagamento || "",
+        link_comprovante: r.link_comprovante || "",
+        timestamp:        r.timestamp || Date.now(),
+      });
+      importados++;
+    } catch (e) {
+      erros.push(`${r.num}: ${e.message}`);
+    }
+  }
+
+  console.log(`✅ importar-bulk: ${importados} importados, ${ignorados} ignorados, ${erros.length} erros`);
+  res.json({ ok: true, importados, ignorados, erros: erros.slice(0, 10),
+    mensagem: `${importados} registro(s) importado(s). ${ignorados} já existiam. Execute "Reescrever planilha" para sincronizar.` });
+});
+
 // ── LIMPAR PLANILHA E REESCREVER DO ZERO ────────────────────
 app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();
