@@ -1,5 +1,11 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-26
+
+### fix: Recibos da recepção não apareciam no histórico
+- **Causa raiz:** `escritorioLogado` não era salvo no login — campo `escritorio` do token do servidor não era armazenado no `localStorage`. Após salvar um recibo, `limparCampos()` zerava o campo `escritorio`, então o próximo recibo era salvo com `escritorio: ""`. O filtro do servidor exige que `r.escritorio === user.escritorio`, então esses recibos nunca apareciam para a recepção.
+- **Fix:** `escritorioLogado` agora é salvo no login (`localStorage.setItem`), atualizado ao carregar `/api/me`, e restaurado automaticamente para usuários de recepção em `limparCampos()` (em vez de apagar).
+
 ## 2026-05-25
 
 ### feat: Refatoração completa do módulo de clientes — parcelas individuais + referência padrão

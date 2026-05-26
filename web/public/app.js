@@ -24,6 +24,7 @@ function formatarValor(n){ return n.toLocaleString("pt-BR",{minimumFractionDigit
 let token = localStorage.getItem("token") || "";
 let usuarioLogado = localStorage.getItem("usuarioLogado") || "";
 let roleLogado = localStorage.getItem("roleLogado") || "financeiro";
+let escritorioLogado = localStorage.getItem("escritorioLogado") || "";
 
 async function api(method, path, body){
   const opts = { method, headers: { "Content-Type":"application/json", "Authorization":"Bearer "+token } };
@@ -45,9 +46,11 @@ async function fazerLogin(){
   token = data.token;
   usuarioLogado = data.username;
   roleLogado = data.role || "financeiro";
+  escritorioLogado = (data.escritorio || "").toUpperCase();
   localStorage.setItem("token", token);
   localStorage.setItem("usuarioLogado", usuarioLogado);
   localStorage.setItem("roleLogado", roleLogado);
+  localStorage.setItem("escritorioLogado", escritorioLogado);
   document.getElementById("tela-login").classList.add("hide");
   document.getElementById("nome-usuario").textContent = usuarioLogado;
   iniciarApp();
@@ -57,7 +60,8 @@ function fazerLogout(){
   localStorage.removeItem("token");
   localStorage.removeItem("usuarioLogado");
   localStorage.removeItem("roleLogado");
-  token=""; usuarioLogado=""; roleLogado="financeiro";
+  localStorage.removeItem("escritorioLogado");
+  token=""; usuarioLogado=""; roleLogado="financeiro"; escritorioLogado="";
   location.reload();
 }
 
@@ -105,6 +109,15 @@ async function carregarReferenciaPadrao() {
   referenciaPadrao = me.referencia_padrao || "";
   const el = document.getElementById("referencia");
   if (el && referenciaPadrao && !el.value) el.value = referenciaPadrao;
+  // Garante que escritorioLogado está sempre atualizado (inclusive após reload com token salvo)
+  if (me.escritorio) {
+    escritorioLogado = me.escritorio.toUpperCase();
+    localStorage.setItem("escritorioLogado", escritorioLogado);
+  }
+  if (roleLogado === "recepcao") {
+    const elEsc = document.getElementById("escritorio");
+    if (elEsc && !elEsc.value) elEsc.value = escritorioLogado;
+  }
 }
 
 // Verifica token ao carregar
@@ -251,7 +264,7 @@ function limparCampos(){
   });
   document.getElementById("mes").value="";
   document.getElementById("forma_pagamento").value="";
-  document.getElementById("escritorio").value="";
+  document.getElementById("escritorio").value = roleLogado === "recepcao" ? escritorioLogado : "";
   document.getElementById("motivo_pagamento").value="";
   const comp = document.getElementById("comprovante");
   if(comp) comp.value="";
