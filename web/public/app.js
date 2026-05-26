@@ -1892,6 +1892,35 @@ async function reescreverPlanilha(){
   }
 }
 
+async function importarDeSheets(){
+  if(!confirm("Isso vai importar para o banco todos os recibos da planilha que ainda não existem no banco (por número). Recibos já existentes não serão alterados. Continuar?")) return;
+  const btn=document.getElementById("btn-importar-de-sheets");
+  const resultado=document.getElementById("sync-sheets-resultado");
+  btn.disabled=true;
+  btn.innerHTML='<i class="bi bi-hourglass-split"></i> Importando...';
+  resultado.style.display="none";
+  try{
+    const response=await api("POST","/api/admin/importar-de-sheets");
+    if(!response) return;
+    const res=await response.json();
+    resultado.style.display="block";
+    if(res&&res.ok){
+      resultado.style.color="var(--success,#22c55e)";
+      resultado.textContent=res.mensagem||"Importação concluída.";
+    }else{
+      resultado.style.color="var(--danger,#ef4444)";
+      resultado.textContent=res?.erro||"Erro: "+JSON.stringify(res);
+    }
+  }catch(e){
+    resultado.style.display="block";
+    resultado.style.color="var(--danger,#ef4444)";
+    resultado.textContent="Erro de conexão.";
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='<i class="bi bi-cloud-download"></i> Importar planilha → banco';
+  }
+}
+
 async function corrigirDatas(){
   const btn=document.getElementById("btn-corrigir-datas");
   const resultado=document.getElementById("sync-sheets-resultado");
@@ -2017,6 +2046,7 @@ function bindStaticHandlers() {
   document.getElementById("btn-exportar-pdf-resp").addEventListener("click", exportarPDFResponsaveis);
   document.getElementById("btn-exportar-pdf-exec").addEventListener("click", exportarPDFExecutivo);
   document.getElementById("btn-sync-sheets").addEventListener("click", syncSheets);
+  document.getElementById("btn-importar-de-sheets").addEventListener("click", importarDeSheets);
   document.getElementById("btn-reescrever-planilha").addEventListener("click", reescreverPlanilha);
 
   // Usuários

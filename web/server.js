@@ -126,15 +126,18 @@ async function registrarNoSheets(dados) {
       dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // H: Motivo de pagamento
       dados.escritorio || "",                           // I: Escritório
       "",                                               // J: Alguma observação (não usado)
-      dados.link_comprovante || "",                       // K: Anexo comprovante (presigned gerada no sync)
+      dados.link_comprovante || "",                     // K: Anexo comprovante
       mes,                                              // L: Mês
-      dados.num_recibo || "",                           // M: Número do recibo (backup para restauração)
+      dados.num_recibo || "",                           // M: Número do recibo
+      dados.emitido_por || "",                          // N: Responsável (emitido por)
+      dados.referencia || "",                           // O: Referência (gaveta)
     ];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:M`,
+      range: `${SHEET_NAME}!A4:O`,
       valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
       requestBody: { values: [linha] },
     });
     console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets`);
@@ -173,11 +176,13 @@ async function atualizarNoSheets(num, dados) {
       dados.link_comprovante || "",                        // K: Comprovante
       mes,                                                 // L: Mês
       num,                                                 // M: Número recibo
+      dados.emitido_por || "",                             // N: Responsável
+      dados.referencia || "",                              // O: Referência
     ];
-    // Atualiza apenas colunas B-M (não mexe no carimbo)
+    // Atualiza apenas colunas B-O (não mexe no carimbo)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!B${rowNum}:M${rowNum}`,
+      range: `${SHEET_NAME}!B${rowNum}:O${rowNum}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [linha.slice(1)] },
     });
@@ -415,7 +420,7 @@ async function sincronizarDeSheets() {
     if (!sheets) return;
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:M`,
+      range: `${SHEET_NAME}!A4:O`,
     });
     const rows = res.data.values || [];
     if (rows.length === 0) return;
@@ -431,7 +436,9 @@ async function sincronizarDeSheets() {
       const motivo_pagamento = row[7] || "";
       const escritorio       = row[8] || "";
       const link_comprovante = row[10] || "";
-      const num = row[12] || `${String(i + 1).padStart(4, "0")}/${(data.split("/")[2] || String(new Date().getFullYear()))}`;
+      const num        = row[12] || `${String(i + 1).padStart(4, "0")}/${(data.split("/")[2] || String(new Date().getFullYear()))}`;
+      const emitido_por = row[13] || "";
+      const referencia  = row[14] || "";
       // Converte carimbo "DD/MM/YYYY HH:MM:SS" em timestamp
       let timestamp = Date.now() - (rows.length - i) * 1000;
       if (carimbo) {
@@ -442,7 +449,7 @@ async function sincronizarDeSheets() {
           if (!isNaN(t)) timestamp = t;
         }
       }
-      await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por: "", complemento: "", referencia: "", forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
+      await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por, complemento: "", referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
       importados++;
     }
     console.log(`✅ ${importados} recibos restaurados da planilha Google Sheets.`);
@@ -978,7 +985,7 @@ app.post("/api/recibos", auth, async (req, res) => {
     ? existente.nome
     : (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
-  const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
+  const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
   res.json({ id: doc._id, sheets_ok: sheets_result === true, sheets_erro: sheets_result !== true ? sheets_result : null });
 });
 
@@ -1003,8 +1010,16 @@ app.delete("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
 app.get("/api/proximo-num", auth, async (req, res) => {
   const ano = String(new Date().getFullYear());
   const todos = await find(dbRecibos, {});
-  const doAno = todos.filter(r => (r.data||"").endsWith(ano));
-  const num = doAno.length + 1;
+  // Pega o maior número do ano atual a partir do campo num (formato "NNNN/AAAA")
+  let maior = 0;
+  for (const r of todos) {
+    const match = (r.num || "").match(/^(\d+)\/(\d{4})$/);
+    if (match && match[2] === ano) {
+      const seq = parseInt(match[1], 10);
+      if (seq > maior) maior = seq;
+    }
+  }
+  const num = maior + 1;
   res.json({ num: `${String(num).padStart(4, "0")}/${ano}` });
 });
 
@@ -1265,17 +1280,19 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
         r.motivo_pagamento || r.complemento || "Honorários Advocatícios", // H: Motivo
         r.escritorio || "",                                               // I: Escritório
         "",                                                               // J: Observação
-        await linkParaSheets(r.link_comprovante || ""),                    // K: Comprovante
+        await linkParaSheets(r.link_comprovante || ""),                   // K: Comprovante
         mes,                                                              // L: Mês
         r.num || "",                                                      // M: Número recibo
+        r.emitido_por || "",                                              // N: Responsável
+        r.referencia || "",                                               // O: Referência
       ];
     }));
 
-    // append com OVERWRITE escreve após a última linha não-vazia sem inserir no meio
     const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:M`,
+      range: `${SHEET_NAME}!A4:O`,
       valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
       requestBody: { values: linhas },
     });
 
@@ -1350,6 +1367,59 @@ app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
   }
 });
 
+// ── IMPORTAR PLANILHA → BANCO (MERGE/UPSERT, funciona mesmo com banco não-vazio) ──
+app.post("/api/admin/importar-de-sheets", auth, adminOnly, async (req, res) => {
+  const sheets = getSheetsClient();
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado." });
+  try {
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A4:O`,
+    });
+    const rows = result.data.values || [];
+    if (rows.length === 0) return res.json({ ok: true, importados: 0, mensagem: "Planilha vazia." });
+
+    let importados = 0;
+    let ignorados = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const carimbo = row[0] || "";
+      const nome    = (row[1] || "").replace(/\b\w/g, c => c.toUpperCase());
+      const cpf     = row[2] || "";
+      const valor   = (row[3] || "").replace(/R\$\s*/i, "").trim();
+      const data    = row[4] || "";
+      const forma_pagamento  = row[6] || "";
+      const motivo_pagamento = row[7] || "";
+      const escritorio       = row[8] || "";
+      const link_comprovante = row[10] || "";
+      const num        = row[12] || `${String(i + 1).padStart(4, "0")}/${(data.split("/")[2] || String(new Date().getFullYear()))}`;
+      const emitido_por = row[13] || "";
+      const referencia  = row[14] || "";
+
+      // Se já existe no banco pelo número, pula
+      const existente = num ? await findOne(dbRecibos, { num }) : null;
+      if (existente) { ignorados++; continue; }
+
+      let timestamp = Date.now() - (rows.length - i) * 1000;
+      if (carimbo) {
+        const [datePart, timePart] = carimbo.split(" ");
+        const [d, m, y] = (datePart || "").split("/");
+        if (y && m && d) {
+          const t = new Date(`${y}-${m}-${d}T${timePart || "00:00:00"}`).getTime();
+          if (!isNaN(t)) timestamp = t;
+        }
+      }
+      await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por, complemento: "", referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
+      importados++;
+    }
+    console.log(`✅ Importação da planilha: ${importados} novo(s), ${ignorados} já existiam.`);
+    res.json({ ok: true, importados, ignorados, mensagem: `${importados} recibo(s) importado(s) da planilha. ${ignorados} já existiam no banco.` });
+  } catch (e) {
+    console.error("❌ Erro ao importar da planilha:", e.message);
+    res.status(500).json({ erro: "Erro ao importar da planilha." });
+  }
+});
+
 // ── LIMPAR PLANILHA E REESCREVER DO ZERO ────────────────────
 app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();
@@ -1375,34 +1445,42 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       range: `${SHEET_NAME}!A4:Z`,
     });
 
-    // 2. Monta todas as linhas com datas corretas (links S3 viram URLs pré-assinadas)
-    const linhas = await Promise.all(todos.map(async r => {
-      const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
-      const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
-      const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      const mes = MESES_LOCAL[dt.getMonth()] || "";
-      const dataFmt = dt.toLocaleDateString("pt-BR");
-      return [
-        carimbo,
-        r.nome || "",
-        r.cpf || "",
-        r.valor ? `R$ ${r.valor}` : "",
-        r.data || dataFmt,
-        r.data || dataFmt,
-        r.forma_pagamento || "",
-        r.motivo_pagamento || r.complemento || "Honorários Advocatícios",
-        r.escritorio || "",
-        "",
-        await linkParaSheets(r.link_comprovante || ""),
-        mes,
-        r.num || "",
-      ];
-    }));
+    // 2. Monta todas as linhas em lotes (evita sobrecarga simultânea de presigned URLs)
+    const BATCH = 10;
+    const linhas = [];
+    for (let i = 0; i < todos.length; i += BATCH) {
+      const lote = todos.slice(i, i + BATCH);
+      const linhasLote = await Promise.all(lote.map(async r => {
+        const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
+        const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
+        const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+        const mes = MESES_LOCAL[dt.getMonth()] || "";
+        const dataFmt = dt.toLocaleDateString("pt-BR");
+        return [
+          carimbo,
+          r.nome || "",
+          r.cpf || "",
+          r.valor ? `R$ ${r.valor}` : "",
+          r.data || dataFmt,
+          r.data || dataFmt,
+          r.forma_pagamento || "",
+          r.motivo_pagamento || r.complemento || "Honorários Advocatícios",
+          r.escritorio || "",
+          "",
+          await linkParaSheets(r.link_comprovante || ""),
+          mes,
+          r.num || "",
+          r.emitido_por || "",
+          r.referencia || "",
+        ];
+      }));
+      linhas.push(...linhasLote);
+    }
 
     // 3. Escreve tudo de uma vez a partir da linha 4
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:M${3 + linhas.length}`,
+      range: `${SHEET_NAME}!A4:O${3 + linhas.length}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: linhas },
     });

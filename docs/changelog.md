@@ -2,6 +2,20 @@
 
 ---
 
+## [2026-05-26] — Correção: planilha e numeração de recibos
+
+### Corrigido
+- Recibos novos iam para o topo da planilha Google Sheets — adicionado `insertDataOption: "INSERT_ROWS"` no `append` (dois pontos: geração e sync forçado)
+- Números de recibo ficavam desorganizados quando havia exclusões — `/api/proximo-num` agora pega o maior número existente do ano ao invés de contar registros
+- `reescrever-planilha` processava todos os links S3 ao mesmo tempo — agora em lotes de 10 para evitar falha em cascata
+
+### Adicionado
+- Novo endpoint `POST /api/admin/importar-de-sheets` — importa recibos da planilha para o banco sem precisar esvaziar o banco (upsert por número de recibo)
+- Botão "Importar planilha → banco" no painel admin para recuperar recibos perdidos por reset do servidor
+- Colunas N (Responsável) e O (Referência) adicionadas à planilha — dados agora são preservados em todos os fluxos de escrita e restauração
+
+---
+
 ## [2026-05-25] — CSP: remoção de unsafe-inline do script-src
 
 ### Segurança
