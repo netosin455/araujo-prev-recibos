@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-05-27] — DevOps: .gitignore atualizado + auditoria de scripts
+
+### Adicionado
+- `.gitignore`: adicionadas entradas para `capacitor-app/`, `deploy.zip`, `pipeline-update.json`, `planejamento2.md` — evita poluição do repositório com artefatos locais
+
+### Verificado (sem alteração necessária)
+- Scripts `add_recibos_maio.py`, `importar_excel.py`, `gerar_token_drive.py` — todos possuem docstring com instruções de uso no cabeçalho
+
+### Pendente (ação manual no AWS Console)
+- **SEC-018**: verificar que inbound rule da porta 8080 no security group do EB aponta para o SG do Load Balancer, não para `0.0.0.0/0`
+
+---
+
 ## [2026-05-27] — Frontend: correções de bugs (BUG-007, BUG-010, BUG-011)
 
 ### Corrigido

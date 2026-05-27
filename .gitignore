@@ -8,3 +8,9 @@ __pycache__/
 .env
 web/node_modules/
 web/data/
+
+# Arquivos locais — não vão ao repositório
+capacitor-app/
+deploy.zip
+pipeline-update.json
+planejamento2.md
