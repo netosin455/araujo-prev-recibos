@@ -1880,7 +1880,7 @@ async function reescreverPlanilha(){
       resultado.textContent=res.mensagem||"Planilha reescrita.";
     }else{
       resultado.style.color="var(--danger,#ef4444)";
-      resultado.textContent=res?.erro||"Erro: "+JSON.stringify(res);
+      resultado.textContent=(res?.erro||"Erro")+(res?.detalhe?" — "+res.detalhe:"");
     }
   }catch(e){
     resultado.style.display="block";

@@ -1551,7 +1551,7 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
     res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco.` });
   } catch (e) {
     console.error("❌ Erro ao reescrever planilha:", e.message);
-    res.status(500).json({ erro: "Erro ao reescrever planilha." });
+    res.status(500).json({ erro: "Erro ao reescrever planilha.", detalhe: e.message });
   }
 });
 
