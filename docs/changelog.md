@@ -2,6 +2,15 @@
 
 ---
 
+## [2026-05-27] — Frontend: correções de bugs (BUG-007, BUG-010, BUG-011)
+
+### Corrigido
+- **BUG-007**: Aba Financeiro agora atualiza ao retornar para o painel admin com ela ativa — `aplicarFiltros()` chamada em `navegarPara("admin")` quando financeiro é o tab atual
+- **BUG-010**: `gerarRecibo()` envolto em `try/finally` — botão "Gerar Recibo" sempre re-habilitado ao final da operação, inclusive em exceções não tratadas
+- **BUG-011**: Falha de sincronização com Google Sheets exibe toast específico ao invés de `alert()` genérico — mensagem informa que o recibo foi salvo e orienta a executar "Reescrever planilha"
+
+---
+
 ## [2026-05-27] — Backend: correções de segurança e bugs (BUG-006, BUG-008, SEC-008, SEC-009, SEC-013)
 
 ### Corrigido

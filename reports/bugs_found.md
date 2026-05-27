@@ -1,6 +1,6 @@
 # Bugs Found — Araujo Prev Recibos
 
-**Última atualização:** 2026-05-27 — Agente 1 (Backend)
+**Última atualização:** 2026-05-27 — Agente 2 (Frontend)
 **Arquivos analisados:** `web/server.js`, `web/public/app.js`, `web/public/index.html`
 
 ---
@@ -64,8 +64,8 @@
 - **Impacto:** ALTO — confunde usuário, parece que o sistema quebrou
 - **Descrição:** `aplicarFiltros()` é vinculada ao click do botão "Filtrar", mas não é chamada na inicialização da aba. A tabela aparece vazia até o primeiro clique.
 - **Agente responsável pela correção:** Agente 2 — Frontend
-- **Correção sugerida:** Chamar `aplicarFiltros()` ao entrar na aba financeiro, logo após renderizar os selects de mês/ano/responsável
-- **Status:** 🔴 Aberto
+- **Correção aplicada:** `navegarPara("admin")` agora chama `preencherFiltrosAnos(); aplicarFiltros()` quando o painel financeiro está ativo, garantindo dados frescos ao navegar para admin com essa aba já selecionada
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -96,8 +96,8 @@
 - **Impacto:** MÉDIO — cria dois registros com dados iguais e números sequenciais
 - **Descrição:** Não há debounce nem desabilitação do botão durante a requisição. Em conexão lenta, usuário tende a clicar novamente.
 - **Agente responsável:** Agente 2 — Frontend
-- **Correção sugerida:** Desabilitar botão (`btn.disabled = true`) imediatamente ao clicar e reabilitar após resposta do servidor
-- **Status:** 🟡 Aberto
+- **Correção aplicada:** `btn.disabled=true` já estava presente; adicionado `try/finally` ao corpo da função para garantir que o botão seja sempre re-habilitado ao final, inclusive em exceções não tratadas
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -106,8 +106,8 @@
 - **Impacto:** MÉDIO — usuário não sabe que a planilha está desatualizada
 - **Descrição:** Se `sheets_ok === false` na resposta do servidor, o frontend mostra alert genérico, mas não deixa claro que o recibo foi salvo no banco e que a planilha está fora de sincronia.
 - **Agente responsável:** Agente 2 — Frontend
-- **Correção sugerida:** Toast específico: "Recibo salvo! Aviso: Google Sheets fora de sincronia. Execute 'Reescrever planilha' no painel admin."
-- **Status:** 🟡 Aberto
+- **Correção aplicada:** `alert()` substituído por `mostrarToast("Recibo salvo! Aviso: Google Sheets fora de sincronia. Execute 'Reescrever planilha' no painel admin.", null, "error")` — mensagem clara e não-bloqueante
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -167,10 +167,10 @@
 
 | Severidade | Total | Corrigidos | Abertos |
 |------------|-------|------------|---------|
-| Crítico    | 3     | 1          | 2       |
-| Alto       | 2     | 0          | 2       |
-| Médio      | 5     | 4          | 5       |
+| Crítico    | 3     | 3          | 0       |
+| Alto       | 2     | 2          | 0       |
+| Médio      | 5     | 3          | 2       |
 | Baixo      | 6     | 1          | 3       |
-| **Total**  | **16**| **6**      | **10**  |
+| **Total**  | **16**| **9**      | **7**   |
 
-**Próxima ação recomendada:** Agente 1 (Backend) resolver BUG-006 e BUG-008. Agente 2 (Frontend) resolver BUG-007 e BUG-010.
+**Próxima ação recomendada:** Agente 1 (Backend) resolver BUG-009, BUG-012, BUG-013 (parte backend). Agente 2 (Frontend) resolver BUG-013 (parte frontend), BUG-015, BUG-016.
