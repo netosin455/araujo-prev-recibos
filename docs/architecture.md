@@ -116,6 +116,49 @@ created_at      TEXT NOT NULL
 
 ---
 
+## Variáveis de ambiente — Elastic Beanstalk
+
+Todas devem ser configuradas em: **EB Console → Configuration → Software → Environment properties**
+
+| Variável | Obrigatória | Descrição |
+|----------|------------|-----------|
+| `JWT_SECRET` | ✅ | Chave de assinatura dos tokens JWT |
+| `ADMIN_USER` | ✅ | Username do administrador inicial |
+| `ADMIN_PASS` | ✅ | Senha do administrador inicial |
+| `BUCKET_NAME` | ✅ | Nome do bucket S3 para comprovantes |
+| `SPREADSHEET_ID` | ✅ | ID da planilha Google Sheets |
+| `GOOGLE_SA_KEY` | ✅ | JSON da service account do Google (base64 ou string) |
+| `DATABASE_URL` | ✅ | Connection string do Neon PostgreSQL |
+| `SMTP_HOST` | ⚠️ Email | Servidor SMTP (ex: `smtp.gmail.com`) |
+| `SMTP_PORT` | ⚠️ Email | Porta SMTP (587 para TLS, 465 para SSL) |
+| `SMTP_USER` | ⚠️ Email | Usuário SMTP (ex: `email@dominio.com`) |
+| `SMTP_PASS` | ⚠️ Email | Senha de app do SMTP |
+| `SMTP_FROM` | ⚠️ Email | Remetente (ex: `Araujo Prev <email@dominio.com>`) |
+
+As variáveis marcadas com ⚠️ Email são necessárias apenas quando o módulo de envio de emails (Agente 6 — nodemailer) for ativado. O servidor sobe normalmente sem elas, mas os endpoints de email retornarão erro 503.
+
+---
+
+## Monitoramento — NeDB
+
+Os arquivos do banco local ficam em `/var/data/araujo-prev/` na instância EB.
+
+**Verificar tamanho via SSH (Session Manager no AWS Console):**
+```bash
+du -sh /var/data/araujo-prev/recibos.db
+du -sh /var/data/araujo-prev/clientes.db
+```
+
+| Situação | Ação |
+|----------|------|
+| < 50 MB | Nenhuma — NeDB compacta automaticamente |
+| 50–200 MB | Monitorar; avaliar compactação manual via endpoint admin |
+| > 200 MB | Compactar via `POST /api/admin/compactar-db` (a criar) ou reiniciar servidor (o NeDB compacta no startup) |
+
+O NeDB armazena todas as versões de cada documento até a próxima compactação. Em produção com muitas edições, o arquivo pode crescer 3–5× o tamanho real dos dados. **Reiniciar o servidor** é a forma mais simples de forçar compactação.
+
+---
+
 ## Decisões arquiteturais
 
 **Por que NeDB em vez de PostgreSQL para recibos e clientes?**

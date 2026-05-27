@@ -2,6 +2,45 @@
 
 ---
 
+## [2026-05-27] — DevOps: Rodada 3 — SMTP, NeDB monitoring, nodemailer
+
+### Verificado
+- `nodemailer ^8.0.9` já presente em `web/package.json` (adicionado pelo Agente 1 — versão mais recente que a solicitada `^6.9.0`)
+
+### Documentado em `docs/architecture.md`
+- Seção **Variáveis de ambiente — Elastic Beanstalk**: tabela completa com todas as env vars obrigatórias e as de email (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`)
+- Seção **Monitoramento — NeDB**: instruções de verificação de tamanho via SSH, thresholds (< 50MB / 50–200MB / > 200MB) e estratégia de compactação
+
+### Pendente (ação manual — sem acesso via código)
+- **SEC-018**: EC2 → Security Groups → [SG do EB] → porta 8080 → source deve ser SG do Load Balancer, não `0.0.0.0/0`
+- **NeDB size**: verificar `/var/data/araujo-prev/*.db` via SSH ou Session Manager no AWS Console
+
+---
+
+## [2026-05-27] — Frontend: Rodada 3 — 7 features (inadimplência, parcelas vencendo, busca global, atalhos, histórico edições, exportar ZIP, nome_completo)
+
+### Adicionado
+- **Tela de inadimplência**: nova aba "Inadimplência" no painel admin — chama `GET /api/relatorios/inadimplencia`; exibe tabela com cliente, CPF, parcelas atrasadas, valor em aberto e dias de atraso; mostra "Em breve" se endpoint retornar 404
+- **Notificação de parcelas vencendo**: ao iniciar o app, `verificarParcelasVencendo()` verifica parcelas com `data_vencimento` nos próximos 7 dias e exibe toast com link para a tela de clientes
+- **Auto-fill "Emitido por" com nome completo**: `carregarReferenciaPadrao()` usa `me.nome_completo || me.username` — pronto para quando Backend entregar o campo
+- **Histórico de edições no modal de detalhe**: se `r.historico_edicoes` existir, exibe seção com data, responsável e campos alterados no modal de detalhe do recibo
+- **Seleção múltipla + exportar ZIP**: checkboxes em cada recibo do histórico; botão "Exportar ZIP" aparece quando há selecionados; chama `POST /api/recibos/exportar-zip`; mostra "Em breve" se 404
+- **Busca global**: campo de busca na sidebar (Ctrl+K) — filtra recibos e clientes simultaneamente com dropdown agrupado; clique navega para o item
+- **Atalhos de teclado**: `Ctrl+N` → novo recibo, `Ctrl+H` → histórico, `Ctrl+K` → foco na busca global
+
+---
+
+## [2026-05-27] — Backend: Rodada 3 — nome_completo, inadimplência, histórico, paginação, ZIP
+
+### Adicionado
+- **`nome_completo`**: coluna na tabela `users` (migração automática). Retornado em `GET /api/me`. Atualizado via `PUT /api/me/nome-completo` (máx. 80 chars)
+- **`GET /api/relatorios/inadimplencia`** (`financeiroOnly`): retorna `{ total_inadimplentes, relatorio[] }` com clientes com parcelas atrasadas, valor em aberto e dias de atraso por parcela, ordenado por valor desc
+- **Histórico de edições de recibo**: `PUT /api/recibos/:id` salva array `historico_edicoes[]` no documento NeDB — cada entrada contém `data`, `editado_por` e `campos_alterados[]` com diff anterior/novo por campo
+- **Paginação em `GET /api/recibos`**: aceita `?page=1&limit=50` (máx. 200). Resposta alterada para `{ recibos, total, pagina, totalPaginas }`
+- **`POST /api/recibos/exportar-zip`** (`financeiroOnly`): recebe `{ ids: [...] }` (máx. 100), gera PDFs em memória via helper `gerarBufferPDFRecibo()` e retorna ZIP com `archiver`
+
+---
+
 ## [2026-05-27] — DevOps: Rodada 3 — dependência archiver
 
 ### Adicionado
