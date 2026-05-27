@@ -77,7 +77,73 @@
 
 ---
 
-## AGENTE 5 — DADOS / ANALYTICS
+---
+
+## RODADA 4 — Novas features e segurança
+
+---
+
+## AGENTE 1 — BACKEND — Rodada 4
+
+### Segurança (prioridade máxima)
+
+| Item | Descrição |
+|------|-----------|
+| SEC-014 | `registrarNoSheets()` — salvar apenas path relativo (`/api/comprovante-s3/...`) na planilha, não a presigned URL completa |
+| SEC-012 | `govbrStates` em Map de memória — criar tabela `govbr_states` no Neon (colunas: `state TEXT PK`, `data JSONB`, `expira_em TIMESTAMPTZ`). Migrar do Map para queries Neon com TTL de 10 min |
+| SEC-017 | Remover `style-src 'unsafe-inline'` do CSP — identificar estilos inline dinâmicos e migrar para classes CSS |
+
+### Features novas
+
+| Feature | Descrição |
+|---------|-----------|
+| `GET /api/relatorios/projecao` | Retorna parcelas pendentes agrupadas por mês futuro (próximos 6 meses). Fonte: `clientes.db`. Formato: `[{ mes: "Jun/2026", valor: 12500.00 }, ...]` |
+| `GET /api/admin/backup-db` | Comprime `recibos.db` e `clientes.db` em ZIP e retorna para download. Rota `adminOnly` |
+| `GET /api/relatorios/por-escritorio` | Receita total, quantidade de recibos e clientes agrupados por `escritorio`. Retorna array ordenado por receita decrescente |
+
+### Regras
+- Só mexa em `web/server.js`
+- Após terminar: atualizar `docs/changelog.md` e `reports/security_report.md`
+
+---
+
+## AGENTE 2 — FRONTEND — Rodada 4
+
+### Features novas
+
+| Feature | Descrição |
+|---------|-----------|
+| Skeleton loading | Substituir tela em branco por divs animadas durante carregamento em: histórico de recibos, lista de clientes e painel admin |
+| Impressão direta de recibo | Botão "Imprimir" no modal de detalhe — abre PDF em `window.print()` sem precisar baixar |
+| Aba "Projeção" no painel admin | Gráfico de barras com parcelas a receber nos próximos 6 meses (usa `GET /api/relatorios/projecao`) |
+| Botão "Baixar backup do banco" | No painel admin, botão que chama `GET /api/admin/backup-db` e faz download do ZIP |
+| Aba "Por Escritório" no painel admin | Tabela com receita total, recibos e clientes por escritório (usa `GET /api/relatorios/por-escritorio`) |
+
+### Regras
+- Só mexa em `web/public/app.js`, `index.html` e `style.css`
+- Features que dependem de endpoint do Backend: implementar o frontend mas mostrar loading/empty state se endpoint não responder ainda
+- Após terminar: atualizar `docs/changelog.md`
+
+---
+
+## AGENTE 3 — DEVOPS — Rodada 3
+
+### Tarefas
+
+| Tarefa | Descrição |
+|--------|-----------|
+| Dependência nodemailer | Adicionar `"nodemailer": "^6.9.0"` em `web/package.json` — necessário para o Agente 6 |
+| Variáveis SMTP | Documentar em `docs/architecture.md` as variáveis que o admin precisa adicionar no painel do EB: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` |
+| SEC-018 | Verificar manualmente no AWS Console: EC2 → Security Groups → [SG do EB] → Inbound rules → porta 8080 deve apontar para SG do Load Balancer, não `0.0.0.0/0` |
+| Tamanho do NeDB | Verificar tamanho de `web/data/recibos.db` e `web/data/clientes.db` e documentar em `docs/architecture.md` |
+
+### Regras
+- Não toque em `server.js`, `app.js` ou `index.html`
+- Após terminar: atualizar `docs/changelog.md`
+
+---
+
+## AGENTE 5 — DADOS / ANALYTICS — Rodada 1 (ESTREIA)
 
 ### Domínio
 Pode tocar em `web/server.js` (endpoints) E `web/public/app.js` (visualizações). Suas features sempre têm lado backend + frontend.
@@ -149,11 +215,13 @@ SMTP_FROM=Araujo Prev <email@dominio.com>
 
 | Agente | Status | Última ação |
 |--------|--------|-------------|
-| Agente 1 — Backend | ✅ Rodada 3 concluída | nome_completo, inadimplência, histórico edições, paginação, ZIP |
-| Agente 2 — Frontend | ✅ Rodada 3 concluída | inadimplência, parcelas vencendo, busca global, atalhos, histórico edições, exportar ZIP, nome_completo |
-| Agente 3 — DevOps | ✅ Rodada 2 concluída | .gitignore, SEC-018 documentado |
-| Agente 4 — QA | ✅ Planejamento rodada 3 | briefing_agentes.md atualizado |
-| **Deploy** | ✅ Em produção | commit `9f17ff8` |
+| Agente 1 — Backend | ⏳ Rodada 4 em andamento | Ver seção Rodada 4 abaixo |
+| Agente 2 — Frontend | ⏳ Rodada 4 em andamento | Ver seção Rodada 4 abaixo |
+| Agente 3 — DevOps | ⏳ Rodada 3 em andamento | Ver seção Rodada 4 abaixo |
+| Agente 4 — QA | ✅ Aguardando rodada 4 | Aprovar deploy após todos terminarem |
+| Agente 5 — Analytics | ⏳ Rodada 1 — ESTREIA | Ver seção Rodada 4 abaixo |
+| Agente 6 — Integrações | ⏳ Rodada 1 — ESTREIA | Ver seção Rodada 4 abaixo |
+| **Deploy** | ✅ Em produção | commit `324e5fd` |
 
 ---
 
