@@ -2,6 +2,39 @@
 
 ---
 
+## [2026-05-27] — Backend: correções de segurança e bugs (BUG-006, BUG-008, SEC-008, SEC-009, SEC-013)
+
+### Corrigido
+- **BUG-006**: `POST /api/recibos` agora exige `financeiroOnly` — usuários `recepcao` não conseguem mais criar recibos via API direta
+- **BUG-008**: `atualizarNoSheets()` na edição de recibo agora recebe o objeto completo do recibo (pós-update), garantindo que `forma_pagamento` e `motivo_pagamento` sejam atualizados na planilha
+- **SEC-013**: Limite de upload de comprovante reduzido de 20MB para 5MB
+
+### Adicionado
+- **SEC-008**: Rate limiting em `POST /api/login` — máx. 10 tentativas por IP em 15 minutos (`express-rate-limit`)
+- **SEC-009**: Validação de magic bytes no `POST /api/upload-comprovante` — arquivos com assinatura diferente de PDF, JPEG ou PNG são rejeitados com HTTP 400
+
+---
+
+## [2026-05-27] — DevOps: dependência express-rate-limit adicionada
+
+### Adicionado
+- `express-rate-limit ^7.5.0` em `web/package.json` — preparação para SEC-008 (rate limiting no login, Agente 1)
+
+---
+
+## [2026-05-27] — Correção: Google Sheets — gap de linhas e data incorreta
+
+### Corrigido
+- `reescrever-planilha`: dados apareciam a partir da linha 278 em vez da linha 4 — causa raiz: `INSERT_ROWS` no `values.append` acumulou linhas físicas vazias ao longo do tempo; corrigido com `deleteDimension` (batchUpdate) antes de reescrever
+- `reescrever-planilha`: erro "not possible to delete all non-frozen rows" — Sheets exige ao menos 1 linha não-congelada; corrigido usando `endIndex: totalRows - 1` seguido de `values.clear`
+- `reescrever-planilha`: timeout ao processar URLs S3 em loop — removido `linkParaSheets()` do fluxo de reescrita; escreve `link_comprovante` diretamente
+- `registrarNoSheets`: colunas E (data pagamento), F (data depósito) e L (mês) sempre recebiam a data de hoje — campo `data` não era passado de `POST /api/recibos` para `registrarNoSheets`; corrigido
+
+### Adicionado
+- Timeout de 5 segundos em `linkParaSheets()` via `Promise.race` para evitar travamento ao gerar URL presigned S3
+
+---
+
 ## [2026-05-26] — Correção: planilha e numeração de recibos
 
 ### Corrigido

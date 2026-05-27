@@ -1,48 +1,176 @@
 # Bugs Found — Araujo Prev Recibos
-**Data da análise:** 2026-05-25
-**Módulos analisados:** server.js, app.js (módulo de clientes)
+
+**Última atualização:** 2026-05-27 — Agente 1 (Backend)
+**Arquivos analisados:** `web/server.js`, `web/public/app.js`, `web/public/index.html`
 
 ---
 
-## BUG-001 — `confirmarPagamentoParcela`: crash quando `api()` retorna null
+## ✅ Bugs Corrigidos (histórico)
+
+### BUG-001 — `confirmarPagamentoParcela`: crash quando `api()` retorna null
 - **Arquivo:** `web/public/app.js` — função `confirmarPagamentoParcela`
-- **Impacto:** CRÍTICO — o usuário vê tela em branco / erro não tratado
-- **Descrição:** `api()` retorna `null` quando o servidor responde 401 (sessão expirada). O código chamava `res.json()` sem checar se `res` era null primeiro, causando `TypeError: Cannot read properties of null`.
-- **Correção aplicada:** `const data = res ? await res.json().catch(...)  : {};`
+- **Impacto:** CRÍTICO
+- **Correção:** `const data = res ? await res.json().catch(...) : {};`
+- **Status:** ✅ Corrigido em 2026-05-25
 
 ---
 
-## BUG-002 — `PUT /api/clientes/:id`: sem retorno 404 quando cliente não existe
+### BUG-002 — `PUT /api/clientes/:id`: sem retorno 404 quando cliente não existe
 - **Arquivo:** `web/server.js` — rota `PUT /api/clientes/:id`
-- **Impacto:** MÉDIO — operação silenciosamente bem-sucedida sem alterar nada
-- **Descrição:** Se `_id` não corresponder a nenhum cliente no banco, `findOne` retorna `null`. O código continuava tentando acessar `atual.parcelas` (protegido por `&&`) mas o `update` rodava sem encontrar documento, retornando `{ ok: true }` falsamente.
-- **Correção aplicada:** `if (!atual) return res.status(404).json({ erro: "Cliente não encontrado." });`
+- **Impacto:** MÉDIO
+- **Correção:** `if (!atual) return res.status(404).json({ erro: "Cliente não encontrado." });`
+- **Status:** ✅ Corrigido em 2026-05-25
 
 ---
 
-## BUG-003 — `PATCH /api/clientes/:id/parcela/:num`: sem whitelist de campos
-- **Arquivo:** `web/server.js` — rota `PATCH /api/clientes/:id/parcela/:num`
-- **Impacto:** MÉDIO — atacante poderia sobrescrever campos internos da parcela (ex: `num`, `valor`) via body malicioso
-- **Descrição:** O spread `{ ...p, ...req.body }` aplicava qualquer campo enviado no body sem filtro, incluindo `num` e `valor` que são campos calculados/internos.
-- **Correção aplicada:** Whitelist explícita extraindo apenas `status`, `data_recebimento`, `data_deposito`, `recibo_id`, `recibo_num`, `observacao`, `data_vencimento`.
+### BUG-003 — `PATCH /api/clientes/:id/parcela/:num`: sem whitelist de campos
+- **Arquivo:** `web/server.js`
+- **Impacto:** MÉDIO
+- **Correção:** Whitelist explícita dos campos aceitos no body
+- **Status:** ✅ Corrigido em 2026-05-25
 
 ---
 
-## BUG-004 — Typo `jaPagess` em `inicializarParcelasLegado`
-- **Arquivo:** `web/server.js` — função `inicializarParcelasLegado`
-- **Impacto:** BAIXO — funciona, mas prejudica leitura e manutenção do código
-- **Descrição:** Variável nomeada `jaPagess` (com 's' duplo no final). Não causa erro funcional mas viola o princípio de nomes descritivos.
-- **Correção aplicada:** Renomeada para `jaPagas`.
+### BUG-004 — Typo `jaPagess` em `inicializarParcelasLegado`
+- **Arquivo:** `web/server.js`
+- **Impacto:** BAIXO
+- **Correção:** Renomeada para `jaPagas`
+- **Status:** ✅ Corrigido em 2026-05-25
 
 ---
 
-## BUG-005 — `PUT /api/me/referencia`: sem limite de tamanho no servidor
-- **Arquivo:** `web/server.js` — rota `PUT /api/me/referencia`
-- **Impacto:** BAIXO — em teoria permite gravar strings arbitrariamente longas no banco
-- **Descrição:** O frontend limita a 20 chars via `maxlength`, mas o servidor não validava o tamanho, permitindo bypass via requisição direta à API.
-- **Correção aplicada:** `if (referencia_padrao.length > 20) return res.status(400)...`
+### BUG-005 — `PUT /api/me/referencia`: sem limite de tamanho no servidor
+- **Arquivo:** `web/server.js`
+- **Impacto:** BAIXO
+- **Correção:** Validação de `length > 20` no backend
+- **Status:** ✅ Corrigido em 2026-05-25
 
 ---
 
-## Status
-Todos os 5 bugs corrigidos. Nenhum bug restante crítico identificado.
+## 🔴 Bugs Abertos — Críticos
+
+### BUG-006 — `POST /api/recibos` sem `financeiroOnly`: recepção consegue criar recibos via API
+- **Arquivo:** `web/server.js` — linha ~987
+- **Impacto:** CRÍTICO
+- **Descrição:** A rota `POST /api/recibos` usa apenas `auth`, sem o middleware `financeiroOnly`. Um usuário com role `recepcao` consegue criar recibos diretamente via chamada à API (ex: console do navegador ou Postman), burlando a restrição da UI.
+- **Agente responsável pela correção:** Agente 1 — Backend
+- **Correção sugerida:** Adicionar `financeiroOnly` como middleware: `app.post("/api/recibos", auth, financeiroOnly, async ...)`
+- **Status:** ✅ Corrigido em 2026-05-27
+
+---
+
+### BUG-007 — Aba Financeiro fica em branco até o usuário clicar "Filtrar"
+- **Arquivo:** `web/public/app.js` — função de inicialização da aba admin
+- **Impacto:** ALTO — confunde usuário, parece que o sistema quebrou
+- **Descrição:** `aplicarFiltros()` é vinculada ao click do botão "Filtrar", mas não é chamada na inicialização da aba. A tabela aparece vazia até o primeiro clique.
+- **Agente responsável pela correção:** Agente 2 — Frontend
+- **Correção sugerida:** Chamar `aplicarFiltros()` ao entrar na aba financeiro, logo após renderizar os selects de mês/ano/responsável
+- **Status:** 🔴 Aberto
+
+---
+
+### BUG-008 — Edição de recibo não atualiza `forma_pagamento` e `motivo_pagamento` no Google Sheets
+- **Arquivo:** `web/server.js` — função `atualizarNoSheets()`
+- **Impacto:** ALTO — planilha fica desatualizada em relação ao banco
+- **Descrição:** Ao editar um recibo, `atualizarNoSheets()` recebe apenas os campos do `upd`, que não inclui `forma_pagamento` e `motivo_pagamento`. As colunas G e H da planilha ficam com os valores antigos.
+- **Agente responsável pela correção:** Agente 1 — Backend
+- **Correção sugerida:** Passar o objeto completo do recibo para `atualizarNoSheets()`, mesclando `upd` com os campos existentes antes de escrever na planilha
+- **Status:** ✅ Corrigido em 2026-05-27
+
+---
+
+## 🟡 Bugs Abertos — Moderados
+
+### BUG-009 — Presigned URL S3 expira em 7 dias sem renovação automática
+- **Arquivo:** `web/server.js` — função `linkParaSheets()`
+- **Impacto:** MÉDIO — comprovantes ficam inacessíveis após 7 dias
+- **Descrição:** URLs geradas via `getSignedUrl` com `expiresIn: 7 * 24 * 3600` expiram e o comprovante some do modal. Não há renovação automática nem aviso ao usuário.
+- **Agente responsável:** Agente 1 — Backend
+- **Correção sugerida:** Ao abrir detalhe de recibo com link S3, chamar endpoint que regera a presigned URL antes de exibir; ou aumentar expiração para 30 dias
+- **Status:** 🟡 Aberto
+
+---
+
+### BUG-010 — Botão "Gerar Recibo" pode ser clicado 2x — cria recibos duplicados
+- **Arquivo:** `web/public/app.js` — função `gerarRecibo()`
+- **Impacto:** MÉDIO — cria dois registros com dados iguais e números sequenciais
+- **Descrição:** Não há debounce nem desabilitação do botão durante a requisição. Em conexão lenta, usuário tende a clicar novamente.
+- **Agente responsável:** Agente 2 — Frontend
+- **Correção sugerida:** Desabilitar botão (`btn.disabled = true`) imediatamente ao clicar e reabilitar após resposta do servidor
+- **Status:** 🟡 Aberto
+
+---
+
+### BUG-011 — Sem aviso quando Google Sheets falha mas recibo foi salvo localmente
+- **Arquivo:** `web/public/app.js` — após `POST /api/recibos`
+- **Impacto:** MÉDIO — usuário não sabe que a planilha está desatualizada
+- **Descrição:** Se `sheets_ok === false` na resposta do servidor, o frontend mostra alert genérico, mas não deixa claro que o recibo foi salvo no banco e que a planilha está fora de sincronia.
+- **Agente responsável:** Agente 2 — Frontend
+- **Correção sugerida:** Toast específico: "Recibo salvo! Aviso: Google Sheets fora de sincronia. Execute 'Reescrever planilha' no painel admin."
+- **Status:** 🟡 Aberto
+
+---
+
+### BUG-012 — `num_parcelas = 0` ou vazio causa divisão por zero em `recalcularResumo()`
+- **Arquivo:** `web/server.js` — função `recalcularResumo()`
+- **Impacto:** MÉDIO — crash silencioso ao regenerar parcelas com valor inválido
+- **Descrição:** Se `num_parcelas` chegar como `0` ou `""` ao regenerar parcelas, `gerarParcelas()` retorna array vazio e `recalcularResumo()` pode produzir `NaN` ou `Infinity` nos totais.
+- **Agente responsável:** Agente 1 — Backend
+- **Correção sugerida:** Validar `num_parcelas >= 1` antes de chamar `gerarParcelas()`
+- **Status:** 🟡 Aberto
+
+---
+
+### BUG-013 — CPF/CNPJ aceito sem validação de dígito verificador
+- **Arquivo:** `web/server.js` e `web/public/app.js`
+- **Impacto:** MÉDIO — dados incorretos entram no banco e na planilha
+- **Descrição:** O sistema aceita qualquer string no formato de máscara (ex: `111.111.111-11`) sem validar matematicamente se os dígitos verificadores são válidos.
+- **Agente responsável:** Agentes 1 e 2 (backend valida, frontend exibe erro)
+- **Correção sugerida:** Implementar função `validarCPF(cpf)` e `validarCNPJ(cnpj)` com verificação dos dígitos
+- **Status:** 🟡 Aberto
+
+---
+
+## 🔵 Bugs Abertos — Baixo impacto / UX
+
+### BUG-014 — Status "atrasado" nunca é setado automaticamente
+- **Arquivo:** `web/server.js` — função `recalcularResumo()`
+- **Impacto:** BAIXO — parcelas atrasadas aparecem como "pendente"
+- **Descrição:** O status "atrasado" existe no enum mas só pode ser setado manualmente. Parcelas com `data_vencimento` vencida continuam como "pendente".
+- **Agente responsável:** Agente 1 — Backend
+- **Correção sugerida:** Em `GET /api/clientes`, verificar `data_vencimento < hoje` e marcar como "atrasado" on-the-fly (sem persistir — mesma estratégia do `inicializarParcelasLegado`)
+- **Status:** 🔵 Aberto
+
+---
+
+### BUG-015 — Badge de clientes inativos não atualiza após registrar pagamento
+- **Arquivo:** `web/public/app.js` — função `atualizarBadgeClientes()`
+- **Impacto:** BAIXO — badge mostra número desatualizado até reload
+- **Descrição:** `atualizarBadgeClientes()` é chamada apenas ao carregar a lista de clientes. Após registrar pagamento de parcela, o badge não é recalculado.
+- **Agente responsável:** Agente 2 — Frontend
+- **Correção sugerida:** Chamar `atualizarBadgeClientes()` ao final de `confirmarPagamentoParcela()`
+- **Status:** 🔵 Aberto
+
+---
+
+### BUG-016 — Data do recibo não valida dias inexistentes (ex: 31/02/2026)
+- **Arquivo:** `web/public/app.js` — validação do formulário de recibo
+- **Impacto:** BAIXO — data inválida entra no banco
+- **Descrição:** Validação verifica apenas que dia/mês/ano estão preenchidos, mas não verifica se a combinação é uma data válida.
+- **Agente responsável:** Agente 2 — Frontend
+- **Correção sugerida:** `const d = new Date(ano, mes-1, dia); if (d.getMonth() !== mes-1) { erro }` 
+- **Status:** 🔵 Aberto
+
+---
+
+## Resumo
+
+| Severidade | Total | Corrigidos | Abertos |
+|------------|-------|------------|---------|
+| Crítico    | 3     | 1          | 2       |
+| Alto       | 2     | 0          | 2       |
+| Médio      | 5     | 4          | 5       |
+| Baixo      | 6     | 1          | 3       |
+| **Total**  | **16**| **6**      | **10**  |
+
+**Próxima ação recomendada:** Agente 1 (Backend) resolver BUG-006 e BUG-008. Agente 2 (Frontend) resolver BUG-007 e BUG-010.

@@ -29,6 +29,7 @@ const PDFDocument = require("pdfkit");
 const { google } = require("googleapis");
 const multer = require("multer");
 const crypto = require("crypto");
+const rateLimit = require("express-rate-limit");
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
 const SHEET_ID = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
@@ -262,7 +263,7 @@ async function linkParaSheets(link) {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 const dbRecibos  = new Datastore({ filename: path.join(dbDir, "recibos.db"),  autoload: true });
@@ -668,7 +669,15 @@ function count(db, query) {
 }
 
 // ── ROTAS AUTH ─────────────────────────────────────────────
-app.post("/api/login", async (req, res) => {
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erro: "Muitas tentativas de login. Aguarde 15 minutos." },
+});
+
+app.post("/api/login", loginLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
   if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ erro: "Dados inválidos" });
@@ -706,6 +715,16 @@ app.put("/api/me/referencia", auth, async (req, res) => {
 app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
+
+    // Validação de magic bytes — rejeita arquivos com assinatura desconhecida
+    const sig = req.file.buffer.slice(0, 8);
+    const isPDF  = sig.slice(0, 4).toString("ascii") === "%PDF";
+    const isJPEG = sig[0] === 0xFF && sig[1] === 0xD8 && sig[2] === 0xFF;
+    const isPNG  = sig[1] === 0x50 && sig[2] === 0x4E && sig[3] === 0x47;
+    if (!isPDF && !isJPEG && !isPNG) {
+      return res.status(400).json({ erro: "Tipo de arquivo não permitido. Envie PDF, JPEG ou PNG." });
+    }
+
     const ext = path.extname(req.file.originalname) || "";
     const nomeArquivo = `comprovante_${crypto.randomBytes(8).toString("hex")}${ext}`;
 
@@ -984,7 +1003,7 @@ app.get("/api/recibos", auth, async (req, res) => {
   res.json(recibos.map(r => ({ ...r, id: r._id })));
 });
 
-app.post("/api/recibos", auth, async (req, res) => {
+app.post("/api/recibos", auth, financeiroOnly, async (req, res) => {
   const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
   // Se CPF já existe, usa o nome já cadastrado (CPF é identidade única do cliente)
   const existente = await findOne(dbRecibos, { cpf });
@@ -1004,7 +1023,7 @@ app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
   // Atualiza também na planilha
   const recibo = await findOne(dbRecibos, { _id: req.params.id });
   if (recibo && recibo.num) {
-    atualizarNoSheets(recibo.num, { ...upd, link_comprovante: upd.link_comprovante || recibo.link_comprovante });
+    atualizarNoSheets(recibo.num, recibo);
   }
   res.json({ ok: true });
 });
