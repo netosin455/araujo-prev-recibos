@@ -2,6 +2,17 @@
 
 ---
 
+## [2026-05-27] — DevOps: Rodada 3 — dependência archiver
+
+### Adicionado
+- `archiver ^7.0.1` em `web/package.json` — suporte a exportação ZIP de recibos em lote (Agente 1, rodada 3)
+
+### Pendente (ação manual no AWS Console)
+- **SEC-018**: porta 8080 no security group do EB — source deve ser SG do Load Balancer, não `0.0.0.0/0`
+- **NeDB size**: verificar tamanho de `web/data/recibos.db` e `web/data/clientes.db` via SSH no EB. Se > 50MB, rodar compactação (`db.persistence.compactDatafile()` via endpoint admin ou console)
+
+---
+
 ## [2026-05-27] — Backend: Rodada 2 — bugs, segurança e features (BUG-009, BUG-012, BUG-013, BUG-014, SEC-010, soft delete, CPF/CNPJ)
 
 ### Corrigido
