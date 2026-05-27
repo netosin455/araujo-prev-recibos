@@ -98,8 +98,69 @@
 
 | Agente | Status | Última ação |
 |--------|--------|-------------|
-| Agente 1 — Backend | ✅ Rodada 1 concluída | BUG-006, BUG-008, SEC-008, SEC-009, SEC-013 |
-| Agente 2 — Frontend | ✅ Rodada 2 concluída | BUG-015, BUG-016 + features: auto-fill emitido_por, aviso sessão, excluir cliente, validação CPF/CNPJ |
-| Agente 3 — DevOps | ✅ Rodada 1 concluída | express-rate-limit, architecture.md |
-| Agente 4 — QA | ✅ Auditoria completa | bugs_found.md, security_report.md, briefing_agentes.md |
-| **Deploy** | ✅ Em produção | commit `5376587` |
+| Agente 1 — Backend | ⏳ Rodada 3 em andamento | Ver seção abaixo |
+| Agente 2 — Frontend | ⏳ Rodada 3 em andamento | Ver seção abaixo |
+| Agente 3 — DevOps | ✅ Rodada 2 concluída | .gitignore, SEC-018 documentado |
+| Agente 4 — QA | ✅ Planejamento rodada 3 | briefing_agentes.md atualizado |
+| **Deploy** | ✅ Em produção | commit `9f17ff8` |
+
+---
+
+## RODADA 3 — Novas funcionalidades
+
+---
+
+## AGENTE 1 — BACKEND — Rodada 3
+
+### Features a implementar
+
+| Feature | Descrição | Prioridade |
+|---------|-----------|------------|
+| Relatório de inadimplência | Endpoint `GET /api/relatorios/inadimplencia` — retorna clientes com parcelas atrasadas, valor total em aberto e dias de atraso por parcela | 🔴 Alta |
+| Campo `nome_completo` nos usuários | Adicionar coluna `nome_completo` na tabela `users` do Neon (migração automática no startup). Retornar em `GET /api/me`. Usar em `emitido_por` no lugar de `username` | 🔴 Alta |
+| Histórico de edições de recibo | Em `PUT /api/recibos/:id`, salvar array `historico_edicoes[]` no documento NeDB com campos: `data`, `editado_por`, `campos_alterados` (diff dos campos que mudaram) | 🟡 Média |
+| Paginação no histórico | `GET /api/recibos` aceitar query params `?page=1&limit=50`. Retornar `{ recibos, total, pagina, totalPaginas }` | 🟡 Média |
+| Exportar recibos em lote (ZIP) | `POST /api/recibos/exportar-zip` recebe array de IDs, gera PDFs em memória e retorna um ZIP. Usar `archiver` ou `jszip` | 🔵 Baixa |
+
+### Regras obrigatórias
+- Só mexa em `web/server.js`
+- Todo endpoint novo: `auth` + middleware de role adequado
+- Após terminar: atualizar `reports/bugs_found.md`, `reports/security_report.md` e `docs/changelog.md`
+
+---
+
+## AGENTE 2 — FRONTEND — Rodada 3
+
+### Features a implementar
+
+| Feature | Descrição | Prioridade |
+|---------|-----------|------------|
+| Tela de inadimplência | Nova aba no painel admin: tabela com clientes inadimplentes (nome, parcelas atrasadas, valor em aberto, dias de atraso). Chamar `GET /api/relatorios/inadimplencia` | 🔴 Alta |
+| Notificação de parcelas vencendo | Ao iniciar o app (`iniciarApp()`), verificar se há parcelas com `data_vencimento` nos próximos 7 dias. Exibir toast: "X parcela(s) vencem nos próximos 7 dias." com link para a tela de clientes | 🔴 Alta |
+| Auto-fill "Emitido por" com nome completo | Usar `me.nome_completo` em vez de `me.username` no preenchimento automático de "Emitido por" (quando Backend entregar o campo) | 🔴 Alta |
+| Histórico de edições no modal de detalhe | No modal de detalhe do recibo, exibir seção "Histórico de edições" com data, quem editou e o que mudou (quando Backend entregar `historico_edicoes`) | 🟡 Média |
+| Seleção múltipla + exportar ZIP | No histórico, checkbox em cada linha para selecionar recibos. Botão "Exportar selecionados (ZIP)" que chama `POST /api/recibos/exportar-zip` | 🟡 Média |
+| Busca global | Campo de busca no topo da sidebar que filtra recibos e clientes simultaneamente. Ao digitar, exibe dropdown com resultados agrupados | 🔵 Baixa |
+| Atalhos de teclado | `Ctrl+N` abre formulário de novo recibo, `Ctrl+H` vai para histórico, `Ctrl+K` foca na busca global | 🔵 Baixa |
+
+### Regras obrigatórias
+- Só mexa em `web/public/app.js`, `index.html` e `style.css`
+- Features que dependem de endpoint novo do Backend: implementar o lado frontend mas exibir "Em breve" se o endpoint não existir ainda
+- Toda operação assíncrona: `btn.disabled = true` + `try/finally`
+- Após terminar: atualizar `docs/changelog.md`
+
+---
+
+## AGENTE 3 — DEVOPS — Rodada 3
+
+### Tarefas
+
+| Tarefa | Descrição |
+|--------|-----------|
+| Dependência `archiver` ou `jszip` | Adicionar `archiver` em `web/package.json` para suportar exportação ZIP (Backend vai precisar) |
+| Verificar SEC-018 manualmente | AWS Console → EC2 → Security Groups → [SG do EB] → Inbound rules → porta 8080 → Source deve ser o SG do Load Balancer, não `0.0.0.0/0` |
+| Monitorar tamanho do NeDB | Verificar tamanho atual de `web/data/recibos.db` e `web/data/clientes.db` no servidor. Se > 50MB, considerar compactação manual |
+
+### Regras obrigatórias
+- Não toque em `server.js`, `app.js` ou `index.html`
+- Após terminar: atualizar `docs/changelog.md`
