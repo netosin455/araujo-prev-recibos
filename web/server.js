@@ -246,7 +246,9 @@ async function linkParaSheets(link) {
 
   try {
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: s3Match[1] });
-    return await getSignedUrl(s3SignerClient, cmd, { expiresIn: 7 * 24 * 3600 });
+    const urlPromise = getSignedUrl(s3SignerClient, cmd, { expiresIn: 7 * 24 * 3600 });
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
+    return await Promise.race([urlPromise, timeoutPromise]);
   } catch (e) {
     console.error("❌ Presigned URL falhou:", e.message);
     return link;
@@ -1484,13 +1486,7 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       return isNaN(dt.getTime()) ? null : dt;
     }
 
-    // 1. Limpa tudo da linha 4 em diante (mantém cabeçalhos)
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:Z`,
-    });
-
-    // 2. Monta todas as linhas em lotes (evita sobrecarga simultânea de presigned URLs)
+    // 1. Monta todas as linhas ANTES de limpar (evita deixar planilha vazia se houver timeout)
     const BATCH = 10;
     const linhas = [];
     for (let i = 0; i < todos.length; i += BATCH) {
@@ -1521,6 +1517,12 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       }));
       linhas.push(...linhasLote);
     }
+
+    // 2. Limpa tudo da linha 4 em diante (só após ter os dados prontos)
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A4:Z`,
+    });
 
     // 3. Escreve tudo de uma vez a partir da linha 4
     await sheets.spreadsheets.values.update({
