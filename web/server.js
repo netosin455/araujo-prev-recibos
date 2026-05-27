@@ -1517,20 +1517,21 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       ];
     });
 
-    // 2. Descobre quantas linhas existem na aba (para deletar fisicamente as extras)
-    const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "sheets.properties" });
+    // 2. Descobre sheetId e rowCount para deletar fisicamente as linhas extras
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
     const sheetMeta = meta.data.sheets.find(s => s.properties.title === SHEET_NAME);
     if (!sheetMeta) return res.status(404).json({ erro: `Aba "${SHEET_NAME}" não encontrada.` });
     const sheetId = sheetMeta.properties.sheetId;
-    const totalRows = sheetMeta.properties.gridProperties.rowCount;
+    const totalRows = sheetMeta.properties.gridProperties?.rowCount || 0;
 
-    // 3. Deleta fisicamente todas as linhas a partir da linha 4 (índice 3) — elimina linhas extras do INSERT_ROWS
+    // 3. Deleta fisicamente todas as linhas a partir da linha 4 (elimina linhas extras do INSERT_ROWS)
     if (totalRows > 3) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SHEET_ID,
         requestBody: {
           requests: [{
             deleteDimension: {
+              // endIndex é exclusivo — deleta índices 3..totalRows-1 (linhas 4 até o fim)
               range: { sheetId, dimension: "ROWS", startIndex: 3, endIndex: totalRows },
             },
           }],
@@ -1538,12 +1539,11 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       });
     }
 
-    // 4. Escreve todos os recibos a partir da linha 4 (append cria as linhas necessárias)
-    await sheets.spreadsheets.values.append({
+    // 4. Escreve todos os recibos a partir da linha 4
+    await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:O`,
+      range: `${SHEET_NAME}!A4:O${3 + linhas.length}`,
       valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
       requestBody: { values: linhas },
     });
 
