@@ -99,7 +99,7 @@
 | Agente | Status | Última ação |
 |--------|--------|-------------|
 | Agente 1 — Backend | ✅ Rodada 1 concluída | BUG-006, BUG-008, SEC-008, SEC-009, SEC-013 |
-| Agente 2 — Frontend | ✅ Rodada 1 concluída | BUG-007, BUG-010, BUG-011 |
+| Agente 2 — Frontend | ✅ Rodada 2 concluída | BUG-015, BUG-016 + features: auto-fill emitido_por, aviso sessão, excluir cliente, validação CPF/CNPJ |
 | Agente 3 — DevOps | ✅ Rodada 1 concluída | express-rate-limit, architecture.md |
 | Agente 4 — QA | ✅ Auditoria completa | bugs_found.md, security_report.md, briefing_agentes.md |
 | **Deploy** | ✅ Em produção | commit `5376587` |

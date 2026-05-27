@@ -96,6 +96,7 @@ async function iniciarApp(){
   await carregarRecibos();
   await atualizarNumRecibo();
   await carregarReferenciaPadrao();
+  iniciarAvisoSessao();
   atualizarSugestoesNomes();
   preencherFiltrosAnos();
   verificarClientesInativos();
@@ -109,6 +110,8 @@ async function carregarReferenciaPadrao() {
   referenciaPadrao = me.referencia_padrao || "";
   const el = document.getElementById("referencia");
   if (el && referenciaPadrao && !el.value) el.value = referenciaPadrao;
+  const elEmitido = document.getElementById("emitido_por");
+  if (elEmitido && !elEmitido.value) elEmitido.value = me.username || usuarioLogado;
   // Garante que escritorioLogado está sempre atualizado (inclusive após reload com token salvo)
   if (me.escritorio) {
     escritorioLogado = me.escritorio.toUpperCase();
@@ -118,6 +121,44 @@ async function carregarReferenciaPadrao() {
     const elEsc = document.getElementById("escritorio");
     if (elEsc && !elEsc.value) elEsc.value = escritorioLogado;
   }
+}
+
+function iniciarAvisoSessao() {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const avisarEm = payload.exp * 1000 - Date.now() - 15 * 60 * 1000;
+    if (avisarEm > 0) {
+      setTimeout(() => {
+        mostrarToast("Sua sessão expira em 15 min. Salve o trabalho.", null, "error");
+      }, avisarEm);
+    }
+  } catch(e) { /* token sem exp ou inválido */ }
+}
+
+function validarCPF(cpf) {
+  const d = cpf.replace(/\D/g, "");
+  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+  let s = 0;
+  for (let i = 0; i < 9; i++) s += parseInt(d[i]) * (10 - i);
+  let r = (s * 10) % 11; if (r >= 10) r = 0;
+  if (r !== parseInt(d[9])) return false;
+  s = 0;
+  for (let i = 0; i < 10; i++) s += parseInt(d[i]) * (11 - i);
+  r = (s * 10) % 11; if (r >= 10) r = 0;
+  return r === parseInt(d[10]);
+}
+
+function validarCNPJ(cnpj) {
+  const d = cnpj.replace(/\D/g, "");
+  if (d.length !== 14 || /^(\d)\1+$/.test(d)) return false;
+  const calc = (str, w) => {
+    let s = 0;
+    for (let i = 0; i < w.length; i++) s += parseInt(str[i]) * w[i];
+    const r = s % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return calc(d,[5,4,3,2,9,8,7,6,5,4,3,2]) === parseInt(d[12]) &&
+         calc(d,[6,5,4,3,2,9,8,7,6,5,4,3,2]) === parseInt(d[13]);
 }
 
 // Verifica token ao carregar
@@ -446,11 +487,16 @@ async function gerarRecibo(){
   const mes=document.getElementById("mes").value;
   const ano=document.getElementById("ano").value;
   if(!dia||!mes||!ano) return setStatus("Preencha a data completa.","error");
+  const _dataCheck=new Date(parseInt(ano),parseInt(mes)-1,parseInt(dia));
+  if(_dataCheck.getMonth()!==parseInt(mes)-1) return setStatus("Data inválida (ex: 31/02 não existe).","error");
   dados.data=formatarData();
   dados.data_extenso=dataExtenso();
   dados.nome=dados.nome.toUpperCase();
   dados.municipio_uf=dados.municipio_uf.toUpperCase();
   dados.emitido_por=dados.emitido_por.toUpperCase();
+  const _cpfDigits=dados.cpf.replace(/\D/g,"");
+  if(_cpfDigits.length===11&&!validarCPF(dados.cpf)) return setStatus("CPF inválido. Verifique os dígitos.","error");
+  if(_cpfDigits.length===14&&!validarCNPJ(dados.cpf)) return setStatus("CNPJ inválido. Verifique os dígitos.","error");
 
   const btn=document.getElementById("btn-gerar");
   const btnTextoOriginal = btn.innerHTML;
@@ -1036,6 +1082,7 @@ async function renderClientes() {
             <div style="font-size:11px;color:var(--muted);margin-top:2px">total pago</div>
           </div>
           ${roleLogado !== "recepcao" ? `<button class="btn-sm btn-secondary cadastro-btn">${cadastro ? "Editar cadastro" : "Cadastrar"}</button>` : ""}
+          ${roleLogado !== "recepcao" && cadastro ? `<button class="btn-danger btn-sm excluir-cliente-btn" title="Excluir cliente">🗑</button>` : ""}
           <button class="btn-gold btn-sm novo-recibo-btn">+ Recibo</button>
         </div>
       </div>
@@ -1078,6 +1125,13 @@ async function renderClientes() {
       card.querySelector(".cadastro-btn").addEventListener("click", e => {
         e.stopPropagation();
         cadastro ? editarCliente(cadastro.id) : abrirModalClientePreenchido(c);
+      });
+    }
+    if (roleLogado !== "recepcao" && cadastro) {
+      const btnExcluirCli = card.querySelector(".excluir-cliente-btn");
+      if (btnExcluirCli) btnExcluirCli.addEventListener("click", e => {
+        e.stopPropagation();
+        excluirCliente(cadastro.id, cadastro);
       });
     }
     grid.appendChild(card);
@@ -1164,6 +1218,7 @@ async function confirmarPagamentoParcela() {
   fecharModal("modal-pagamento-parcela");
   mostrarToast("Parcela marcada como paga!", null, "success");
   renderClientes();
+  atualizarBadgeClientes();
 }
 
 // ── CRUD CLIENTES ──────────────────────────────────────────
@@ -1274,6 +1329,10 @@ async function salvarCliente() {
   const num_parcelas    = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
 
   if (!nome || !cpf || !municipio_uf) return alert("Preencha Nome, CPF e Município.");
+  const _cd=cpf.replace(/\D/g,"");
+  if(_cd.length===11&&!validarCPF(cpf)) return alert("CPF inválido. Verifique os dígitos.");
+  if(_cd.length===14&&!validarCNPJ(cpf)) return alert("CNPJ inválido. Verifique os dígitos.");
+  if(_cd.length!==11&&_cd.length!==14) return alert("CPF deve ter 11 dígitos ou CNPJ 14 dígitos.");
   if (valor_contrato <= 0) return alert("Informe o valor total do contrato.");
   if (num_parcelas <= 0)   return alert("Informe o número de parcelas.");
 
@@ -1294,6 +1353,23 @@ async function excluirReciboById(id){
   if(!confirm(`Excluir recibo ${recibo?recibo.num:id}?`)) return;
   await api("DELETE",`/api/recibos/${id}`);
   await carregarRecibos();
+  renderClientes();
+}
+
+async function excluirCliente(id, cadastro) {
+  const parcelas = Array.isArray(cadastro.parcelas) ? cadastro.parcelas : [];
+  const ativas = parcelas.filter(p => p.status !== "pago").length;
+  const msg = ativas > 0
+    ? `Este cliente tem ${ativas} parcela${ativas!==1?"s":""} pendente${ativas!==1?"s":""}. Deseja excluir mesmo assim?`
+    : `Excluir o cliente "${cadastro.nome}"? Esta ação não pode ser desfeita.`;
+  if (!confirm(msg)) return;
+  const res = await api("DELETE", `/api/clientes/${id}`);
+  if (!res || !res.ok) {
+    const data = res ? await res.json().catch(() => ({})) : {};
+    return alert(data.erro || "Erro ao excluir cliente.");
+  }
+  mostrarToast("Cliente excluído.", null, "success");
+  await carregarClientes();
   renderClientes();
 }
 
