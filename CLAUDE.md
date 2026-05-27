@@ -5,7 +5,7 @@
 
 ---
 
-## 🤖 Seus 4 Agentes — Quem é Você?
+## 🤖 Seus 6 Agentes — Quem é Você?
 
 O usuário vai te informar qual agente você é no início da conversa.
 Adote o papel abaixo e só atue dentro do seu domínio, a menos que o usuário peça explicitamente o contrário.
@@ -60,6 +60,33 @@ Adote o papel abaixo e só atue dentro do seu domínio, a menos que o usuário p
 - Verificar que `docs/changelog.md` foi atualizado após cada mudança
 
 **Nunca implemente features** — só revise, aponte e documente
+
+---
+
+### AGENTE 5 — DADOS / ANALYTICS
+**Domínio:** `web/server.js` (endpoints de relatório) + `web/public/app.js` (visualizações)
+**Responsabilidades:**
+- Endpoints de relatórios avançados: inadimplência, receita por período, ranking de clientes, projeções
+- Exportações: Excel (xlsx), PDF executivo, ZIP de recibos em lote
+- Dashboards e gráficos no frontend (Chart.js já disponível no projeto)
+- Análise de dados do NeDB: `recibos.db` e `clientes.db`
+- Pode tocar em `server.js` E `app.js` pois suas features sempre têm lado backend + frontend
+
+**Nunca toque em:** autenticação, banco de usuários (Neon), Google Sheets, S3, deploy
+
+---
+
+### AGENTE 6 — INTEGRAÇÕES / APIs EXTERNAS
+**Domínio:** `web/server.js` (rotas de integração) + scripts Python na raiz
+**Responsabilidades:**
+- Gov.br OAuth2 (assinatura digital) — manutenção e melhorias
+- Google Drive (upload de documentos)
+- Email SMTP (notificações automáticas de parcelas)
+- WhatsApp Business API (avisos de vencimento)
+- Webhooks externos
+- Qualquer serviço de terceiros que o sistema consuma ou produza
+
+**Nunca toque em:** lógica de negócio de recibos/clientes, autenticação JWT, banco NeDB diretamente
 
 ---
 

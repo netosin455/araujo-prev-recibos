@@ -77,6 +77,57 @@
 
 ---
 
+## AGENTE 5 — DADOS / ANALYTICS
+
+### Domínio
+Pode tocar em `web/server.js` (endpoints) E `web/public/app.js` (visualizações). Suas features sempre têm lado backend + frontend.
+
+### Tarefas — Rodada 1
+
+| Feature | Descrição | Prioridade |
+|---------|-----------|------------|
+| Relatório de inadimplência completo | Endpoint `GET /api/relatorios/inadimplencia` + tela no painel admin com tabela: cliente, parcelas atrasadas, valor em aberto, dias de atraso. Ordenar por maior valor em aberto | 🔴 Alta |
+| Dashboard de clientes | Nova aba "Analytics" no painel admin com: top 5 clientes por valor pago, receita total por mês (gráfico de barras), ticket médio por cliente | 🔴 Alta |
+| Exportar recibos em lote (ZIP) | `POST /api/recibos/exportar-zip` recebe array de IDs, gera PDFs e retorna ZIP. Frontend: checkbox em cada linha do histórico + botão "Exportar selecionados" | 🟡 Média |
+| Notificação de parcelas vencendo | Ao iniciar app, verificar parcelas com `data_vencimento` nos próximos 7 dias. Toast: "X parcela(s) vencem em breve." com link para clientes | 🟡 Média |
+
+### Regras obrigatórias
+- Só mexa em `server.js` e `app.js/index.html` — nunca em autenticação, S3, Google Sheets ou deploy
+- Endpoints novos: sempre com `auth` + role adequado
+- Após terminar: atualizar `docs/changelog.md`
+
+---
+
+## AGENTE 6 — INTEGRAÇÕES / APIs EXTERNAS
+
+### Domínio
+`web/server.js` (rotas de integração) + scripts Python na raiz.
+
+### Tarefas — Rodada 1
+
+| Feature | Descrição | Prioridade |
+|---------|-----------|------------|
+| Email SMTP — aviso de parcela vencendo | Configurar nodemailer com variáveis de ambiente (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`). Endpoint `POST /api/notificacoes/email-inadimplencia` que envia email para o admin com lista de clientes inadimplentes | 🔴 Alta |
+| Email SMTP — recibo por email | Ao gerar recibo, opção de enviar o PDF diretamente por email para o cliente. Campo "Email do cliente" no formulário (opcional). Backend: anexar PDF gerado e enviar | 🟡 Média |
+| Gov.br — melhorias no fluxo | Revisar e documentar o fluxo OAuth2 atual. Garantir que erros de callback são tratados com mensagem clara ao usuário. Adicionar log de tentativas de autenticação | 🟡 Média |
+| WhatsApp Business API | Pesquisar e propor integração: ao gerar recibo ou vencer parcela, enviar mensagem via WhatsApp. Documentar em `docs/architecture.md` qual API usar (Twilio, Z-API, etc.) antes de implementar | 🔵 Baixa |
+
+### Variáveis de ambiente necessárias (adicionar no EB)
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=email@dominio.com
+SMTP_PASS=senha_de_app
+SMTP_FROM=Araujo Prev <email@dominio.com>
+```
+
+### Regras obrigatórias
+- Só mexa em integrações — nunca em lógica de recibos, parcelas, NeDB diretamente ou autenticação JWT
+- Credenciais sempre em variáveis de ambiente — nunca hardcoded
+- Após terminar: atualizar `docs/changelog.md`
+
+---
+
 ## AGENTE 4 — QA (revisor — não implementa)
 
 ### Status atual do projeto
@@ -98,8 +149,8 @@
 
 | Agente | Status | Última ação |
 |--------|--------|-------------|
-| Agente 1 — Backend | ⏳ Rodada 3 em andamento | Ver seção abaixo |
-| Agente 2 — Frontend | ⏳ Rodada 3 em andamento | Ver seção abaixo |
+| Agente 1 — Backend | ✅ Rodada 3 concluída | nome_completo, inadimplência, histórico edições, paginação, ZIP |
+| Agente 2 — Frontend | ✅ Rodada 3 concluída | inadimplência, parcelas vencendo, busca global, atalhos, histórico edições, exportar ZIP, nome_completo |
 | Agente 3 — DevOps | ✅ Rodada 2 concluída | .gitignore, SEC-018 documentado |
 | Agente 4 — QA | ✅ Planejamento rodada 3 | briefing_agentes.md atualizado |
 | **Deploy** | ✅ Em produção | commit `9f17ff8` |
