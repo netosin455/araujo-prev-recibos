@@ -1,6 +1,6 @@
 # Security Report — Araujo Prev Recibos
 
-**Última atualização:** 2026-05-27 — Agente 1 (Backend)
+**Última atualização:** 2026-05-27 — Agente 1 (Backend) — Rodada 2
 **Arquivos analisados:** `web/server.js`, `web/public/app.js`, `web/public/index.html`
 
 ---
@@ -82,8 +82,8 @@
 - **Severidade:** MÉDIA
 - **Descrição:** A coluna de senha na aba `Usuarios` do Sheets armazena o hash bcrypt. Hash não é reversível, mas qualquer pessoa com acesso de leitura à planilha consegue baixar os hashes e tentar ataque de dicionário offline, sem limite de tentativas.
 - **Agente responsável:** Agente 1 — Backend
-- **Correção sugerida:** Remover coluna `password` da sincronização para Sheets. Salvar apenas `id`, `username`, `role`, `escritorio` — dados suficientes para restauração de usuários
-- **Status:** 🟡 Aberto
+- **Correção aplicada:** Coluna `password` removida de `sincronizarUsuariosParaSheets()` — sync escreve apenas `username`, `role`, `escritorio`, `created_at`. `restaurarUsuariosDeSheets()` atualizada para formato de 4 colunas; contas restauradas recebem hash placeholder inutilizável — admin deve redefinir senhas via painel
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 

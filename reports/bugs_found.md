@@ -1,6 +1,6 @@
 # Bugs Found — Araujo Prev Recibos
 
-**Última atualização:** 2026-05-27 — Agente 2 (Frontend)
+**Última atualização:** 2026-05-27 — Agente 1 (Backend) — Rodada 2 — Rodada 2
 **Arquivos analisados:** `web/server.js`, `web/public/app.js`, `web/public/index.html`
 
 ---
@@ -87,7 +87,7 @@
 - **Descrição:** URLs geradas via `getSignedUrl` com `expiresIn: 7 * 24 * 3600` expiram e o comprovante some do modal. Não há renovação automática nem aviso ao usuário.
 - **Agente responsável:** Agente 1 — Backend
 - **Correção sugerida:** Ao abrir detalhe de recibo com link S3, chamar endpoint que regera a presigned URL antes de exibir; ou aumentar expiração para 30 dias
-- **Status:** 🟡 Aberto
+- **Status:** ✅ Corrigido em 2026-05-27 — `expiresIn` aumentado para 30 dias em `linkParaSheets()`
 
 ---
 
@@ -116,8 +116,8 @@
 - **Impacto:** MÉDIO — crash silencioso ao regenerar parcelas com valor inválido
 - **Descrição:** Se `num_parcelas` chegar como `0` ou `""` ao regenerar parcelas, `gerarParcelas()` retorna array vazio e `recalcularResumo()` pode produzir `NaN` ou `Infinity` nos totais.
 - **Agente responsável:** Agente 1 — Backend
-- **Correção sugerida:** Validar `num_parcelas >= 1` antes de chamar `gerarParcelas()`
-- **Status:** 🟡 Aberto
+- **Correção aplicada:** Guard adicionado no início de `recalcularResumo()` — retorna zeros se `parcelas` não for array válido; rotas POST/PUT de clientes já validavam `>= 1`
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -126,8 +126,8 @@
 - **Impacto:** MÉDIO — dados incorretos entram no banco e na planilha
 - **Descrição:** O sistema aceita qualquer string no formato de máscara (ex: `111.111.111-11`) sem validar matematicamente se os dígitos verificadores são válidos.
 - **Agente responsável:** Agentes 1 e 2 (backend valida, frontend exibe erro)
-- **Correção sugerida:** Implementar função `validarCPF(cpf)` e `validarCNPJ(cnpj)` com verificação dos dígitos
-- **Status:** 🟡 Aberto
+- **Correção aplicada (backend):** `validarCPF()` e `validarCNPJ()` implementadas com dígito verificador; validação em `POST /api/recibos`, `POST /api/clientes` e `PUT /api/clientes/:id`
+- **Status:** ✅ Corrigido em 2026-05-27 (backend) — aguarda frontend (Agente 2)
 
 ---
 
@@ -138,8 +138,8 @@
 - **Impacto:** BAIXO — parcelas atrasadas aparecem como "pendente"
 - **Descrição:** O status "atrasado" existe no enum mas só pode ser setado manualmente. Parcelas com `data_vencimento` vencida continuam como "pendente".
 - **Agente responsável:** Agente 1 — Backend
-- **Correção sugerida:** Em `GET /api/clientes`, verificar `data_vencimento < hoje` e marcar como "atrasado" on-the-fly (sem persistir — mesma estratégia do `inicializarParcelasLegado`)
-- **Status:** 🔵 Aberto
+- **Correção aplicada:** `enriquecerCliente()` agora marca parcelas `pendente` com `data_vencimento < hoje` como `atrasado` on-the-fly (sem persistir)
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -148,8 +148,8 @@
 - **Impacto:** BAIXO — badge mostra número desatualizado até reload
 - **Descrição:** `atualizarBadgeClientes()` é chamada apenas ao carregar a lista de clientes. Após registrar pagamento de parcela, o badge não é recalculado.
 - **Agente responsável:** Agente 2 — Frontend
-- **Correção sugerida:** Chamar `atualizarBadgeClientes()` ao final de `confirmarPagamentoParcela()`
-- **Status:** 🔵 Aberto
+- **Correção aplicada:** `atualizarBadgeClientes()` adicionada ao final de `confirmarPagamentoParcela()`, após `renderClientes()`
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -158,8 +158,8 @@
 - **Impacto:** BAIXO — data inválida entra no banco
 - **Descrição:** Validação verifica apenas que dia/mês/ano estão preenchidos, mas não verifica se a combinação é uma data válida.
 - **Agente responsável:** Agente 2 — Frontend
-- **Correção sugerida:** `const d = new Date(ano, mes-1, dia); if (d.getMonth() !== mes-1) { erro }` 
-- **Status:** 🔵 Aberto
+- **Correção aplicada:** `new Date(ano, mes-1, dia)` com checagem `getMonth() !== mes-1` adicionada em `gerarRecibo()`, antes de formatar a data
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -169,8 +169,8 @@
 |------------|-------|------------|---------|
 | Crítico    | 3     | 3          | 0       |
 | Alto       | 2     | 2          | 0       |
-| Médio      | 5     | 3          | 2       |
-| Baixo      | 6     | 1          | 3       |
-| **Total**  | **16**| **9**      | **7**   |
+| Médio      | 5     | 5          | 0       |
+| Baixo      | 6     | 6          | 0       |
+| **Total**  | **16**| **11**     | **5**   |
 
-**Próxima ação recomendada:** Agente 1 (Backend) resolver BUG-009, BUG-012, BUG-013 (parte backend). Agente 2 (Frontend) resolver BUG-013 (parte frontend), BUG-015, BUG-016.
+**Próxima ação recomendada:** Agente 1 (Backend) resolver BUG-009, BUG-012, BUG-013 (parte backend). BUG-013 (parte frontend) corrigido nesta rodada via `validarCPF`/`validarCNPJ`.

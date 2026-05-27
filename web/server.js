@@ -252,7 +252,7 @@ async function linkParaSheets(link) {
 
   try {
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: s3Match[1] });
-    const urlPromise = getSignedUrl(s3SignerClient, cmd, { expiresIn: 7 * 24 * 3600 });
+    const urlPromise = getSignedUrl(s3SignerClient, cmd, { expiresIn: 30 * 24 * 3600 });
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
     return await Promise.race([urlPromise, timeoutPromise]);
   } catch (e) {
@@ -290,11 +290,12 @@ async function sincronizarUsuariosParaSheets() {
   if (!sheets) return;
   try {
     const { rows } = await pgPool.query(
-      "SELECT username, password, role, escritorio, created_at FROM users WHERE username != $1 ORDER BY created_at ASC",
+      "SELECT username, role, escritorio, created_at FROM users WHERE username != $1 ORDER BY created_at ASC",
       [ADMIN_USER]
     );
-    const valores = rows.map(u => [u.username, u.password, u.role, u.escritorio || "", u.created_at]);
-    // Limpa a aba inteira e reescreve do zero
+    // Sem coluna password — hash bcrypt não deve ficar exposto na planilha (SEC-010)
+    const valores = rows.map(u => [u.username, u.role, u.escritorio || "", u.created_at]);
+    // Limpa range antigo (incluindo col E de password residual) e reescreve sem senha
     await sheets.spreadsheets.values.clear({
       spreadsheetId: SHEET_ID,
       range: "Usuarios!A:E",
@@ -327,26 +328,33 @@ async function sincronizarUsuariosParaSheets() {
   }
 }
 
-// Restaura usuários do Sheets para o Neon (chamado quando DB está vazio após reset)
+// Restaura usuários do Sheets para o Neon (chamado quando DB está vazio após reset).
+// Formato atual (SEC-010): 4 colunas — username, role, escritorio, created_at (sem senha).
+// Usuários restaurados recebem hash placeholder inutilizável; admin deve redefinir senhas.
 async function restaurarUsuariosDeSheets() {
   const sheets = getSheetsClient();
   if (!sheets) return 0;
   try {
-    const res = await sheets.spreadsheets.values.get({
+    const sheetRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "Usuarios!A:E",
+      range: "Usuarios!A:D",
     });
-    const linhas = res.data.values || [];
+    const linhas = sheetRes.data.values || [];
     if (linhas.length === 0) return 0;
     let restaurados = 0;
-    for (const [username, passwordHash, role, escritorio, created_at] of linhas) {
-      if (!username || !passwordHash) continue;
+    for (const [username, role, escritorio, created_at] of linhas) {
+      if (!username) continue;
+      // Hash impossível de autenticar — usuário deve ter senha redefinida pelo admin
+      const placeholderHash = bcrypt.hashSync(crypto.randomBytes(32).toString("hex"), 10);
       const result = await pgPool.query(`
         INSERT INTO users (id, username, password, role, escritorio, created_at)
         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5)
         ON CONFLICT (username) DO NOTHING
-      `, [username, passwordHash, role || "financeiro", escritorio || "", created_at || new Date().toISOString()]);
-      if (result.rowCount > 0) restaurados++;
+      `, [username, placeholderHash, role || "financeiro", escritorio || "", created_at || new Date().toISOString()]);
+      if (result.rowCount > 0) {
+        restaurados++;
+        console.warn(`⚠️  Usuário '${username}' restaurado sem senha — admin deve redefinir via painel.`);
+      }
     }
     console.log(`✅ ${restaurados} usuário(s) restaurados do Sheets para o Neon.`);
     return restaurados;
@@ -507,7 +515,7 @@ sincronizarComprovantes();
 // Normaliza nomes e CPFs já existentes no banco
 async function normalizarDados() {
   try {
-    const todos = await find(dbRecibos, {});
+    const todos = await find(dbRecibos, NAO_DELETADO);
     let corrigidos = 0;
     for (const r of todos) {
       const updates = {};
@@ -535,7 +543,7 @@ normalizarDados();
 // Unifica nomes por CPF: todos os recibos do mesmo CPF ficam com o nome do registro mais antigo
 async function unificarNomesPorCPF() {
   try {
-    const todos = await find(dbRecibos, {}, { timestamp: 1 });
+    const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: 1 });
     const nomePorCPF = {};
     // Pega o nome do registro mais antigo de cada CPF
     for (const r of todos) {
@@ -564,7 +572,7 @@ unificarNomesPorCPF();
 // Corrige links de comprovante gerados com URL absoluta errada (ex: http://localhost:8080/api/comprovante/...)
 async function corrigirLinksComprovante() {
   try {
-    const todos = await find(dbRecibos, {});
+    const todos = await find(dbRecibos, NAO_DELETADO);
     let corrigidos = 0;
     for (const r of todos) {
       if (!r.link_comprovante) continue;
@@ -809,6 +817,9 @@ function gerarParcelas(numParcelas, valorContrato) {
 }
 
 function recalcularResumo(parcelas) {
+  if (!Array.isArray(parcelas) || parcelas.length === 0) {
+    return { parcelas_pagas: 0, parcelas_restantes: 0, valor_pago: 0, valor_restante: 0, updated_at: new Date().toISOString() };
+  }
   const pagas     = parcelas.filter(p => p.status === "pago");
   const restantes = parcelas.filter(p => p.status !== "pago");
   return {
@@ -818,6 +829,34 @@ function recalcularResumo(parcelas) {
     valor_restante:     restantes.reduce((s, p) => s + (p.valor || 0), 0),
     updated_at:         new Date().toISOString(),
   };
+}
+
+// Registros não-deletados (soft delete) — usar em todas as queries de listagem
+const NAO_DELETADO = { deletado_em: { $exists: false } };
+
+function validarCPF(cpf) {
+  const d = cpf.replace(/\D/g, "");
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  let s = 0;
+  for (let i = 0; i < 9; i++) s += Number(d[i]) * (10 - i);
+  let r = (s * 10) % 11; if (r >= 10) r = 0;
+  if (r !== Number(d[9])) return false;
+  s = 0;
+  for (let i = 0; i < 10; i++) s += Number(d[i]) * (11 - i);
+  r = (s * 10) % 11; if (r >= 10) r = 0;
+  return r === Number(d[10]);
+}
+
+function validarCNPJ(cnpj) {
+  const d = cnpj.replace(/\D/g, "");
+  if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+  const calc = (n) => {
+    let s = 0, pos = n - 7;
+    for (let i = 0; i < n; i++) { s += Number(d[i]) * pos--; if (pos < 2) pos = 9; }
+    const rem = s % 11;
+    return rem < 2 ? 0 : 11 - rem;
+  };
+  return calc(12) === Number(d[12]) && calc(13) === Number(d[13]);
 }
 
 // Migração on-the-fly: clientes sem campo parcelas recebem array inicializado
@@ -845,7 +884,14 @@ function inicializarParcelasLegado(c) {
 async function enriquecerCliente(c) {
   const cliente = inicializarParcelasLegado(c);
   const valorParcela = cliente.num_parcelas > 0 ? cliente.valor_contrato / cliente.num_parcelas : 0;
-  return { ...cliente, id: cliente._id, valor_parcela: valorParcela };
+  const hoje = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const parcelas = (cliente.parcelas || []).map(p => {
+    if (p.status === "pendente" && p.data_vencimento && p.data_vencimento < hoje) {
+      return { ...p, status: "atrasado" };
+    }
+    return p;
+  });
+  return { ...cliente, parcelas, id: cliente._id, valor_parcela: valorParcela };
 }
 
 // Busca por CPF — deve vir antes de /:id para não colidir
@@ -856,7 +902,7 @@ app.get("/api/clientes/cpf/:cpf", auth, async (req, res) => {
 });
 
 app.get("/api/clientes", auth, async (req, res) => {
-  const clientes = await find(dbClientes, {}, { nome: 1 });
+  const clientes = await find(dbClientes, NAO_DELETADO, { nome: 1 });
   const enriquecidos = await Promise.all(clientes.map(enriquecerCliente));
   res.json(enriquecidos);
 });
@@ -868,6 +914,9 @@ app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
   } = req.body;
   if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
   if (!num_parcelas || Number(num_parcelas) <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
+  const digsCliente = (cpf || "").replace(/\D/g, "");
+  if (digsCliente.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
+  if (digsCliente.length === 14 && !validarCNPJ(cpf)) return res.status(400).json({ erro: "CNPJ inválido." });
 
   // Calcula valor_contrato: prefere o enviado, senão calcula a partir dos benefícios
   const vBeneficio  = Number(valor_beneficio) || 0;
@@ -908,6 +957,9 @@ app.put("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
   } = req.body;
   if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
   if (!num_parcelas || Number(num_parcelas) <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
+  const digsEdit = (cpf || "").replace(/\D/g, "");
+  if (digsEdit.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
+  if (digsEdit.length === 14 && !validarCNPJ(cpf)) return res.status(400).json({ erro: "CNPJ inválido." });
 
   const vBeneficio  = Number(valor_beneficio) || 0;
   const nBeneficios = Number(num_beneficios) || 0;
@@ -958,7 +1010,12 @@ app.put("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
 });
 
 app.delete("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
-  await remove(dbClientes, { _id: req.params.id });
+  const cliente = await findOne(dbClientes, { _id: req.params.id });
+  if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
+  await update(dbClientes, { _id: req.params.id }, {
+    deletado_em: new Date().toISOString(),
+    deletado_por: req.user.username,
+  });
   res.json({ ok: true });
 });
 
@@ -995,7 +1052,7 @@ app.patch("/api/clientes/:id/parcela/:num", auth, financeiroOnly, async (req, re
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────
 app.get("/api/recibos", auth, async (req, res) => {
-  const todos = await find(dbRecibos, {}, { timestamp: -1 });
+  const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: -1 });
   // Recepção vê apenas os recibos do seu escritório
   const recibos = req.user.role === "recepcao" && req.user.escritorio
     ? todos.filter(r => (r.escritorio || "").toUpperCase() === req.user.escritorio.toUpperCase())
@@ -1005,6 +1062,9 @@ app.get("/api/recibos", auth, async (req, res) => {
 
 app.post("/api/recibos", auth, financeiroOnly, async (req, res) => {
   const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
+  const digsCPF = (cpf || "").replace(/\D/g, "");
+  if (digsCPF.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
+  if (digsCPF.length === 14 && !validarCNPJ(cpf)) return res.status(400).json({ erro: "CNPJ inválido." });
   // Se CPF já existe, usa o nome já cadastrado (CPF é identidade única do cliente)
   const existente = await findOne(dbRecibos, { cpf });
   const nome = existente
@@ -1029,7 +1089,12 @@ app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
 });
 
 app.delete("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
-  await remove(dbRecibos, { _id: req.params.id });
+  const recibo = await findOne(dbRecibos, { _id: req.params.id });
+  if (!recibo) return res.status(404).json({ erro: "Recibo não encontrado." });
+  await update(dbRecibos, { _id: req.params.id }, {
+    deletado_em: new Date().toISOString(),
+    deletado_por: req.user.username,
+  });
   res.json({ ok: true });
 });
 
@@ -1262,7 +1327,7 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
 
   try {
     // Lê todos os recibos do banco local, ordenados por timestamp
-    const todos = await find(dbRecibos, {}, { timestamp: 1 });
+    const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: 1 });
     if (todos.length === 0) return res.json({ ok: true, enviados: 0, mensagem: "Nenhum recibo no banco." });
 
     // Lê números de recibo já existentes na planilha (coluna M a partir da linha 4)
@@ -1498,7 +1563,7 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
 
   try {
     // Lê todos os recibos do banco ordenados por timestamp
-    const todos = await find(dbRecibos, {}, { timestamp: 1 });
+    const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: 1 });
     if (todos.length === 0) return res.json({ ok: true, mensagem: "Nenhum recibo no banco." });
 
     const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
@@ -1587,7 +1652,7 @@ app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
 
   try {
     // Lê todos os recibos do banco indexados por num_recibo
-    const todos = await find(dbRecibos, {});
+    const todos = await find(dbRecibos, NAO_DELETADO);
     const dbMap = new Map(todos.map(r => [String(r.num || "").trim(), r]));
 
     // Lê todas as linhas da planilha

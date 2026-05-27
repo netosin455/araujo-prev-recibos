@@ -2,6 +2,37 @@
 
 ---
 
+## [2026-05-27] — Backend: Rodada 2 — bugs, segurança e features (BUG-009, BUG-012, BUG-013, BUG-014, SEC-010, soft delete, CPF/CNPJ)
+
+### Corrigido
+- **BUG-009**: `expiresIn` das presigned URLs S3 aumentado de 7 para 30 dias em `linkParaSheets()`
+- **BUG-012**: Guard adicionado no início de `recalcularResumo()` — retorna zeros se `parcelas` não for array válido
+- **BUG-014**: `enriquecerCliente()` agora marca parcelas `pendente` com `data_vencimento` vencida como `atrasado` on-the-fly
+
+### Segurança
+- **SEC-010**: Coluna `password` removida de `sincronizarUsuariosParaSheets()` — planilha Usuarios passa a ter 4 colunas (username, role, escritorio, created_at). `restaurarUsuariosDeSheets()` adaptada: contas restauradas recebem hash inutilizável com aviso de redefinição
+
+### Adicionado
+- **BUG-013 (backend)**: `validarCPF()` e `validarCNPJ()` com dígito verificador — aplicadas em `POST /api/recibos`, `POST /api/clientes` e `PUT /api/clientes/:id`
+- **Soft delete**: `DELETE /api/recibos/:id` e `DELETE /api/clientes/:id` passam a fazer soft delete com campos `deletado_em` e `deletado_por`; constante `NAO_DELETADO` aplicada em todas as queries de listagem
+- **Status atrasado automático**: implementado em `enriquecerCliente()` junto com BUG-014
+
+---
+
+## [2026-05-27] — Frontend: Rodada 2 — bugs + 4 features novas
+
+### Corrigido
+- **BUG-015**: `atualizarBadgeClientes()` chamada ao final de `confirmarPagamentoParcela()` — badge de inativos atualiza imediatamente após pagamento de parcela
+- **BUG-016**: Validação de data com `new Date(ano, mes-1, dia)` em `gerarRecibo()` — datas inexistentes (ex: 31/02) são rejeitadas antes de submeter
+
+### Adicionado
+- **Preenchimento automático de "Emitido por"**: campo preenchido com o username do usuário logado ao iniciar a sessão, via `GET /api/me` em `carregarReferenciaPadrao()`
+- **Aviso de sessão expirando**: `iniciarAvisoSessao()` decodifica o JWT e exibe toast de aviso 15 minutos antes do `exp` — "Sua sessão expira em 15 min. Salve o trabalho."
+- **Excluir cliente**: botão 🗑 adicionado ao card do cliente (apenas para não-recepcao com cadastro ativo); `excluirCliente()` exibe contagem de parcelas pendentes antes de confirmar exclusão via `DELETE /api/clientes/:id`
+- **Validação de CPF/CNPJ**: `validarCPF()` e `validarCNPJ()` com dígito verificador implementadas; validação aplicada em `gerarRecibo()` e `salvarCliente()` antes de submeter (BUG-013 — parte frontend)
+
+---
+
 ## [2026-05-27] — DevOps: .gitignore atualizado + auditoria de scripts
 
 ### Adicionado
