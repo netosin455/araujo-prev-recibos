@@ -1524,22 +1524,28 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
     const sheetId = sheetMeta.properties.sheetId;
     const totalRows = sheetMeta.properties.gridProperties?.rowCount || 0;
 
-    // 3. Deleta fisicamente todas as linhas a partir da linha 4 (elimina linhas extras do INSERT_ROWS)
-    if (totalRows > 3) {
+    // 3. Deleta fisicamente linhas extras (deixa 1 no fim — Sheets exige ao menos 1 linha não-congelada)
+    if (totalRows > 4) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SHEET_ID,
         requestBody: {
           requests: [{
             deleteDimension: {
-              // endIndex é exclusivo — deleta índices 3..totalRows-1 (linhas 4 até o fim)
-              range: { sheetId, dimension: "ROWS", startIndex: 3, endIndex: totalRows },
+              // endIndex exclusivo: deleta índices 3..(totalRows-2), mantém última linha
+              range: { sheetId, dimension: "ROWS", startIndex: 3, endIndex: totalRows - 1 },
             },
           }],
         },
       });
     }
 
-    // 4. Escreve todos os recibos a partir da linha 4
+    // 4. Limpa valores remanescentes (a linha que sobrou + qualquer resíduo)
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A4:Z`,
+    });
+
+    // 5. Escreve todos os recibos a partir da linha 4 (Sheets expande automaticamente)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A4:O${3 + linhas.length}`,
