@@ -1517,22 +1517,38 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       ];
     });
 
-    // 2. Limpa tudo da linha 4 em diante (só após ter os dados prontos)
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:Z`,
-    });
+    // 2. Descobre quantas linhas existem na aba (para deletar fisicamente as extras)
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "sheets.properties" });
+    const sheetMeta = meta.data.sheets.find(s => s.properties.title === SHEET_NAME);
+    if (!sheetMeta) return res.status(404).json({ erro: `Aba "${SHEET_NAME}" não encontrada.` });
+    const sheetId = sheetMeta.properties.sheetId;
+    const totalRows = sheetMeta.properties.gridProperties.rowCount;
 
-    // 3. Escreve tudo de uma vez a partir da linha 4
-    await sheets.spreadsheets.values.update({
+    // 3. Deleta fisicamente todas as linhas a partir da linha 4 (índice 3) — elimina linhas extras do INSERT_ROWS
+    if (totalRows > 3) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        requestBody: {
+          requests: [{
+            deleteDimension: {
+              range: { sheetId, dimension: "ROWS", startIndex: 3, endIndex: totalRows },
+            },
+          }],
+        },
+      });
+    }
+
+    // 4. Escreve todos os recibos a partir da linha 4 (append cria as linhas necessárias)
+    await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:O${3 + linhas.length}`,
+      range: `${SHEET_NAME}!A4:O`,
       valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
       requestBody: { values: linhas },
     });
 
     console.log(`✅ Planilha reescrita: ${linhas.length} recibo(s) do banco.`);
-    res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco. Datas corrigidas.` });
+    res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco.` });
   } catch (e) {
     console.error("❌ Erro ao reescrever planilha:", e.message);
     res.status(500).json({ erro: "Erro ao reescrever planilha." });
