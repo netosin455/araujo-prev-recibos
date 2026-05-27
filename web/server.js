@@ -1491,37 +1491,31 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       return isNaN(dt.getTime()) ? null : dt;
     }
 
-    // 1. Monta todas as linhas ANTES de limpar (evita deixar planilha vazia se houver timeout)
-    const BATCH = 10;
-    const linhas = [];
-    for (let i = 0; i < todos.length; i += BATCH) {
-      const lote = todos.slice(i, i + BATCH);
-      const linhasLote = await Promise.all(lote.map(async r => {
-        const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
-        const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
-        const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-        const mes = MESES_LOCAL[dt.getMonth()] || "";
-        const dataFmt = dt.toLocaleDateString("pt-BR");
-        return [
-          carimbo,
-          r.nome || "",
-          r.cpf || "",
-          r.valor ? `R$ ${r.valor}` : "",
-          r.data || dataFmt,
-          r.data || dataFmt,
-          r.forma_pagamento || "",
-          r.motivo_pagamento || r.complemento || "Honorários Advocatícios",
-          r.escritorio || "",
-          "",
-          await linkParaSheets(r.link_comprovante || ""),
-          mes,
-          r.num || "",
-          r.emitido_por || "",
-          r.referencia || "",
-        ];
-      }));
-      linhas.push(...linhasLote);
-    }
+    // 1. Monta todas as linhas ANTES de limpar (sem gerar presigned URLs — evita timeout)
+    const linhas = todos.map(r => {
+      const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
+      const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
+      const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      const mes = MESES_LOCAL[dt.getMonth()] || "";
+      const dataFmt = dt.toLocaleDateString("pt-BR");
+      return [
+        carimbo,
+        r.nome || "",
+        r.cpf || "",
+        r.valor ? `R$ ${r.valor}` : "",
+        r.data || dataFmt,
+        r.data || dataFmt,
+        r.forma_pagamento || "",
+        r.motivo_pagamento || r.complemento || "Honorários Advocatícios",
+        r.escritorio || "",
+        "",
+        r.link_comprovante || "",
+        mes,
+        r.num || "",
+        r.emitido_por || "",
+        r.referencia || "",
+      ];
+    });
 
     // 2. Limpa tudo da linha 4 em diante (só após ter os dados prontos)
     await sheets.spreadsheets.values.clear({
