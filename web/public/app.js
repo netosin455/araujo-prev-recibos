@@ -186,7 +186,10 @@ function navegarPara(tela){
   document.getElementById("topbar-title").textContent=titulos[tela]||tela;
   if(tela==="historico") renderHistorico();
   if(tela==="clientes") renderClientes();
-  if(tela==="admin") atualizarDashboard();
+  if(tela==="admin"){
+    atualizarDashboard();
+    if(document.getElementById("admin-financeiro")?.classList.contains("active")){preencherFiltrosAnos();aplicarFiltros();}
+  }
   if(tela==="usuarios") renderUsuarios();
 }
 
@@ -455,6 +458,7 @@ async function gerarRecibo(){
   btn.innerHTML='<i class="bi bi-hourglass-split spin"></i> Gerando...';
   setStatus("Gerando recibo...","loading");
 
+  try {
   // Modo edição
   if(modoEdicao && idEdicao){
     // Upload comprovante se selecionado
@@ -555,7 +559,7 @@ async function gerarRecibo(){
   if (salvarRes) {
     const salvarJson = await salvarRes.json();
     if (salvarJson.sheets_ok === false) {
-      alert("⚠️ Recibo salvo, mas NÃO foi registrado na planilha.\nErro: " + (salvarJson.sheets_erro || "desconhecido"));
+      mostrarToast("Recibo salvo! Aviso: Google Sheets fora de sincronia. Execute 'Reescrever planilha' no painel admin.", null, "error");
     }
   }
 
@@ -575,6 +579,9 @@ async function gerarRecibo(){
     if (parcelasPendentes.length > 0 && confirm(`Deseja marcar a parcela ${parcelasPendentes[0].num} de "${ctx.nome}" como paga com o recibo ${num}?`)) {
       abrirModalPagamentoParcela(ctx.id, parcelasPendentes[0].num, parcelasPendentes[0].valor, num);
     }
+  }
+  } finally {
+    btn.disabled=false; btn.innerHTML=btnTextoOriginal;
   }
 }
 

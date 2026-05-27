@@ -1,6 +1,6 @@
 # Arquitetura — Araujo Prev Recibos
 
-**Última atualização:** 2026-05-25
+**Última atualização:** 2026-05-27
 
 ---
 
@@ -106,6 +106,13 @@ created_at      TEXT NOT NULL
 - Usuários são sincronizados para uma aba do Sheets a cada mudança
 - Se o banco Neon for resetado, `initDb()` detecta banco vazio e restaura usuários do Sheets
 - Se `recibos.db` for apagado, `sincronizarDeSheets()` recria todos os recibos ao iniciar
+
+**Fluxo de reescrita da planilha (`/api/admin/reescrever-planilha`):**
+1. Monta todas as linhas em memória (sem gerar URLs presigned — evita timeout)
+2. Obtém `sheetId` e `rowCount` via `spreadsheets.get`
+3. Deleta fisicamente as linhas extras com `deleteDimension` (mantém 1 não-congelada — exigência do Sheets)
+4. Limpa valores remanescentes com `values.clear`
+5. Escreve todos os recibos com `values.update` a partir de A4
 
 ---
 
