@@ -110,24 +110,29 @@ async function registrarNoSheets(dados) {
   if (!sheets) return false;
   try {
     const agora = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const mes = MESES[agora.getMonth()];
-    const dataFormatada = agora.toLocaleDateString("pt-BR");
     const horaFormatada = agora.toLocaleTimeString("pt-BR");
-    const carimbo = `${dataFormatada} ${horaFormatada}`;
+    const carimbo = `${agora.toLocaleDateString("pt-BR")} ${horaFormatada}`;
+
+    // Usa a data do pagamento informada; cai para hoje se ausente
+    const dataPagamento = dados.data || agora.toLocaleDateString("pt-BR");
+    const [dp, mp] = dataPagamento.split("/");
+    const mesPagamento = (dp && mp && mp.length <= 2)
+      ? MESES[parseInt(mp, 10) - 1] || MESES[agora.getMonth()]
+      : MESES[agora.getMonth()];
 
     const linha = [
       carimbo,                                          // A: Carimbo de data/hora
       dados.nome || "",                                 // B: Nome completo do cliente
       dados.cpf || "",                                  // C: CPF do cliente
       dados.valor ? `R$ ${dados.valor}` : "",            // D: Valor pago
-      dataFormatada,                                    // E: Data do pagamento
-      dataFormatada,                                    // F: Data do depósito
+      dataPagamento,                                    // E: Data do pagamento
+      dataPagamento,                                    // F: Data do depósito
       dados.forma_pagamento || "",                      // G: Forma de pagamento
       dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // H: Motivo de pagamento
       dados.escritorio || "",                           // I: Escritório
       "",                                               // J: Alguma observação (não usado)
       dados.link_comprovante || "",                     // K: Anexo comprovante
-      mes,                                              // L: Mês
+      mesPagamento,                                     // L: Mês
       dados.num_recibo || "",                           // M: Número do recibo
       dados.emitido_por || "",                          // N: Responsável (emitido por)
       dados.referencia || "",                           // O: Referência (gaveta)
@@ -987,7 +992,7 @@ app.post("/api/recibos", auth, async (req, res) => {
     ? existente.nome
     : (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
-  const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
+  const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
   res.json({ id: doc._id, sheets_ok: sheets_result === true, sheets_erro: sheets_result !== true ? sheets_result : null });
 });
 
