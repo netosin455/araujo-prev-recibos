@@ -1425,15 +1425,15 @@ app.get("/api/relatorios/por-escritorio", auth, semRecepcao, async (req, res) =>
     const escritorios = {};
     for (const r of recibos) {
       const esc = (r.escritorio || "").trim() || "(sem escritório)";
-      if (!escritorios[esc]) escritorios[esc] = { escritorio: esc, receita: 0, recibos: 0, clientes: 0 };
+      if (!escritorios[esc]) escritorios[esc] = { escritorio: esc, receita: 0, qtd_recibos: 0, qtd_clientes: 0 };
       const val = parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
-      escritorios[esc].receita  += val;
-      escritorios[esc].recibos  += 1;
+      escritorios[esc].receita      += val;
+      escritorios[esc].qtd_recibos  += 1;
     }
     for (const c of clientes) {
       const esc = (c.escritorio || "").trim() || "(sem escritório)";
-      if (!escritorios[esc]) escritorios[esc] = { escritorio: esc, receita: 0, recibos: 0, clientes: 0 };
-      escritorios[esc].clientes += 1;
+      if (!escritorios[esc]) escritorios[esc] = { escritorio: esc, receita: 0, qtd_recibos: 0, qtd_clientes: 0 };
+      escritorios[esc].qtd_clientes += 1;
     }
     const resultado = Object.values(escritorios)
       .map(e => ({ ...e, receita: Math.round(e.receita * 100) / 100 }))
