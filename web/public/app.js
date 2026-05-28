@@ -73,10 +73,13 @@ let historicoRecibos = [];
 let graficoMensal = null;
 let graficoProjecao = null;
 let graficoAnalyticsMensal = null;
+let graficoResponsavel = null;
+let graficoFormasPag = null;
 let modoEdicao = null;
 const _selecionadosZip = new Set();
 let idEdicao = null;
 let referenciaPadrao = "";
+let _lastReciboGerado = null; // armazena dados do último recibo para envio por e-mail
 let _clienteContexto = null; // cliente ativo ao clicar em "+ Recibo"
 
 // ── SKELETON LOADING ───────────────────────────────────────
@@ -205,9 +208,11 @@ bindStaticHandlers();
 
 // ── CARREGAR RECIBOS ───────────────────────────────────────
 async function carregarRecibos(){
-  const res = await api("GET","/api/recibos");
+  const res = await api("GET","/api/recibos?limit=5000");
   if(!res) return;
-  historicoRecibos = await res.json();
+  const data = await res.json();
+  historicoRecibos = Array.isArray(data) ? data : (data.recibos || []);
+  preencherFiltrosAvancados();
 }
 
 // ── TEMA ───────────────────────────────────────────────────
@@ -266,6 +271,7 @@ function navegarPara(tela){
     if(document.getElementById("admin-inadimplencia")?.classList.contains("active")) carregarInadimplencia();
     if(document.getElementById("admin-projecao")?.classList.contains("active")) carregarProjecao();
     if(document.getElementById("admin-escritorios")?.classList.contains("active")) carregarPorEscritorio();
+    if(document.getElementById("admin-responsaveis")?.classList.contains("active")) carregarPorResponsavel();
   }
   if(tela==="usuarios") renderUsuarios();
 }
@@ -360,6 +366,10 @@ function limparCampos(){
   const btnRef = document.getElementById("btn-ref-padrao-recibo");
   if(btnRef) btnRef.style.display = "none";
   _clienteContexto = null;
+  const emailEl = document.getElementById("email-cliente");
+  if(emailEl) emailEl.value="";
+  const areaEmailClear = document.getElementById("area-enviar-email");
+  if(areaEmailClear) areaEmailClear.style.display="none";
   setStatus("","");
 }
 
@@ -653,9 +663,17 @@ async function gerarRecibo(){
   mostrarToast(`Recibo ${num} gerado! Baixando...`, null, "success");
 
   // Oferece vinculação com parcela se o recibo foi para um cliente cadastrado
+  const emailCliente = (document.getElementById("email-cliente")?.value || "").trim();
+  _lastReciboGerado = { nome: dados.nome, num, valor: dados.valor, data: dados.data, cpf: dados.cpf, emitido_por: dados.emitido_por, email: emailCliente };
   const ctx = _clienteContexto;
   limparCampos();
   btn.disabled=false; btn.innerHTML=btnTextoOriginal;
+  if (emailCliente) {
+    const areaEmail = document.getElementById("area-enviar-email");
+    if (areaEmail) areaEmail.style.display = "";
+    const statusEmail = document.getElementById("email-envio-status");
+    if (statusEmail) statusEmail.textContent = `Enviar para: ${emailCliente}`;
+  }
   if (ctx && ctx.id) {
     const parcelasPendentes = (ctx.parcelas || []).filter(p => p.status !== "pago");
     if (parcelasPendentes.length > 0 && confirm(`Deseja marcar a parcela ${parcelasPendentes[0].num} de "${ctx.nome}" como paga com o recibo ${num}?`)) {
@@ -664,6 +682,37 @@ async function gerarRecibo(){
   }
   } finally {
     btn.disabled=false; btn.innerHTML=btnTextoOriginal;
+  }
+}
+
+async function enviarReciboEmail() {
+  if (!_lastReciboGerado) return;
+  const btn = document.getElementById("btn-enviar-email-recibo");
+  const statusEl = document.getElementById("email-envio-status");
+  const orig = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...'; }
+  try {
+    const res = await api("POST", "/api/notificacoes/enviar-recibo-email", {
+      email: _lastReciboGerado.email,
+      nome: _lastReciboGerado.nome,
+      num: _lastReciboGerado.num,
+      valor: _lastReciboGerado.valor,
+      data: _lastReciboGerado.data
+    });
+    if (!res || res.status === 404) {
+      if (statusEl) statusEl.textContent = "Em breve — envio por e-mail em desenvolvimento.";
+      return;
+    }
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      if (statusEl) statusEl.textContent = j.erro || "Erro ao enviar e-mail.";
+      return;
+    }
+    if (statusEl) { statusEl.style.color = "var(--success)"; statusEl.textContent = "E-mail enviado com sucesso!"; }
+    if (btn) btn.disabled = true;
+  } finally {
+    if (btn && !btn.disabled) { btn.disabled = false; btn.innerHTML = orig; }
+    else if (btn && btn.innerHTML !== orig && btn.disabled) { btn.innerHTML = '<i class="bi bi-envelope-check"></i> Enviado'; }
   }
 }
 
@@ -727,6 +776,13 @@ function renderHistorico(){
   const dataIni=document.getElementById("filtro-data-ini")?.value||"";
   const dataFim=document.getElementById("filtro-data-fim")?.value||"";
   const buscaDigitos=busca.replace(/\D/g,"");
+  const escritorioFiltro=(document.getElementById("filtro-avancado-escritorio")?.value||"");
+  const formaFiltro=(document.getElementById("filtro-avancado-forma")?.value||"");
+  const responsavelFiltro=(document.getElementById("filtro-avancado-responsavel")?.value||"");
+  const minFiltroRaw=(document.getElementById("filtro-avancado-min")?.value||"").trim();
+  const maxFiltroRaw=(document.getElementById("filtro-avancado-max")?.value||"").trim();
+  const minFiltro=minFiltroRaw?valorParaNumero(minFiltroRaw):0;
+  const maxFiltro=maxFiltroRaw?valorParaNumero(maxFiltroRaw):0;
   const lista=historicoRecibos.filter(r=>{
     const nomeOk=(r.nome||"").toLowerCase().includes(busca);
     const cpfOk=buscaDigitos.length>0&&(r.cpf||"").replace(/\D/g,"").includes(buscaDigitos);
@@ -737,6 +793,12 @@ function renderHistorico(){
       if(dataIni&&iso<dataIni) return false;
       if(dataFim&&iso>dataFim) return false;
     }
+    if(escritorioFiltro&&(r.escritorio||"").toUpperCase()!==escritorioFiltro.toUpperCase()) return false;
+    if(formaFiltro&&(r.forma_pagamento||"")!==formaFiltro) return false;
+    if(responsavelFiltro&&(r.emitido_por||"")!==responsavelFiltro) return false;
+    const val=valorParaNumero(r.valor);
+    if(minFiltro>0&&val<minFiltro) return false;
+    if(maxFiltro>0&&val>maxFiltro) return false;
     return true;
   });
   const grid=document.getElementById("historico-grid");
@@ -1031,6 +1093,17 @@ function _btnPagarParcela(cadastroId, p) {
   return `<button class="btn-success btn-sm" data-action="pagar-parcela" data-id="${esc(cadastroId)}" data-num="${p.num}" data-valor="${p.valor}">Registrar Pgto</button>`;
 }
 
+function _btnWhatsApp(telefone, nomeCliente, p) {
+  if (!telefone || p.status === "pago") return "";
+  const fone = telefone.replace(/\D/g, "");
+  if (fone.length < 10) return "";
+  const venc = p.data_vencimento ? ` com vencimento em ${p.data_vencimento}` : "";
+  const valor = `R$ ${parseFloat(p.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  const texto = `Olá ${nomeCliente}, passando para lembrar sobre a parcela ${p.num} no valor de ${valor}${venc}. Em caso de dúvidas, entre em contato conosco. Att, Araujo Prev.`;
+  const url = `https://wa.me/55${fone}?text=${encodeURIComponent(texto)}`;
+  return `<a href="${url}" target="_blank" rel="noopener" class="btn-secondary btn-sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px">💬 WhatsApp</a>`;
+}
+
 function _buildBlocoContrato(cadastro) {
   if (!cadastro || cadastro.num_parcelas <= 0) return "";
   const pct      = Math.min(100, Math.round((cadastro.parcelas_pagas / cadastro.num_parcelas) * 100));
@@ -1110,7 +1183,7 @@ function _buildTabelasParcelamento(cadastro) {
             <td>${p.num}</td>
             <td style="font-weight:600">R$ ${formatarValor(p.valor)}</td>
             <td>${_badgeParcela(p.status)}</td>
-            <td>${_btnPagarParcela(cadastroId, p)}</td>
+            <td style="display:flex;gap:4px;flex-wrap:wrap">${_btnPagarParcela(cadastroId, p)}${_btnWhatsApp(cadastro.telefone, cadastro.nome, p)}</td>
           </tr>`).join("")}
         </tbody>
       </table>
@@ -1203,6 +1276,7 @@ async function renderClientes() {
             <span>·</span><span>Último: ${esc(ultimo.data)}</span>
             ${cadastro && cadastro.firma ? `<span>·</span><span style="color:var(--gold);font-weight:600">${esc(cadastro.firma)}</span>` : ""}
             ${cadastro && cadastro.referencia ? `<span>·</span><span>Ref: ${esc(cadastro.referencia)}</span>` : (ultimo.referencia ? `<span>·</span><span>Ref: ${esc(ultimo.referencia)}</span>` : "")}
+            ${cadastro && cadastro.telefone ? `<span>·</span><span><a href="https://wa.me/55${cadastro.telefone.replace(/\D/g,'')}" target="_blank" rel="noopener" class="wa-link" style="color:var(--success);text-decoration:none" title="Abrir WhatsApp"><i class="bi bi-whatsapp"></i> ${esc(cadastro.telefone)}</a></span>` : ""}
           </div>
           ${blocoContrato}
         </div>
@@ -1232,6 +1306,7 @@ async function renderClientes() {
       </div>`;
 
     card.querySelector(".cliente-header").addEventListener("click", () => toggleCliente(card.querySelector(".cliente-header")));
+    card.querySelectorAll(".wa-link").forEach(a => a.addEventListener("click", e => e.stopPropagation()));
 
     card.addEventListener("click", e => {
       const btn = e.target.closest("[data-action]");
@@ -1391,6 +1466,56 @@ function calcularParcela() {
   }
 }
 
+// ── OBSERVAÇÕES DO CLIENTE ─────────────────────────────────
+function renderObservacoes(obs) {
+  const lista = document.getElementById("cliente-observacoes-lista");
+  if (!lista) return;
+  if (!Array.isArray(obs) || !obs.length) {
+    lista.innerHTML = `<div style="color:var(--muted);font-size:12px;font-style:italic">Nenhuma observação registrada.</div>`;
+    return;
+  }
+  lista.innerHTML = obs.map(o => `
+    <div style="padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:6px">
+      <div style="font-size:12px;color:var(--text)">${esc(o.texto)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">${esc(o.autor||"—")} · ${esc(o.data ? new Date(o.data).toLocaleDateString("pt-BR") : "—")}</div>
+    </div>`).join("");
+}
+
+async function adicionarObservacaoCliente() {
+  const id = document.getElementById("cliente-id").value;
+  if (!id) return;
+  const textoEl = document.getElementById("cliente-obs-texto");
+  const texto = (textoEl?.value || "").trim();
+  if (!texto) return mostrarToast("Digite a observação antes de adicionar.");
+  const btn = document.getElementById("btn-confirmar-obs");
+  const orig = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = "Salvando..."; }
+  try {
+    const res = await api("POST", `/api/clientes/${id}/observacoes`, { texto });
+    if (!res || res.status === 404) {
+      mostrarToast("Em breve — observações em desenvolvimento.");
+      return;
+    }
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      mostrarToast(j.erro || "Erro ao salvar observação.", null, "error");
+      return;
+    }
+    const updated = await res.json();
+    renderObservacoes(updated.observacoes || []);
+    if (textoEl) textoEl.value = "";
+    const addPanel = document.getElementById("cliente-obs-add");
+    if (addPanel) addPanel.style.display = "none";
+    const btnToggle = document.getElementById("btn-toggle-obs");
+    if (btnToggle) btnToggle.innerHTML = '<i class="bi bi-plus-circle"></i> Adicionar observação';
+    // Atualiza listaClientes local
+    const idx = listaClientes.findIndex(x => x.id === id);
+    if (idx >= 0 && updated.observacoes) listaClientes[idx].observacoes = updated.observacoes;
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
 function limparModalCliente() {
   ["cliente-nome","cliente-cpf","cliente-telefone","cliente-endereco","cliente-municipio",
    "cliente-firma","cliente-referencia","cliente-valor-beneficio","cliente-num-beneficios",
@@ -1401,6 +1526,13 @@ function limparModalCliente() {
   document.getElementById("cliente-id").value = "";
   document.getElementById("cliente-parcela-preview").textContent = "";
   if (referenciaPadrao) document.getElementById("cliente-referencia").value = referenciaPadrao;
+  renderObservacoes([]);
+  const obsAdd = document.getElementById("cliente-obs-add");
+  if (obsAdd) obsAdd.style.display = "none";
+  const btnToggleObs = document.getElementById("btn-toggle-obs");
+  if (btnToggleObs) { btnToggleObs.style.display = "none"; btnToggleObs.innerHTML = '<i class="bi bi-plus-circle"></i> Adicionar observação'; }
+  const obsTexto = document.getElementById("cliente-obs-texto");
+  if (obsTexto) obsTexto.value = "";
 }
 
 function abrirModalCliente() {
@@ -1441,6 +1573,9 @@ async function editarCliente(id) {
   document.getElementById("cliente-valor-contrato").value = vf;
   document.getElementById("cliente-num-parcelas").value   = c.num_parcelas || "";
   calcularParcela();
+  renderObservacoes(c.observacoes || []);
+  const btnToggleObs = document.getElementById("btn-toggle-obs");
+  if (btnToggleObs) btnToggleObs.style.display = "";
   document.getElementById("modal-cliente").classList.add("active");
 }
 
@@ -1519,6 +1654,36 @@ function atualizarDashboard(){
   document.getElementById("card-total").textContent=`R$ ${formatarValor(soma(todos))}`;
   document.getElementById("card-total-qtd").textContent=`${todos.length} recibos`;
   document.getElementById("card-ticket").textContent=todos.length?`R$ ${formatarValor(soma(todos)/todos.length)}`:"R$ 0,00";
+  // KPI cards — calculados localmente, enriquecidos pela API se disponível
+  const mesAnt = agora.getMonth()===0 ? "12" : String(agora.getMonth()).padStart(2,"0");
+  const anoAnt = agora.getMonth()===0 ? String(agora.getFullYear()-1) : anoAtual;
+  const doMesAnt = historicoRecibos.filter(r=>r.data?.split("/")[1]===mesAnt&&r.data?.split("/")[2]===anoAnt);
+  const somaAnt = soma(doMesAnt);
+  const somaMes = soma(doMes);
+  const varPct = somaAnt>0 ? ((somaMes-somaAnt)/somaAnt*100) : null;
+  const cardVar = document.getElementById("card-variacao");
+  const cardVarSub = document.getElementById("card-variacao-sub");
+  const kpiCard = document.getElementById("kpi-variacao-card");
+  if (varPct===null) { cardVar.textContent="—"; cardVar.style.color=""; }
+  else {
+    cardVar.textContent=(varPct>=0?"+":"")+varPct.toFixed(1)+"%";
+    cardVar.style.color = varPct>=0 ? "var(--success)" : "var(--error)";
+    if(kpiCard){ kpiCard.style.borderTopColor = varPct>=0 ? "var(--success)" : "var(--error)"; }
+  }
+  if(cardVarSub) cardVarSub.textContent=`vs ${mesAnt}/${anoAnt}`;
+  // inadimplentes e vencendo — de listaClientes (já carregado)
+  const hoje=new Date().toISOString().slice(0,10);
+  const em7=new Date(Date.now()+7*24*60*60*1000).toISOString().slice(0,10);
+  const inadimplentes=listaClientes.filter(c=>Array.isArray(c.parcelas)&&c.parcelas.some(p=>p.status==="atrasado")).length;
+  let vencendo=0;
+  listaClientes.forEach(c=>{(c.parcelas||[]).forEach(p=>{if(p.status!=="pago"&&p.data_vencimento&&p.data_vencimento>=hoje&&p.data_vencimento<=em7)vencendo++;});});
+  document.getElementById("card-inadimplentes").textContent=inadimplentes||"0";
+  document.getElementById("card-parcelas-vencendo").textContent=vencendo||"0";
+  // clientes novos — cpfs que aparecem pela 1ª vez em recibos do mês atual
+  const cpfsMesAtual=new Set(doMes.map(r=>r.cpf||r.nome).filter(Boolean));
+  const cpfsAnteriores=new Set(historicoRecibos.filter(r=>{const p=r.data?.split("/");return p&&!(p[1]===mesAtual&&p[2]===anoAtual);}).map(r=>r.cpf||r.nome).filter(Boolean));
+  const novos=[...cpfsMesAtual].filter(k=>!cpfsAnteriores.has(k)).length;
+  document.getElementById("card-clientes-novos").textContent=novos||"0";
   const mesesLabels=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
   const totaisMes=Array.from({length:12},(_,i)=>{
     const m=String(i+1).padStart(2,"0");
@@ -1538,6 +1703,79 @@ function atualizarDashboard(){
   }
 }
 
+// ── FILTROS AVANÇADOS HISTÓRICO ────────────────────────────
+function preencherFiltrosAvancados() {
+  const escritorios = [...new Set(historicoRecibos.map(r=>(r.escritorio||"").toUpperCase()).filter(Boolean))].sort();
+  const sel1 = document.getElementById("filtro-avancado-escritorio");
+  if (sel1) {
+    const prev = sel1.value;
+    sel1.innerHTML = `<option value="">Todos</option>` + escritorios.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join("");
+    if (escritorios.includes(prev)) sel1.value = prev;
+  }
+  const responsaveis = [...new Set(historicoRecibos.map(r=>r.emitido_por).filter(Boolean))].sort();
+  const sel2 = document.getElementById("filtro-avancado-responsavel");
+  if (sel2) {
+    const prev = sel2.value;
+    sel2.innerHTML = `<option value="">Todos</option>` + responsaveis.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join("");
+    if (responsaveis.includes(prev)) sel2.value = prev;
+  }
+}
+
+function toggleFiltrosAvancados() {
+  const panel = document.getElementById("filtros-avancados");
+  const icon  = document.getElementById("icon-filtros-avancados");
+  if (!panel) return;
+  const open = panel.style.display !== "none";
+  panel.style.display = open ? "none" : "";
+  if (icon) icon.className = open ? "bi bi-chevron-down" : "bi bi-chevron-up";
+  if (!open) preencherFiltrosAvancados();
+}
+
+function limparFiltrosAvancados() {
+  ["filtro-avancado-escritorio","filtro-avancado-forma","filtro-avancado-responsavel"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = "";
+  });
+  ["filtro-avancado-min","filtro-avancado-max"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = "";
+  });
+  renderHistorico();
+}
+
+// ── POR RESPONSÁVEL ────────────────────────────────────────
+async function carregarPorResponsavel() {
+  const status = document.getElementById("responsaveis-status");
+  const wrap   = document.getElementById("responsaveis-wrap");
+  if (!status || !wrap) return;
+  status.style.display = ""; wrap.style.display = "none";
+  status.textContent = "Carregando...";
+  const res = await api("GET", "/api/relatorios/por-responsavel");
+  if (!res || res.status === 404) { status.textContent = "Em breve — relatório por responsável em desenvolvimento."; return; }
+  if (!res.ok) { status.textContent = "Erro ao carregar relatório."; return; }
+  const dados = await res.json();
+  if (!dados.length) { status.textContent = "Nenhum dado encontrado."; return; }
+  const maxReceita = dados.reduce((mx, d) => Math.max(mx, d.receita_total || 0), 0);
+  let totalGeral = 0;
+  document.getElementById("tabela-responsaveis").innerHTML = dados.map((d, i) => {
+    totalGeral += d.receita_total || 0;
+    const pct    = maxReceita > 0 ? Math.round((d.receita_total / maxReceita) * 100) : 0;
+    const ticket = d.ticket_medio || (d.total_recibos > 0 ? (d.receita_total / d.total_recibos) : 0);
+    return `<tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td style="font-weight:600">${esc(d.responsavel || "-")}</td>
+      <td>${d.total_recibos || 0}</td>
+      <td style="color:var(--success);font-weight:700">R$ ${formatarValor(d.receita_total || 0)}</td>
+      <td>R$ ${formatarValor(ticket)}</td>
+      <td style="min-width:120px">
+        <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden" title="${pct}%">
+          <div style="width:${pct}%;background:var(--gold);height:100%;border-radius:4px"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+  document.getElementById("responsaveis-total").textContent = `Total: R$ ${formatarValor(totalGeral)}`;
+  status.style.display = "none"; wrap.style.display = "";
+}
+
 function abrirAdminTab(tab,el){
   document.querySelectorAll(".admin-panel").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".admin-tab").forEach(t=>t.classList.remove("active"));
@@ -1550,6 +1788,7 @@ function abrirAdminTab(tab,el){
   if(tab==="analytics") carregarAnalytics();
   if(tab==="projecao") carregarProjecao();
   if(tab==="escritorios") carregarPorEscritorio();
+  if(tab==="responsaveis") carregarPorResponsavel();
 }
 
 async function carregarInadimplencia() {
@@ -1587,49 +1826,107 @@ async function carregarInadimplencia() {
 }
 
 // ── ANALYTICS ─────────────────────────────────────────────
+const CORES_GRAFICO = [
+  "rgba(184,151,58,0.8)","rgba(61,122,94,0.8)","rgba(139,46,46,0.8)",
+  "rgba(91,136,179,0.8)","rgba(168,98,168,0.8)","rgba(86,175,129,0.8)",
+  "rgba(230,140,60,0.8)","rgba(80,80,180,0.8)","rgba(190,80,110,0.8)",
+];
+
+function _periodoMeses() {
+  const meses = [...new Set(
+    historicoRecibos.map(r => {
+      const p = r.data?.split("/");
+      return p && p.length === 3 ? `${p[2]}-${p[1]}` : null;
+    }).filter(Boolean)
+  )].sort();
+  return meses;
+}
+
 function carregarAnalytics() {
-  const sel = document.getElementById("analytics-ano");
-  if (sel) {
-    const anos = [...new Set(historicoRecibos.map(r => r.data?.split("/")[2]).filter(Boolean))].sort((a, b) => b - a);
-    const anoAtual = String(new Date().getFullYear());
-    if (!anos.includes(anoAtual)) anos.unshift(anoAtual);
-    const prevAno = sel.value;
-    sel.innerHTML = `<option value="">Todos os anos</option>` + anos.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join("");
-    if (prevAno && anos.includes(prevAno)) sel.value = prevAno;
-    else if (anos.includes(anoAtual)) sel.value = anoAtual;
-  }
+  const meses = _periodoMeses();
+  const anoAtual = String(new Date().getFullYear());
+  const mesAtualStr = `${anoAtual}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const primeiroDoAno = `${anoAtual}-01`;
+
+  const populaSel = (id, valorDefault) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">—</option>` + meses.map(m => {
+      const [ano, mes] = m.split("-");
+      const label = `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][+mes-1]}/${ano}`;
+      return `<option value="${m}">${label}</option>`;
+    }).join("");
+    if (prev && meses.includes(prev)) sel.value = prev;
+    else if (meses.includes(valorDefault)) sel.value = valorDefault;
+    else if (meses.length) sel.value = meses[meses.length - 1];
+  };
+
+  populaSel("analytics-de", primeiroDoAno);
+  populaSel("analytics-ate", mesAtualStr);
   _renderAnalytics();
 }
 
-function _renderAnalytics() {
-  const anoFiltro = document.getElementById("analytics-ano")?.value || "";
-  const recibos = anoFiltro
-    ? historicoRecibos.filter(r => r.data?.split("/")[2] === anoFiltro)
-    : historicoRecibos;
-
-  const label = document.getElementById("analytics-ano-label");
-  if (label) label.textContent = recibos.length + " recibo" + (recibos.length !== 1 ? "s" : "");
-
-  // ── Gráfico mensal
-  const mesesLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  const totaisMes = Array.from({ length: 12 }, (_, i) => {
-    const m = String(i + 1).padStart(2, "0");
-    return recibos.filter(r => r.data?.split("/")[1] === m).reduce((s, r) => s + valorParaNumero(r.valor), 0);
+function _filtrarPorPeriodo() {
+  const de  = document.getElementById("analytics-de")?.value  || "";
+  const ate = document.getElementById("analytics-ate")?.value || "";
+  return historicoRecibos.filter(r => {
+    const p = r.data?.split("/");
+    if (!p || p.length < 3) return false;
+    const ym = `${p[2]}-${p[1]}`;
+    if (de  && ym < de)  return false;
+    if (ate && ym > ate) return false;
+    return true;
   });
+}
+
+function _renderAnalytics() {
+  const recibos = _filtrarPorPeriodo();
+  const de  = document.getElementById("analytics-de")?.value  || "";
+  const ate = document.getElementById("analytics-ate")?.value || "";
+
+  const fmtMes = ym => {
+    if (!ym) return "—";
+    const [ano, m] = ym.split("-");
+    return `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][+m-1]}/${ano}`;
+  };
+  const label = document.getElementById("analytics-periodo-label");
+  if (label) label.textContent = `${fmtMes(de)} → ${fmtMes(ate)} · ${recibos.length} recibo${recibos.length !== 1 ? "s" : ""}`;
+
+  // ── Gráfico mensal (período)
+  const mesesDoRange = [];
+  if (de && ate) {
+    let cur = de;
+    while (cur <= ate) {
+      mesesDoRange.push(cur);
+      const [ano, mes] = cur.split("-").map(Number);
+      const next = mes === 12 ? `${ano + 1}-01` : `${ano}-${String(mes + 1).padStart(2, "0")}`;
+      cur = next;
+      if (mesesDoRange.length > 60) break;
+    }
+  } else {
+    const meses = _periodoMeses();
+    mesesDoRange.push(...meses);
+  }
+  const labelsGraf = mesesDoRange.map(ym => {
+    const [ano, m] = ym.split("-");
+    return `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][+m-1]}/${ano.slice(2)}`;
+  });
+  const valoresGraf = mesesDoRange.map(ym => {
+    const [ano, m] = ym.split("-");
+    return recibos.filter(r => {
+      const p = r.data?.split("/");
+      return p && p[2] === ano && p[1] === m;
+    }).reduce((s, r) => s + valorParaNumero(r.valor), 0);
+  });
+
   if (graficoAnalyticsMensal) graficoAnalyticsMensal.destroy();
   const ctx = document.getElementById("grafico-analytics-mensal")?.getContext("2d");
   if (ctx) {
     graficoAnalyticsMensal = new Chart(ctx, {
       type: "bar",
-      data: {
-        labels: mesesLabels,
-        datasets: [{ label: "Receita", data: totaisMes, backgroundColor: "rgba(184,151,58,0.7)", borderColor: "#b8973a", borderWidth: 1, borderRadius: 4 }]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } }
-      }
+      data: { labels: labelsGraf, datasets: [{ label: "Receita", data: valoresGraf, backgroundColor: "rgba(184,151,58,0.7)", borderColor: "#b8973a", borderWidth: 1, borderRadius: 4 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } } }
     });
   }
 
@@ -1647,7 +1944,6 @@ function _renderAnalytics() {
 
   const top5 = ranking.slice(0, 5);
   const maxVal = top5.length ? top5[0].total : 1;
-
   const top5el = document.getElementById("analytics-top5");
   if (top5el) {
     top5el.innerHTML = top5.length ? top5.map((c, i) => `
@@ -1659,9 +1955,9 @@ function _renderAnalytics() {
         <div style="background:var(--border);border-radius:4px;height:7px">
           <div style="background:var(--gold,#b8973a);border-radius:4px;height:7px;width:${Math.round(c.total / maxVal * 100)}%;transition:width 0.4s"></div>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px">${c.qtd} recibo${c.qtd !== 1 ? "s" : ""} · ticket médio R$ ${formatarValor(c.ticket)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">${c.qtd} recibo${c.qtd !== 1 ? "s" : ""} · ticket R$ ${formatarValor(c.ticket)}</div>
       </div>`).join("")
-      : '<p style="color:var(--muted);font-size:13px">Nenhum dado disponível.</p>';
+      : '<p style="color:var(--muted);font-size:13px">Nenhum dado no período.</p>';
   }
 
   const totalGeral = ranking.reduce((s, c) => s + c.total, 0);
@@ -1669,10 +1965,10 @@ function _renderAnalytics() {
   const resumoEl = document.getElementById("analytics-resumo");
   if (resumoEl) {
     resumoEl.innerHTML = [
-      { label: "Clientes distintos", value: ranking.length },
-      { label: "Receita total", value: `R$ ${formatarValor(totalGeral)}` },
-      { label: "Ticket médio global", value: `R$ ${formatarValor(ticketGlobal)}` },
-      { label: "Maior cliente", value: top5.length ? esc(top5[0].nome) : "—" },
+      { label: "Clientes distintos",  value: ranking.length },
+      { label: "Receita total",        value: `R$ ${formatarValor(totalGeral)}` },
+      { label: "Ticket médio global",  value: `R$ ${formatarValor(ticketGlobal)}` },
+      { label: "Maior cliente",        value: top5.length ? esc(top5[0].nome) : "—" },
     ].map(item => `
       <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--muted)">${item.label}</span>
@@ -1685,13 +1981,168 @@ function _renderAnalytics() {
     ticketEl.innerHTML = ranking.length ? ranking.slice(0, 30).map((c, i) => `
       <tr>
         <td style="color:var(--muted);font-weight:600">${i + 1}</td>
-        <td>${esc(c.nome)}</td>
-        <td>${c.qtd}</td>
+        <td>${esc(c.nome)}</td><td>${c.qtd}</td>
         <td style="color:var(--success);font-weight:700">R$ ${formatarValor(c.total)}</td>
         <td style="font-weight:600">R$ ${formatarValor(c.ticket)}</td>
       </tr>`).join("")
       : '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:20px">Nenhum dado.</td></tr>';
   }
+
+  _renderPorResponsavel(recibos);
+  _renderFormasPagamento(recibos);
+}
+
+function _renderPorResponsavel(recibos) {
+  const mapa = {};
+  recibos.forEach(r => {
+    const resp = (r.emitido_por || "").trim() || "(não informado)";
+    if (!mapa[resp]) mapa[resp] = { total: 0, qtd: 0 };
+    mapa[resp].total += valorParaNumero(r.valor);
+    mapa[resp].qtd++;
+  });
+  const dados = Object.entries(mapa)
+    .map(([nome, d]) => ({ nome, total: d.total, qtd: d.qtd, ticket: d.qtd ? d.total / d.qtd : 0 }))
+    .sort((a, b) => b.total - a.total);
+
+  const status = document.getElementById("responsavel-status");
+  if (!dados.length) {
+    if (status) { status.style.display = ""; status.textContent = "Nenhum dado no período."; }
+    if (graficoResponsavel) { graficoResponsavel.destroy(); graficoResponsavel = null; }
+    return;
+  }
+  if (status) status.style.display = "none";
+
+  if (graficoResponsavel) graficoResponsavel.destroy();
+  const ctx = document.getElementById("grafico-responsavel")?.getContext("2d");
+  if (ctx) {
+    graficoResponsavel = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: dados.map(d => d.nome),
+        datasets: [{
+          label: "Receita",
+          data: dados.map(d => d.total),
+          backgroundColor: dados.map((_, i) => CORES_GRAFICO[i % CORES_GRAFICO.length]),
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { x: { ticks: { callback: v => "R$ " + formatarValor(v) } } }
+      }
+    });
+  }
+}
+
+function _renderFormasPagamento(recibos) {
+  const mapa = {};
+  let totalReceita = 0;
+  recibos.forEach(r => {
+    const forma = (r.forma_pagamento || "").trim() || "(não informado)";
+    const val = valorParaNumero(r.valor);
+    if (!mapa[forma]) mapa[forma] = { total: 0, qtd: 0 };
+    mapa[forma].total += val;
+    mapa[forma].qtd++;
+    totalReceita += val;
+  });
+  const dados = Object.entries(mapa)
+    .map(([forma, d]) => ({ forma, total: d.total, qtd: d.qtd, pct: totalReceita ? Math.round(d.total / totalReceita * 1000) / 10 : 0 }))
+    .sort((a, b) => b.total - a.total);
+
+  const status = document.getElementById("formas-pag-status");
+  if (!dados.length) {
+    if (status) { status.style.display = ""; status.textContent = "Nenhum dado no período."; }
+    if (graficoFormasPag) { graficoFormasPag.destroy(); graficoFormasPag = null; }
+    return;
+  }
+  if (status) status.style.display = "none";
+
+  if (graficoFormasPag) graficoFormasPag.destroy();
+  const ctx = document.getElementById("grafico-formas-pag")?.getContext("2d");
+  if (ctx) {
+    graficoFormasPag = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: dados.map(d => d.forma),
+        datasets: [{ data: dados.map(d => d.total), backgroundColor: CORES_GRAFICO.slice(0, dados.length), borderWidth: 2 }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: R$ ${formatarValor(ctx.raw)} (${dados[ctx.dataIndex]?.pct}%)` } }
+        }
+      }
+    });
+  }
+
+  const legenda = document.getElementById("formas-pag-legenda");
+  if (legenda) {
+    legenda.innerHTML = dados.map((d, i) => `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
+        <div style="width:12px;height:12px;border-radius:2px;background:${CORES_GRAFICO[i % CORES_GRAFICO.length]};flex-shrink:0"></div>
+        <span style="flex:1">${esc(d.forma)}</span>
+        <span style="color:var(--success);font-weight:700">R$ ${formatarValor(d.total)}</span>
+        <span style="color:var(--muted)">${d.pct}%</span>
+      </div>`).join("");
+  }
+}
+
+function exportarAnalyticsExcel() {
+  if (typeof XLSX === "undefined") { mostrarToast("Biblioteca XLSX não carregada.", null, "error"); return; }
+  const recibos = _filtrarPorPeriodo();
+  const de  = document.getElementById("analytics-de")?.value  || "todos";
+  const ate = document.getElementById("analytics-ate")?.value || "todos";
+
+  // Aba 1 — Resumo Mensal
+  const mesesDoRange = _periodoMeses().filter(ym => {
+    const d = document.getElementById("analytics-de")?.value  || "";
+    const a = document.getElementById("analytics-ate")?.value || "";
+    return (!d || ym >= d) && (!a || ym <= a);
+  });
+  const resumoMensal = mesesDoRange.map(ym => {
+    const [ano, m] = ym.split("-");
+    const label = `${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][+m-1]}/${ano}`;
+    const sub = recibos.filter(r => { const p = r.data?.split("/"); return p && p[2] === ano && p[1] === m; });
+    const total = sub.reduce((s, r) => s + valorParaNumero(r.valor), 0);
+    return { Período: label, "Qtd Recibos": sub.length, "Receita (R$)": +total.toFixed(2), "Ticket Médio (R$)": sub.length ? +(total / sub.length).toFixed(2) : 0 };
+  });
+
+  // Aba 2 — Top Clientes
+  const porCliente = {};
+  recibos.forEach(r => {
+    if (!r.nome) return;
+    if (!porCliente[r.nome]) porCliente[r.nome] = { total: 0, qtd: 0 };
+    porCliente[r.nome].total += valorParaNumero(r.valor);
+    porCliente[r.nome].qtd++;
+  });
+  const topClientes = Object.entries(porCliente)
+    .map(([nome, d]) => ({ "#": 0, Cliente: nome, "Qtd Recibos": d.qtd, "Total Pago (R$)": +d.total.toFixed(2), "Ticket Médio (R$)": +(d.total / d.qtd).toFixed(2) }))
+    .sort((a, b) => b["Total Pago (R$)"] - a["Total Pago (R$)"])
+    .map((r, i) => ({ ...r, "#": i + 1 }));
+
+  // Aba 3 — Por Responsável
+  const porResp = {};
+  recibos.forEach(r => {
+    const resp = (r.emitido_por || "").trim() || "(não informado)";
+    if (!porResp[resp]) porResp[resp] = { total: 0, qtd: 0 };
+    porResp[resp].total += valorParaNumero(r.valor);
+    porResp[resp].qtd++;
+  });
+  const porResponsavel = Object.entries(porResp)
+    .map(([nome, d]) => ({ Responsável: nome, "Qtd Recibos": d.qtd, "Receita (R$)": +d.total.toFixed(2), "Ticket Médio (R$)": +(d.total / d.qtd).toFixed(2) }))
+    .sort((a, b) => b["Receita (R$)"] - a["Receita (R$)"]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumoMensal),   "Resumo Mensal");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(topClientes),    "Top Clientes");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porResponsavel), "Por Responsável");
+
+  const nomeArq = `analytics_${de}_${ate}.xlsx`.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  XLSX.writeFile(wb, nomeArq);
+  mostrarToast("Excel exportado com sucesso!", null, "success");
 }
 
 async function carregarProjecao() {
@@ -2464,6 +2915,23 @@ function bindStaticHandlers() {
   document.getElementById("btn-limpar-data").addEventListener("click", limparFiltroData);
   document.getElementById("btn-exportar-zip").addEventListener("click", exportarZipSelecionados);
 
+  // Filtros avançados
+  document.getElementById("btn-toggle-filtros-avancados")?.addEventListener("click", toggleFiltrosAvancados);
+  document.getElementById("btn-limpar-filtros-avancados")?.addEventListener("click", limparFiltrosAvancados);
+  document.getElementById("filtro-avancado-escritorio")?.addEventListener("change", renderHistorico);
+  document.getElementById("filtro-avancado-forma")?.addEventListener("change", renderHistorico);
+  document.getElementById("filtro-avancado-responsavel")?.addEventListener("change", renderHistorico);
+  document.getElementById("filtro-avancado-min")?.addEventListener("input", renderHistorico);
+  document.getElementById("filtro-avancado-max")?.addEventListener("input", renderHistorico);
+
+  // Email recibo
+  document.getElementById("btn-enviar-email-recibo")?.addEventListener("click", enviarReciboEmail);
+  document.getElementById("btn-fechar-area-email")?.addEventListener("click", () => {
+    const area = document.getElementById("area-enviar-email");
+    if (area) area.style.display = "none";
+    _lastReciboGerado = null;
+  });
+
   // Clientes
   document.getElementById("busca-clientes").addEventListener("input", renderClientes);
   document.getElementById("btn-cadastrar-cliente").addEventListener("click", () => abrirModalCliente());
@@ -2473,8 +2941,10 @@ function bindStaticHandlers() {
     btn.addEventListener("click", () => abrirAdminTab(btn.dataset.tab, btn));
   });
 
-  // Analytics — filtro de ano
-  document.getElementById("analytics-ano")?.addEventListener("change", _renderAnalytics);
+  // Analytics — filtro de período e exportar
+  document.getElementById("analytics-de")?.addEventListener("change", _renderAnalytics);
+  document.getElementById("analytics-ate")?.addEventListener("change", _renderAnalytics);
+  document.getElementById("btn-exportar-analytics-excel")?.addEventListener("click", exportarAnalyticsExcel);
 
   // Relatórios / exportações
   document.getElementById("btn-aplicar-filtros").addEventListener("click", aplicarFiltros);
@@ -2508,6 +2978,18 @@ function bindStaticHandlers() {
   document.getElementById("cliente-num-parcelas").addEventListener("input", calcularParcela);
   document.getElementById("btn-salvar-cliente").addEventListener("click", salvarCliente);
   document.getElementById("btn-cancelar-modal-cliente").addEventListener("click", () => fecharModal("modal-cliente"));
+
+  // Observações do cliente
+  document.getElementById("btn-toggle-obs")?.addEventListener("click", () => {
+    const addPanel = document.getElementById("cliente-obs-add");
+    const btn      = document.getElementById("btn-toggle-obs");
+    if (!addPanel) return;
+    const open = addPanel.style.display !== "none";
+    addPanel.style.display = open ? "none" : "";
+    if (btn) btn.innerHTML = open ? '<i class="bi bi-plus-circle"></i> Adicionar observação' : '<i class="bi bi-dash-circle"></i> Cancelar';
+    if (!open) document.getElementById("cliente-obs-texto")?.focus();
+  });
+  document.getElementById("btn-confirmar-obs")?.addEventListener("click", adicionarObservacaoCliente);
 
   // Modal pagamento parcela
   document.getElementById("btn-fechar-modal-pagamento").addEventListener("click", () => fecharModal("modal-pagamento-parcela"));

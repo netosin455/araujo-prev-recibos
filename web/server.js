@@ -893,6 +893,15 @@ function validarCNPJ(cnpj) {
   return calc(12) === Number(d[12]) && calc(13) === Number(d[13]);
 }
 
+// Converte "DD/MM/YYYY" → "YYYY-MM" para filtros de mês
+function mesDeData(dataStr) {
+  if (!dataStr) return null;
+  const parts = String(dataStr).split("/");
+  if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, "0")}`;
+  if (/^\d{4}-\d{2}/.test(dataStr)) return dataStr.slice(0, 7);
+  return null;
+}
+
 // Migração on-the-fly: clientes sem campo parcelas recebem array inicializado
 function inicializarParcelasLegado(c) {
   if (c.parcelas && c.parcelas.length > 0) return c;
@@ -939,6 +948,12 @@ app.get("/api/clientes", auth, async (req, res) => {
   const clientes = await find(dbClientes, NAO_DELETADO, { nome: 1 });
   const enriquecidos = await Promise.all(clientes.map(enriquecerCliente));
   res.json(enriquecidos);
+});
+
+app.get("/api/clientes/:id", auth, async (req, res) => {
+  const cliente = await findOne(dbClientes, { _id: req.params.id, ...NAO_DELETADO });
+  if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
+  res.json(await enriquecerCliente(cliente));
 });
 
 app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
@@ -1053,6 +1068,74 @@ app.delete("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── OBSERVAÇÕES DE CLIENTE ─────────────────────────────────
+app.post("/api/clientes/:id/observacoes", auth, financeiroOnly, async (req, res) => {
+  try {
+    const cliente = await findOne(dbClientes, { _id: req.params.id, ...NAO_DELETADO });
+    if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
+    const { texto } = req.body;
+    if (!texto || typeof texto !== "string" || !texto.trim()) {
+      return res.status(400).json({ erro: "Texto da observação é obrigatório." });
+    }
+    if (texto.trim().length > 500) {
+      return res.status(400).json({ erro: "Observação muito longa (máx. 500 caracteres)." });
+    }
+    const novaObs = { texto: texto.trim(), autor: req.user.username, criado_em: new Date().toISOString() };
+    const observacoes = [...(cliente.observacoes || []), novaObs];
+    await update(dbClientes, { _id: req.params.id }, { observacoes });
+    const atualizado = await findOne(dbClientes, { _id: req.params.id });
+    res.json(await enriquecerCliente(atualizado));
+  } catch (e) {
+    console.error("Erro ao salvar observação:", e.message);
+    res.status(500).json({ erro: "Erro ao salvar observação." });
+  }
+});
+
+app.delete("/api/clientes/:id/observacoes/:idx", auth, adminOnly, async (req, res) => {
+  try {
+    const cliente = await findOne(dbClientes, { _id: req.params.id, ...NAO_DELETADO });
+    if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
+    const idx = parseInt(req.params.idx, 10);
+    const observacoes = [...(cliente.observacoes || [])];
+    if (isNaN(idx) || idx < 0 || idx >= observacoes.length) {
+      return res.status(400).json({ erro: "Índice de observação inválido." });
+    }
+    observacoes.splice(idx, 1);
+    await update(dbClientes, { _id: req.params.id }, { observacoes });
+    const atualizado = await findOne(dbClientes, { _id: req.params.id });
+    res.json(await enriquecerCliente(atualizado));
+  } catch (e) {
+    console.error("Erro ao remover observação:", e.message);
+    res.status(500).json({ erro: "Erro ao remover observação." });
+  }
+});
+
+// ── LEMBRETE ENVIADO — PARCELA ─────────────────────────────
+// Registra que um lembrete de cobrança foi enviado ao cliente para a parcela N
+app.post("/api/clientes/:id/parcela/:num/lembrete", auth, financeiroOnly, async (req, res) => {
+  try {
+    const cliente = await findOne(dbClientes, { _id: req.params.id, ...NAO_DELETADO });
+    if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
+    const num = parseInt(req.params.num, 10);
+    if (!num || num < 1) return res.status(400).json({ erro: "Número de parcela inválido." });
+    const parcelasAtual = inicializarParcelasLegado(cliente).parcelas;
+    const parcela = parcelasAtual.find(p => p.num === num);
+    if (!parcela) return res.status(404).json({ erro: "Parcela não encontrada." });
+    const parcelas = parcelasAtual.map(p =>
+      p.num === num
+        ? { ...p, lembrete_enviado_em: new Date().toISOString(), lembrete_enviado_por: req.user.username }
+        : p
+    );
+    const resumo = recalcularResumo(parcelas);
+    await update(dbClientes, { _id: req.params.id }, { parcelas, ...resumo });
+    const atualizado = await findOne(dbClientes, { _id: req.params.id });
+    res.json(await enriquecerCliente(atualizado));
+  } catch (e) {
+    console.error("Erro ao registrar lembrete:", e.message);
+    res.status(500).json({ erro: "Erro ao registrar lembrete." });
+  }
+});
+
 app.patch("/api/clientes/:id/parcela/:num", auth, financeiroOnly, async (req, res) => {
   const cliente = await findOne(dbClientes, { _id: req.params.id });
   if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
@@ -1094,7 +1177,7 @@ app.get("/api/recibos", auth, async (req, res) => {
 
   const total = filtrados.length;
   const page  = Math.max(1, parseInt(req.query.page)  || 1);
-  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+  const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit) || 50));
   const totalPaginas = Math.ceil(total / limit) || 1;
   const recibos = filtrados.slice((page - 1) * limit, page * limit).map(r => ({ ...r, id: r._id }));
   res.json({ recibos, total, pagina: page, totalPaginas });
@@ -1112,6 +1195,7 @@ app.post("/api/recibos", auth, financeiroOnly, async (req, res) => {
     : (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
   const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
+  dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia });
   res.json({ id: doc._id, sheets_ok: sheets_result === true, sheets_erro: sheets_result !== true ? sheets_result : null });
 });
 
@@ -1337,6 +1421,117 @@ app.get("/api/relatorios/por-escritorio", auth, financeiroOnly, async (req, res)
     res.json(resultado);
   } catch (e) {
     console.error("Erro ao gerar relatório por escritório:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar relatório." });
+  }
+});
+
+// ── RESUMO MENSAL COM KPIs COMPARATIVOS ─────────────────────
+app.get("/api/relatorios/resumo-mes", auth, async (req, res) => {
+  try {
+    const hoje = new Date();
+    const mes = req.query.mes || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+
+    const [ano, mNum] = mes.split("-").map(Number);
+    const dataMesAnterior = new Date(ano, mNum - 2, 1);
+    const mesAnterior = `${dataMesAnterior.getFullYear()}-${String(dataMesAnterior.getMonth() + 1).padStart(2, "0")}`;
+
+    const [recibos, clientes] = await Promise.all([
+      find(dbRecibos, NAO_DELETADO),
+      find(dbClientes, NAO_DELETADO),
+    ]);
+
+    const parseValor = (r) => parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
+    const delta = (base, atual) => base === 0 ? null : Math.round(((atual - base) / base) * 1000) / 10;
+
+    const doMes      = recibos.filter(r => mesDeData(r.data) === mes);
+    const doAnterior = recibos.filter(r => mesDeData(r.data) === mesAnterior);
+
+    const receitaMes      = doMes.reduce((s, r) => s + parseValor(r), 0);
+    const receitaAnterior = doAnterior.reduce((s, r) => s + parseValor(r), 0);
+    const ticketMes       = doMes.length ? receitaMes / doMes.length : 0;
+    const ticketAnterior  = doAnterior.length ? receitaAnterior / doAnterior.length : 0;
+    const clientesMes      = clientes.filter(c => c.created_at && c.created_at.slice(0, 7) === mes).length;
+    const clientesAnterior = clientes.filter(c => c.created_at && c.created_at.slice(0, 7) === mesAnterior).length;
+
+    res.json({
+      mes,
+      mes_anterior: mesAnterior,
+      receita_mes:             Math.round(receitaMes * 100) / 100,
+      receita_anterior:        Math.round(receitaAnterior * 100) / 100,
+      delta_receita:           delta(receitaAnterior, receitaMes),
+      recibos_mes:             doMes.length,
+      recibos_anterior:        doAnterior.length,
+      delta_recibos:           delta(doAnterior.length, doMes.length),
+      ticket_medio:            Math.round(ticketMes * 100) / 100,
+      ticket_anterior:         Math.round(ticketAnterior * 100) / 100,
+      delta_ticket:            delta(ticketAnterior, ticketMes),
+      clientes_novos:          clientesMes,
+      clientes_novos_anterior: clientesAnterior,
+      delta_clientes:          delta(clientesAnterior, clientesMes),
+    });
+  } catch (e) {
+    console.error("Erro ao gerar resumo-mes:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar resumo do mês." });
+  }
+});
+
+// ── RECEITA POR RESPONSÁVEL ──────────────────────────────────
+app.get("/api/relatorios/por-responsavel", auth, financeiroOnly, async (req, res) => {
+  try {
+    const recibos = await find(dbRecibos, NAO_DELETADO);
+    const filtrados = req.query.mes
+      ? recibos.filter(r => mesDeData(r.data) === req.query.mes)
+      : recibos;
+    const parseValor = (r) => parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
+    const mapa = {};
+    for (const r of filtrados) {
+      const resp = (r.emitido_por || "").trim() || "(não informado)";
+      if (!mapa[resp]) mapa[resp] = { responsavel: resp, recibos: 0, receita: 0 };
+      mapa[resp].recibos += 1;
+      mapa[resp].receita += parseValor(r);
+    }
+    const resultado = Object.values(mapa)
+      .map(r => ({
+        ...r,
+        receita:      Math.round(r.receita * 100) / 100,
+        ticket_medio: r.recibos ? Math.round((r.receita / r.recibos) * 100) / 100 : 0,
+      }))
+      .sort((a, b) => b.receita - a.receita);
+    res.json(resultado);
+  } catch (e) {
+    console.error("Erro ao gerar relatório por responsável:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar relatório." });
+  }
+});
+
+// ── RECEITA POR FORMA DE PAGAMENTO ──────────────────────────
+app.get("/api/relatorios/formas-pagamento", auth, financeiroOnly, async (req, res) => {
+  try {
+    const recibos = await find(dbRecibos, NAO_DELETADO);
+    const filtrados = req.query.mes
+      ? recibos.filter(r => mesDeData(r.data) === req.query.mes)
+      : recibos;
+    const parseValor = (r) => parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
+    const mapa = {};
+    let totalReceita = 0;
+    for (const r of filtrados) {
+      const forma = (r.forma_pagamento || "").trim() || "(não informado)";
+      if (!mapa[forma]) mapa[forma] = { forma, recibos: 0, receita: 0 };
+      const val = parseValor(r);
+      mapa[forma].recibos += 1;
+      mapa[forma].receita += val;
+      totalReceita += val;
+    }
+    const resultado = Object.values(mapa)
+      .map(f => ({
+        ...f,
+        receita:    Math.round(f.receita * 100) / 100,
+        percentual: totalReceita ? Math.round((f.receita / totalReceita) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.receita - a.receita);
+    res.json(resultado);
+  } catch (e) {
+    console.error("Erro ao gerar relatório de formas de pagamento:", e.message);
     res.status(500).json({ erro: "Erro ao gerar relatório." });
   }
 });
@@ -2295,7 +2490,7 @@ app.get("/api/govbr/callback", async (req, res) => {
         ? "Acesso negado pelo usuário no Gov.br."
         : `Erro retornado pelo Gov.br: ${error}`;
     console.warn(`[${agora}] Gov.br callback — erro retornado pelo provedor: ${mensagem}`);
-    return res.redirect(`/?govbr_erro=${encodeURIComponent(mensagem)}`);
+    return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent(mensagem)}`);
   }
 
   const { rows: stateRows } = await pgPool.query(
@@ -2305,11 +2500,11 @@ app.get("/api/govbr/callback", async (req, res) => {
   const stateData = stateRows[0] ? { recibo_id: stateRows[0].recibo_id, user: stateRows[0].username, expires: new Date(stateRows[0].expira_em).getTime() } : null;
   if (!stateData) {
     console.warn(`[${agora}] Gov.br callback — state desconhecido ou já utilizado: ${state}`);
-    return res.redirect(`/?govbr_erro=${encodeURIComponent("Sessão expirada ou inválida. Inicie o processo novamente.")}`);
+    return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("Sessão expirada ou inválida. Inicie o processo novamente.")}`);
   }
   if (Date.now() > stateData.expires) {
     console.warn(`[${agora}] Gov.br callback — state expirado para usuário ${stateData.user}`);
-    return res.redirect(`/?govbr_erro=${encodeURIComponent("Sessão Gov.br expirada (limite de 10 minutos). Tente novamente.")}`);
+    return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("Sessão Gov.br expirada (limite de 10 minutos). Tente novamente.")}`);
   }
 
   console.log(`[${agora}] Gov.br callback — iniciando troca de code por token para recibo ${stateData.recibo_id} (usuário: ${stateData.user})`);
@@ -2359,7 +2554,7 @@ app.get("/api/govbr/callback", async (req, res) => {
     const msgUsuario = e.message.includes("Token") || e.message.includes("userinfo")
       ? "Falha na comunicação com Gov.br. Tente novamente em instantes."
       : e.message;
-    res.redirect(`/?govbr_erro=${encodeURIComponent(msgUsuario)}`);
+    res.redirect(`/govbr-erro.html?msg=${encodeURIComponent(msgUsuario)}`);
   }
 });
 
@@ -2374,7 +2569,135 @@ app.get("/api/govbr/status/:id", auth, async (req, res) => {
   });
 });
 
+// ── WEBHOOK — RECIBO GERADO ────────────────────────────────
+// Dispara um POST para WEBHOOK_URL (se configurado) a cada recibo salvo.
+// Fire-and-forget: erros são logados mas não bloqueiam a resposta.
+async function dispararWebhook(dadosRecibo) {
+  const url = process.env.WEBHOOK_URL;
+  if (!url) return;
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        evento: "recibo_gerado",
+        recibo: {
+          num:             dadosRecibo.num,
+          nome:            dadosRecibo.nome,
+          cpf:             dadosRecibo.cpf,
+          valor:           dadosRecibo.valor,
+          data:            dadosRecibo.data,
+          forma_pagamento: dadosRecibo.forma_pagamento || "",
+          escritorio:      dadosRecibo.escritorio || "",
+          emitido_por:     dadosRecibo.emitido_por || "",
+          referencia:      dadosRecibo.referencia || "",
+        },
+        timestamp: new Date().toISOString(),
+      }),
+    });
+    console.log(`[${new Date().toISOString()}] Webhook disparado → ${url} (status ${resp.status})`);
+  } catch (e) {
+    console.error(`[${new Date().toISOString()}] ❌ Webhook falhou para ${url}: ${e.message}`);
+  }
+}
+
+// ── LEMBRETE AUTOMÁTICO DE PARCELAS ────────────────────────
+// Executa 30s após startup para não bloquear a inicialização.
+// Envia e-mail ao SMTP_ADMIN com parcelas que vencem nos próximos 3 dias
+// e ainda não tiveram lembrete registrado (lembrete_enviado_em ausente).
+async function verificarEEnviarLembretesParcelasProximas() {
+  if (!smtpConfigurado()) return;
+
+  const adminEmail = process.env.SMTP_ADMIN || process.env.SMTP_USER;
+  if (!adminEmail) return;
+
+  try {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const limite = new Date(hoje);
+    limite.setDate(hoje.getDate() + 3);
+
+    const clientes = await find(dbClientes, NAO_DELETADO);
+    const lembretes = [];
+
+    for (const cliente of clientes) {
+      const parcelasInicializadas = inicializarParcelasLegado(cliente).parcelas;
+      for (const p of parcelasInicializadas) {
+        if (p.status === "pago") continue;
+        if (p.lembrete_enviado_em) continue;
+        if (!p.data_vencimento) continue;
+
+        const [d, m, y] = p.data_vencimento.split("/");
+        const venc = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+        if (venc >= hoje && venc <= limite) {
+          lembretes.push({ cliente, parcela: p, venc });
+        }
+      }
+    }
+
+    if (lembretes.length === 0) {
+      console.log(`[${new Date().toISOString()}] Lembrete automático: nenhuma parcela vencendo nos próximos 3 dias.`);
+      return;
+    }
+
+    const linhas = lembretes.map(l => `
+      <tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">${l.cliente.nome}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${l.parcela.num}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right">R$ ${parseFloat(l.parcela.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${l.parcela.data_vencimento}</td>
+      </tr>`).join("");
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto">
+        <div style="background:#d97706;padding:20px;border-radius:8px 8px 0 0">
+          <h2 style="color:#fff;margin:0">⏰ Araujo Prev — Parcelas Vencendo em Breve</h2>
+          <p style="color:#fde68a;margin:4px 0 0">${new Date().toLocaleDateString("pt-BR")} — próximos 3 dias</p>
+        </div>
+        <div style="background:#f9fafb;padding:20px;border:1px solid #e5e7eb;border-top:none">
+          <p style="margin:0 0 12px"><strong>${lembretes.length}</strong> parcela(s) vencem nos próximos 3 dias:</p>
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb">
+            <thead>
+              <tr style="background:#d97706;color:#fff">
+                <th style="padding:8px 10px;text-align:left">Cliente</th>
+                <th style="padding:8px 10px">Parcela</th>
+                <th style="padding:8px 10px">Valor</th>
+                <th style="padding:8px 10px">Vencimento</th>
+              </tr>
+            </thead>
+            <tbody>${linhas}</tbody>
+          </table>
+        </div>
+        <p style="font-size:11px;color:#9ca3af;text-align:center;margin-top:12px">Enviado automaticamente pelo sistema Araujo Prev</p>
+      </div>`;
+
+    const ok = await enviarEmail({
+      to: adminEmail,
+      subject: `[Araujo Prev] ${lembretes.length} parcela(s) vencem nos próximos 3 dias`,
+      html,
+    });
+
+    if (ok) {
+      // Registra lembrete_enviado_em em cada parcela diretamente no NeDB
+      const agora = new Date().toISOString();
+      for (const l of lembretes) {
+        const parcelasAtualizadas = inicializarParcelasLegado(l.cliente).parcelas.map(p =>
+          p.num === l.parcela.num
+            ? { ...p, lembrete_enviado_em: agora, lembrete_enviado_por: "sistema" }
+            : p
+        );
+        const resumo = recalcularResumo(parcelasAtualizadas);
+        await update(dbClientes, { _id: l.cliente._id }, { parcelas: parcelasAtualizadas, ...resumo });
+      }
+      console.log(`[${agora}] ✅ Lembretes de parcela enviados: ${lembretes.length} parcela(s) — destinatário: ${adminEmail}`);
+    }
+  } catch (e) {
+    console.error(`[${new Date().toISOString()}] ❌ Erro no lembrete automático de parcelas: ${e.message}`);
+  }
+}
+
 // ── INICIAR ────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`✅ Araujo Prev rodando em http://localhost:${PORT}`);
+  setTimeout(verificarEEnviarLembretesParcelasProximas, 30_000);
 });
