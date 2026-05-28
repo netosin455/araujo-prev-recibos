@@ -1493,17 +1493,18 @@ app.get("/api/relatorios/por-responsavel", auth, financeiroOnly, async (req, res
     const mapa = {};
     for (const r of filtrados) {
       const resp = (r.emitido_por || "").trim() || "(não informado)";
-      if (!mapa[resp]) mapa[resp] = { responsavel: resp, recibos: 0, receita: 0 };
-      mapa[resp].recibos += 1;
-      mapa[resp].receita += parseValor(r);
+      if (!mapa[resp]) mapa[resp] = { responsavel: resp, total_recibos: 0, receita_total: 0 };
+      mapa[resp].total_recibos += 1;
+      mapa[resp].receita_total += parseValor(r);
     }
     const resultado = Object.values(mapa)
       .map(r => ({
-        ...r,
-        receita:      Math.round(r.receita * 100) / 100,
-        ticket_medio: r.recibos ? Math.round((r.receita / r.recibos) * 100) / 100 : 0,
+        responsavel:   r.responsavel,
+        total_recibos: r.total_recibos,
+        receita_total: Math.round(r.receita_total * 100) / 100,
+        ticket_medio:  r.total_recibos ? Math.round((r.receita_total / r.total_recibos) * 100) / 100 : 0,
       }))
-      .sort((a, b) => b.receita - a.receita);
+      .sort((a, b) => b.receita_total - a.receita_total);
     res.json(resultado);
   } catch (e) {
     console.error("Erro ao gerar relatório por responsável:", e.message);

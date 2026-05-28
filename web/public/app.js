@@ -270,6 +270,7 @@ function navegarPara(tela){
     atualizarDashboard();
     if(document.getElementById("admin-financeiro")?.classList.contains("active")){preencherFiltrosAnos();aplicarFiltros();}
     if(document.getElementById("admin-inadimplencia")?.classList.contains("active")) carregarInadimplencia();
+    if(document.getElementById("admin-analytics")?.classList.contains("active")) carregarAnalytics();
     if(document.getElementById("admin-projecao")?.classList.contains("active")) carregarProjecao();
     if(document.getElementById("admin-escritorios")?.classList.contains("active")) carregarPorEscritorio();
     if(document.getElementById("admin-responsaveis")?.classList.contains("active")) carregarPorResponsavel();
@@ -1925,15 +1926,17 @@ function _renderAnalytics() {
     }).reduce((s, r) => s + valorParaNumero(r.valor), 0);
   });
 
-  if (graficoAnalyticsMensal) graficoAnalyticsMensal.destroy();
-  const ctx = document.getElementById("grafico-analytics-mensal")?.getContext("2d");
-  if (ctx) {
-    graficoAnalyticsMensal = new Chart(ctx, {
-      type: "bar",
-      data: { labels: labelsGraf, datasets: [{ label: "Receita", data: valoresGraf, backgroundColor: "rgba(184,151,58,0.7)", borderColor: "#b8973a", borderWidth: 1, borderRadius: 4 }] },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } } }
-    });
-  }
+  if (graficoAnalyticsMensal) { try { graficoAnalyticsMensal.destroy(); } catch(e){} graficoAnalyticsMensal = null; }
+  requestAnimationFrame(() => {
+    try {
+      const ctx = document.getElementById("grafico-analytics-mensal")?.getContext("2d");
+      if (ctx) graficoAnalyticsMensal = new Chart(ctx, {
+        type: "bar",
+        data: { labels: labelsGraf, datasets: [{ label: "Receita", data: valoresGraf, backgroundColor: "rgba(184,151,58,0.7)", borderColor: "#b8973a", borderWidth: 1, borderRadius: 4 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } } }
+      });
+    } catch(e) { console.error("Analytics chart error:", e); }
+  });
 
   // ── Ranking por cliente
   const porCliente = {};
@@ -2017,28 +2020,30 @@ function _renderPorResponsavel(recibos) {
   }
   if (status) status.style.display = "none";
 
-  if (graficoResponsavel) graficoResponsavel.destroy();
-  const ctx = document.getElementById("grafico-responsavel")?.getContext("2d");
-  if (ctx) {
-    graficoResponsavel = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: dados.map(d => d.nome),
-        datasets: [{
-          label: "Receita",
-          data: dados.map(d => d.total),
-          backgroundColor: dados.map((_, i) => CORES_GRAFICO[i % CORES_GRAFICO.length]),
-          borderRadius: 4,
-        }]
-      },
-      options: {
-        indexAxis: "y",
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: { x: { ticks: { callback: v => "R$ " + formatarValor(v) } } }
-      }
-    });
-  }
+  if (graficoResponsavel) { try { graficoResponsavel.destroy(); } catch(e){} graficoResponsavel = null; }
+  requestAnimationFrame(() => {
+    try {
+      const ctx = document.getElementById("grafico-responsavel")?.getContext("2d");
+      if (ctx) graficoResponsavel = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: dados.map(d => d.nome),
+          datasets: [{
+            label: "Receita",
+            data: dados.map(d => d.total),
+            backgroundColor: dados.map((_, i) => CORES_GRAFICO[i % CORES_GRAFICO.length]),
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { x: { ticks: { callback: v => "R$ " + formatarValor(v) } } }
+        }
+      });
+    } catch(e) { console.error("Responsavel chart error:", e); }
+  });
 }
 
 function _renderFormasPagamento(recibos) {
@@ -2064,24 +2069,26 @@ function _renderFormasPagamento(recibos) {
   }
   if (status) status.style.display = "none";
 
-  if (graficoFormasPag) graficoFormasPag.destroy();
-  const ctx = document.getElementById("grafico-formas-pag")?.getContext("2d");
-  if (ctx) {
-    graficoFormasPag = new Chart(ctx, {
-      type: "doughnut",
-      data: {
-        labels: dados.map(d => d.forma),
-        datasets: [{ data: dados.map(d => d.total), backgroundColor: CORES_GRAFICO.slice(0, dados.length), borderWidth: 2 }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: R$ ${formatarValor(ctx.raw)} (${dados[ctx.dataIndex]?.pct}%)` } }
+  if (graficoFormasPag) { try { graficoFormasPag.destroy(); } catch(e){} graficoFormasPag = null; }
+  requestAnimationFrame(() => {
+    try {
+      const ctx = document.getElementById("grafico-formas-pag")?.getContext("2d");
+      if (ctx) graficoFormasPag = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: dados.map(d => d.forma),
+          datasets: [{ data: dados.map(d => d.total), backgroundColor: CORES_GRAFICO.slice(0, dados.length), borderWidth: 2 }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.label}: R$ ${formatarValor(ctx.raw)} (${dados[ctx.dataIndex]?.pct}%)` } }
+          }
         }
-      }
-    });
-  }
+      });
+    } catch(e) { console.error("FormasPag chart error:", e); }
+  });
 
   const legenda = document.getElementById("formas-pag-legenda");
   if (legenda) {
