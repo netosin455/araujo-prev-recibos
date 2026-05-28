@@ -11,12 +11,12 @@
 
 | Agente | Status | Última ação |
 |--------|--------|-------------|
-| Agente 1 — Backend | 🆕 Rodada 6 aguardando | cron lembretes, recibos recorrentes, audit log, paginação cursor |
-| Agente 2 — Frontend | 🆕 Rodada 6 aguardando | calendário vencimentos, linha do tempo cliente, pesquisa global, paginação histórico |
+| Agente 1 — Backend | ✅ Rodada 6 concluída | cron node-cron 8h, paginação cursor, recorrente, auditoria, comparativo-anos, DRE |
+| Agente 2 — Frontend | ✅ Rodada 6 concluída | calendário, busca global modal, paginação histórico, recibo recorrente, timeline, auditoria |
 | Agente 3 — DevOps | 🆕 Rodada 6 aguardando | backup S3 automático, node-cron, renovação presigned URLs |
 | Agente 4 — QA | 🆕 Aguardando | Revisar após Rodada 6 |
 | Agente 5 — Analytics | 🆕 Rodada 6 aguardando | gráfico comparativo multi-ano, DRE simplificado, exportar analytics PDF |
-| Agente 6 — Integrações | 🆕 Rodada 6 aguardando | fix email recibo (404), lembrete WhatsApp API, renovar presigned URLs |
+| Agente 6 — Integrações | ✅ Rodada 6 concluída | fix email recibo (aliases frontend), templates HTML, webhook retry 3x backoff exp |
 | **Deploy** | ✅ Em produção | commit `7c64675` — dashboard select ano |
 
 ---

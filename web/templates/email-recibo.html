@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif">
+  <div style="max-width:600px;margin:24px auto">
+    <div style="background:#1E40AF;padding:24px 32px;border-radius:8px 8px 0 0">
+      <h2 style="color:#fff;margin:0;font-size:20px">Recibo de Honorários</h2>
+      <p style="color:#bfdbfe;margin:6px 0 0;font-size:13px">Araujo Prev — A ARAUJO SERVIÇOS LTDA ME</p>
+    </div>
+    <div style="background:#fff;padding:24px 32px;border:1px solid #e5e7eb;border-top:none">
+      <p style="margin:0 0 16px">Olá, <strong>{{nome}}</strong>,</p>
+      <p style="margin:0 0 16px;color:#374151">Segue em anexo o seu recibo de honorários advocatícios.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:8px 0;color:#6b7280;font-size:13px">Recibo Nº</td>
+          <td style="padding:8px 0;font-weight:700;text-align:right">{{num_recibo}}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:8px 0;color:#6b7280;font-size:13px">Valor</td>
+          <td style="padding:8px 0;font-weight:700;text-align:right;color:#16a34a">R$ {{valor}}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;color:#6b7280;font-size:13px">Data</td>
+          <td style="padding:8px 0;font-weight:700;text-align:right">{{data}}</td>
+        </tr>
+      </table>
+      <p style="margin:0 0 8px;color:#374151;font-size:13px">Em caso de dúvidas, entre em contato conosco.</p>
+      <p style="margin:0;color:#374151">Atenciosamente,<br><strong>Araujo Prev</strong></p>
+    </div>
+    <p style="font-size:11px;color:#9ca3af;text-align:center;margin:12px 0">Enviado automaticamente pelo sistema Araujo Prev</p>
+  </div>
+</body>
+</html>

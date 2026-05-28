@@ -2,6 +2,72 @@
 
 ---
 
+## [2026-05-28] — Agente 2 (Frontend): Rodada 6 — Calendário, busca global modal, paginação histórico, recibo recorrente, timeline cliente, auditoria
+
+### Adicionado
+- **Calendário de vencimentos** (`carregarCalendario(ano, mes)`): aba "Calendário" no admin com CSS grid 7 colunas; badge numérico por dia; cores por urgência (atrasado=vermelho, hoje/amanhã=laranja, futuro=verde); clicar no dia lista clientes/parcelas; navegação mês anterior/próximo via `btn-cal-prev`/`btn-cal-next`. Dados locais de `listaClientes`
+- **Pesquisa global modal (Ctrl+K)** (`abrirModalBuscaGlobal`, `renderBuscaModal`): modal flutuante abre com Ctrl+K ou clique no overlay fecha; debounce 200ms; busca local em `historicoRecibos` + `listaClientes` simultaneamente; clicar no resultado navega para a tela e abre detalhe; fechar com Esc
+- **Paginação no histórico**: `_historicoVisiveis = 50` renderizado por vez; botão "Carregar mais (N restantes)" no rodapé; filtros sempre operam sobre todo `historicoRecibos`, paginação só limita o que é renderizado; reset automático ao mudar qualquer filtro
+- **Botão "Recorrente"** (`preencherReciboRecorrente`): em cada card do histórico e no modal de detalhe; calcula mês seguinte, incrementa referência (troca mês/ano por extenso), navega para formulário pré-preenchido para revisão antes de gerar
+- **Linha do tempo do cliente** (`_buildTimeline`): nova aba "Timeline" nos cards de cliente com parcelamento; eventos cronológicos (recibo gerado, parcela paga, observação, lembrete enviado); ícones diferenciados por tipo; ordenado mais recente → mais antigo; dados 100% locais
+- **Tela de Auditoria** (`carregarAuditoria`, `_renderAuditoria`): aba "Auditoria" no admin, visível apenas para `admin` (admin === usuário com acesso a `/api/users`); consome `GET /api/admin/audit-log`; filtros por usuário e ação sem nova chamada de API; "Em breve" se endpoint 404
+
+### Alterado
+- Ctrl+K agora abre modal de busca global em vez de focar o campo lateral
+- `renderHistorico()` aceita parâmetro `maisItens=false` para controle de paginação
+- `abrirAdminTab()` e `navegarPara()` adicionam suporte a tabs `calendario` e `auditoria`
+- `iniciarApp()` exibe aba Auditoria para usuários com acesso admin
+
+---
+
+## [2026-05-28] — Agente 3 (DevOps): Backup diário S3 + renovação semanal de presigned URLs
+
+### Adicionado
+- **`fazerBackupDiario()`**: cron diário às 05:00 UTC (02:00 BRT) que zipa `recibos.db` + `clientes.db` e faz upload para `s3://BUCKET/backups/YYYY-MM-DD_backup_db.zip`. Usa o `archiver` já presente e o `s3Client` existente. Logado em caso de sucesso ou falha.
+- **`renovarPresignedUrlsSheets()`**: cron dominical às 06:00 UTC (03:00 BRT) que percorre toda a coluna K do Google Sheets, detecta links S3 (paths `/api/comprovante-s3/KEY` ou presigned URLs expiradas) e regera URLs de 30 dias com `batchUpdate`. Garante que comprovantes não expirem para quem consulta a planilha.
+- Ambos os crons registrados fora do `app.listen`, seguindo o padrão do cron de lembretes já existente.
+
+---
+
+## [2026-05-28] — Agente 1 (Backend): Rodada 6 — cron, cursor, recorrente, auditoria, analytics
+
+### Corrigido
+- **Lembrete não recorrente**: `setTimeout` de 30s substituído por `node-cron` com expressão `0 8 * * *` (todo dia às 8h, timezone `America/Sao_Paulo`). Startup mantém 30s de delay para verificação imediata no primeiro boot.
+- **Paginação ineficiente em `GET /api/recibos`**: implementado modo cursor (`?cursor=<timestamp>&limit=N`) que usa `findLimited()` com filtro no NeDB. Retorna `{ recibos, nextCursor, hasMore }`. Modo legado `page/limit` mantido para compatibilidade total com frontend e scripts de importação.
+
+### Adicionado
+- **`node-cron ^3.0.0`** adicionado ao `web/package.json`
+- **`POST /api/recibos/:id/recorrente`**: clona recibo existente avançando um mês na data, gera novo `num` sequencial, registra no Sheets e dispara webhook. Body aceita `{ data, referencia }` opcionais para override. Role: `financeiroOnly`.
+- **Middleware de auditoria**: função `registrarAuditoria()` salva em `auditoria.db` (NeDB) a cada ação crítica: criar/editar/excluir recibo, atualizar parcela, excluir cliente, criar/excluir usuário. CPF sempre mascarado via `maskCPF()`.
+- **`GET /api/admin/audit-log`**: retorna até 500 entradas do `auditoria.db`, mais recentes primeiro. Filtros opcionais: `?usuario=&acao=&de=&ate=`. Role: `adminOnly`.
+- **`GET /api/relatorios/comparativo-anos`**: agrupa receita por ano e mês. Retorna array `[{ ano, meses: [{ mes, receita, qtd }] }]`. Role: `semRecepcao`.
+- **`GET /api/relatorios/dre`**: DRE simplificado para o ano (`?ano=`). Retorna `{ ano, meses: [{ mes, receita_bruta, qtd_recibos, ticket_medio, variacao_mom, acumulado }], total_ano }`. Role: `semRecepcao`.
+- **`findLimited()`**: helper NeDB que suporta `.sort().limit()` via cursor nativo, evitando carregar todos os documentos em memória.
+
+---
+
+## [2026-05-28] — Agente 6 (Integrações): Rodada 6 — fix email recibo, templates, retry webhook
+
+### Corrigido
+- **Bug `POST /api/notificacoes/enviar-recibo-email` retornando 404**: endpoint reescrito para aceitar aliases que o frontend envia (`email` em vez de `email_cliente`, `num` em vez de `num_recibo`). Campos `cpf`, `municipio_uf` e `data_extenso` agora opcionais — PDF é gerado sem eles. Campo obrigatório mínimo: `nome` + `valor` + e-mail válido
+
+### Adicionado
+- **Templates HTML de e-mail** em `web/templates/`: `email-recibo.html`, `email-inadimplencia.html`, `email-lembrete.html` — variáveis substituídas via `{{chave}}`; `carregarTemplate(nome, variaveis)` carrega com `fs.readFileSync` e faz replace; fallback para HTML inline se arquivo não for encontrado
+- **Webhook com retry exponencial**: `dispararWebhook()` tenta até 3 vezes com delays de 1s → 4s → 16s (backoff `4^(n-1) * 1000ms`); cada tentativa é logada; falha permanente após 3 tentativas loga erro com número do recibo e URL de destino
+
+---
+
+## [2026-05-28] — Agente 5 (Analytics): Gráfico multi-ano, DRE simplificado, Export Analytics PDF
+
+### Adicionado
+- **Gráfico multi-ano** (`_renderGraficoMultiAno()`): gráfico de linhas sobrepostas com um dataset por ano detectado em `historicoRecibos`. Eixo X: Jan–Dez fixo. Eixo Y: receita. Cada linha tem cor própria (paleta `COR_LINHA`). Legenda abaixo com ano + total do ano. Renderizado ao final de `_renderAnalytics()` — responde ao filtro de período (dados globais, não filtrados, para permitir comparação entre anos)
+- **Aba DRE** (nova aba "DRE" no painel admin): seletor de ano, tabela mensal com Qtd Recibos / Receita Bruta / Acumulado / Ticket Médio, rodapé com total do ano, gráfico de barras mensal e painel "Resumo DRE" com 6 KPIs (receita bruta, recibos, ticket médio, melhor mês, meses ativos, média mensal)
+- **Export DRE PDF** (`exportarDREPDF()`): PDF A4 portrait com cabeçalho institucional, tabela completa via `autoTable` com rodapé em fundo escuro, coluna "Receita Bruta" em verde. Arquivo: `dre_araujo_{ano}.pdf`
+- **Export Analytics PDF** (`exportarAnalyticsPDF()`): PDF A4 landscape com período no cabeçalho, bloco de 4 KPIs (recibos, receita, ticket, clientes), tabela Top 25 Clientes e tabela Por Responsável em duas cores de cabeçalho distintas. Arquivo: `analytics_araujo_{de}_{ate}.pdf`
+- **Botão "PDF"** ao lado do "Excel" na barra do tab Analytics
+
+---
+
 ## [2026-05-28] — Agente 4 (QA): Correções críticas — dashboard, recepção, Google Sheets
 
 ### Corrigido

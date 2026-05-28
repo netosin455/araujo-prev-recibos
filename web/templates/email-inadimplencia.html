@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif">
+  <div style="max-width:700px;margin:24px auto">
+    <div style="background:#1E40AF;padding:24px 32px;border-radius:8px 8px 0 0">
+      <h2 style="color:#fff;margin:0;font-size:20px">Relatório de Inadimplência</h2>
+      <p style="color:#bfdbfe;margin:6px 0 0;font-size:13px">{{data_relatorio}} — Araujo Prev</p>
+    </div>
+    <div style="background:#fff;padding:24px 32px;border:1px solid #e5e7eb;border-top:none">
+      <p style="margin:0 0 16px"><strong>{{total_clientes}}</strong> cliente(s) inadimplente(s) — Total em aberto: <strong style="color:#dc2626">R$ {{total_valor}}</strong></p>
+      {{tabela_clientes}}
+    </div>
+    <p style="font-size:11px;color:#9ca3af;text-align:center;margin:12px 0">Enviado automaticamente pelo sistema Araujo Prev</p>
+  </div>
+</body>
+</html>

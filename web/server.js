@@ -32,6 +32,7 @@ const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const archiver = require("archiver");
 const nodemailer = require("nodemailer");
+const cron = require("node-cron");
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
 const SHEET_ID = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
@@ -284,8 +285,9 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-const dbRecibos  = new Datastore({ filename: path.join(dbDir, "recibos.db"),  autoload: true });
-const dbClientes = new Datastore({ filename: path.join(dbDir, "clientes.db"), autoload: true });
+const dbRecibos   = new Datastore({ filename: path.join(dbDir, "recibos.db"),   autoload: true });
+const dbClientes  = new Datastore({ filename: path.join(dbDir, "clientes.db"),  autoload: true });
+const dbAuditoria = new Datastore({ filename: path.join(dbDir, "auditoria.db"), autoload: true });
 
 // Admin padrão via variáveis de ambiente
 const ADMIN_USER = process.env.ADMIN_USER;
@@ -717,6 +719,37 @@ function count(db, query) {
   return new Promise((res, rej) => db.count(query, (err, n) => err ? rej(err) : res(n)));
 }
 
+function findLimited(db, query, sort, limitN) {
+  return new Promise((res, rej) => {
+    let cursor = db.find(query);
+    if (sort) cursor = cursor.sort(sort);
+    if (limitN) cursor = cursor.limit(limitN);
+    cursor.exec((err, docs) => err ? rej(err) : res(docs));
+  });
+}
+
+function maskCPF(cpf) {
+  const d = (cpf || "").replace(/\D/g, "");
+  if (d.length === 11) return `***.${d.slice(3, 6)}.***-**`;
+  if (d.length === 14) return `**.***.***/****-**`;
+  return "***";
+}
+
+async function registrarAuditoria(req, acao, entidade_id, dados) {
+  try {
+    await insert(dbAuditoria, {
+      ts: new Date().toISOString(),
+      usuario: req.user?.username || "sistema",
+      role: req.user?.role || "",
+      acao,
+      entidade_id: entidade_id || "",
+      dados: dados || {},
+    });
+  } catch (e) {
+    console.error(`❌ Auditoria falhou (${acao}):`, e.message);
+  }
+}
+
 // ── ROTAS AUTH ─────────────────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -1080,6 +1113,7 @@ app.delete("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
     deletado_em: new Date().toISOString(),
     deletado_por: req.user.username,
   });
+  registrarAuditoria(req, "excluir_cliente", req.params.id, { nome: cliente.nome, cpf: maskCPF(cliente.cpf) });
   res.json({ ok: true });
 });
 
@@ -1178,18 +1212,39 @@ app.patch("/api/clientes/:id/parcela/:num", auth, financeiroOnly, async (req, re
   );
   const resumo = recalcularResumo(parcelas);
   await update(dbClientes, { _id: req.params.id }, { parcelas, ...resumo });
+  if (status !== undefined) {
+    registrarAuditoria(req, "atualizar_parcela", req.params.id, { num_parcela: num, status_novo: status });
+  }
   const salvo = await findOne(dbClientes, { _id: req.params.id });
   res.json(await enriquecerCliente(salvo));
 });
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────
 app.get("/api/recibos", auth, async (req, res) => {
+  const isRecepcao = req.user.role === "recepcao" && req.user.escritorio;
+
+  // Modo cursor: ?cursor=<timestamp> retorna próxima página sem carregar tudo em memória
+  if (req.query.cursor !== undefined) {
+    const cursorTs = req.query.cursor ? Number(req.query.cursor) : undefined;
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+    const query = { ...NAO_DELETADO };
+    if (cursorTs) query.timestamp = { $lt: cursorTs };
+    if (isRecepcao) {
+      const escEsc = req.user.escritorio.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      query.escritorio = { $regex: new RegExp("^" + escEsc + "$", "i") };
+    }
+    const docs = await findLimited(dbRecibos, query, { timestamp: -1 }, limit + 1);
+    const hasMore = docs.length > limit;
+    const recibos = docs.slice(0, limit).map(r => ({ ...r, id: r._id }));
+    const nextCursor = hasMore && recibos.length > 0 ? String(recibos[recibos.length - 1].timestamp) : null;
+    return res.json({ recibos, nextCursor, hasMore });
+  }
+
+  // Modo legado page/limit — mantém compatibilidade com scripts de importação e frontend atual
   const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: -1 });
-  // Recepção vê apenas os recibos do seu escritório
-  const filtrados = req.user.role === "recepcao" && req.user.escritorio
+  const filtrados = isRecepcao
     ? todos.filter(r => (r.escritorio || "").toUpperCase() === req.user.escritorio.toUpperCase())
     : todos;
-
   const total = filtrados.length;
   const page  = Math.max(1, parseInt(req.query.page)  || 1);
   const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit) || 50));
@@ -1214,6 +1269,7 @@ app.post("/api/recibos", auth, async (req, res) => {
     ? existente.nome
     : (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
   const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio, motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
+  registrarAuditoria(req, "criar_recibo", doc._id, { num, nome, escritorio, valor, cpf: maskCPF(cpf) });
   const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
   dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia });
   res.json({ id: doc._id, sheets_ok: sheets_result === true, sheets_erro: sheets_result !== true ? sheets_result : null });
@@ -1236,7 +1292,7 @@ app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
   }
 
   await update(dbRecibos, { _id: req.params.id }, { ...upd, historico_edicoes });
-  // Atualiza também na planilha
+  registrarAuditoria(req, "editar_recibo", req.params.id, { campos_alterados: campos_alterados.map(c => c.campo) });
   const recibo = await findOne(dbRecibos, { _id: req.params.id });
   if (recibo && recibo.num) {
     atualizarNoSheets(recibo.num, recibo);
@@ -1251,7 +1307,64 @@ app.delete("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
     deletado_em: new Date().toISOString(),
     deletado_por: req.user.username,
   });
+  registrarAuditoria(req, "excluir_recibo", req.params.id, { num: recibo.num, nome: recibo.nome });
   res.json({ ok: true });
+});
+
+// ── RECIBO RECORRENTE — clona pro mês seguinte ──────────────
+app.post("/api/recibos/:id/recorrente", auth, financeiroOnly, async (req, res) => {
+  try {
+    const original = await findOne(dbRecibos, { _id: req.params.id, ...NAO_DELETADO });
+    if (!original) return res.status(404).json({ erro: "Recibo não encontrado." });
+
+    // Avança um mês na data (DD/MM/YYYY)
+    const [dd, mm, yyyy] = (original.data || "").split("/");
+    let newMes = parseInt(mm, 10) + 1;
+    let newAno = parseInt(yyyy, 10);
+    if (newMes > 12) { newMes = 1; newAno++; }
+    const defaultData = `${(dd || "01").padStart(2, "0")}/${String(newMes).padStart(2, "0")}/${newAno}`;
+    const newData = req.body.data || defaultData;
+    const newReferencia = req.body.referencia !== undefined ? req.body.referencia : (original.referencia || "");
+
+    // Próximo número no ano da nova data
+    const anoNum = (newData.split("/")[2]) || String(new Date().getFullYear());
+    const todos = await find(dbRecibos, {});
+    let maior = 0;
+    for (const r of todos) {
+      const match = (r.num || "").match(/^(\d+)\/(\d{4})$/);
+      if (match && match[2] === anoNum) {
+        const seq = parseInt(match[1], 10);
+        if (seq > maior) maior = seq;
+      }
+    }
+    const newNum = `${String(maior + 1).padStart(4, "0")}/${anoNum}`;
+
+    const novoRecibo = {
+      num: newNum,
+      nome: original.nome,
+      cpf: original.cpf,
+      municipio_uf: original.municipio_uf || "",
+      valor: original.valor,
+      data: newData,
+      emitido_por: original.emitido_por || "",
+      complemento: original.complemento || "",
+      referencia: newReferencia,
+      forma_pagamento: original.forma_pagamento || "",
+      escritorio: original.escritorio || "",
+      motivo_pagamento: original.motivo_pagamento || "",
+      link_comprovante: "",
+      timestamp: Date.now(),
+    };
+
+    const doc = await insert(dbRecibos, novoRecibo);
+    registrarAuditoria(req, "criar_recibo_recorrente", doc._id, { num: newNum, origem_num: original.num });
+    const sheetsResult = await registrarNoSheets({ ...novoRecibo, num_recibo: newNum });
+    dispararWebhook(novoRecibo);
+    res.json({ id: doc._id, num: newNum, data: newData, sheets_ok: sheetsResult === true });
+  } catch (e) {
+    console.error("Erro ao criar recibo recorrente:", e.message);
+    res.status(500).json({ erro: "Erro ao criar recibo recorrente." });
+  }
 });
 
 app.get("/api/proximo-num", auth, async (req, res) => {
@@ -1557,6 +1670,80 @@ app.get("/api/relatorios/formas-pagamento", auth, semRecepcao, async (req, res) 
   }
 });
 
+// ── COMPARATIVO DE ANOS ─────────────────────────────────────
+app.get("/api/relatorios/comparativo-anos", auth, semRecepcao, async (req, res) => {
+  try {
+    const recibos = await find(dbRecibos, NAO_DELETADO);
+    const parseValor = (r) => parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
+    const mapa = {};
+    for (const r of recibos) {
+      const mesAno = mesDeData(r.data);
+      if (!mesAno) continue;
+      const [ano, mes] = mesAno.split("-").map(Number);
+      if (!mapa[ano]) mapa[ano] = {};
+      if (!mapa[ano][mes]) mapa[ano][mes] = { receita: 0, qtd: 0 };
+      mapa[ano][mes].receita += parseValor(r);
+      mapa[ano][mes].qtd += 1;
+    }
+    const resultado = Object.entries(mapa)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([ano, mesesObj]) => ({
+        ano: Number(ano),
+        meses: Array.from({ length: 12 }, (_, i) => ({
+          mes: i + 1,
+          receita: Math.round((mesesObj[i + 1]?.receita || 0) * 100) / 100,
+          qtd: mesesObj[i + 1]?.qtd || 0,
+        })),
+      }));
+    res.json(resultado);
+  } catch (e) {
+    console.error("Erro ao gerar comparativo-anos:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar comparativo de anos." });
+  }
+});
+
+// ── DRE SIMPLIFICADO ─────────────────────────────────────────
+app.get("/api/relatorios/dre", auth, semRecepcao, async (req, res) => {
+  try {
+    const ano = parseInt(req.query.ano || new Date().getFullYear(), 10);
+    const recibos = await find(dbRecibos, NAO_DELETADO);
+    const parseValor = (r) => parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
+    const MESES_NOME = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+    const porMes = Array.from({ length: 12 }, () => ({ receita: 0, qtd: 0 }));
+    for (const r of recibos) {
+      const mesAno = mesDeData(r.data);
+      if (!mesAno) continue;
+      const [anoR, mesR] = mesAno.split("-").map(Number);
+      if (anoR !== ano) continue;
+      porMes[mesR - 1].receita += parseValor(r);
+      porMes[mesR - 1].qtd += 1;
+    }
+    let acumulado = 0;
+    const meses = porMes.map((m, i) => {
+      const receitaBruta = Math.round(m.receita * 100) / 100;
+      const ticketMedio  = m.qtd ? Math.round((m.receita / m.qtd) * 100) / 100 : 0;
+      const anterior     = i > 0 ? porMes[i - 1].receita : null;
+      const variacaoMom  = anterior !== null && anterior > 0
+        ? Math.round(((m.receita - anterior) / anterior) * 1000) / 10
+        : null;
+      acumulado += m.receita;
+      return {
+        mes: MESES_NOME[i],
+        mes_num: i + 1,
+        receita_bruta: receitaBruta,
+        qtd_recibos: m.qtd,
+        ticket_medio: ticketMedio,
+        variacao_mom: variacaoMom,
+        acumulado: Math.round(acumulado * 100) / 100,
+      };
+    });
+    res.json({ ano, meses, total_ano: Math.round(acumulado * 100) / 100 });
+  } catch (e) {
+    console.error("Erro ao gerar DRE:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar DRE." });
+  }
+});
+
 // ── BACKUP DO BANCO DE DADOS ────────────────────────────────
 app.get("/api/admin/backup-db", auth, adminOnly, async (req, res) => {
   try {
@@ -1578,6 +1765,26 @@ app.get("/api/admin/backup-db", auth, adminOnly, async (req, res) => {
   } catch (e) {
     console.error("Erro ao gerar backup:", e.message);
     if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar backup." });
+  }
+});
+
+// ── LOG DE AUDITORIA ────────────────────────────────────────
+app.get("/api/admin/audit-log", auth, adminOnly, async (req, res) => {
+  try {
+    const { usuario, acao, de, ate } = req.query;
+    const query = {};
+    if (usuario) query.usuario = usuario;
+    if (acao) query.acao = acao;
+    if (de || ate) {
+      query.ts = {};
+      if (de) query.ts.$gte = new Date(de).toISOString();
+      if (ate) query.ts.$lte = new Date(ate + "T23:59:59").toISOString();
+    }
+    const logs = await find(dbAuditoria, query, { ts: -1 });
+    res.json(logs.slice(0, 500));
+  } catch (e) {
+    console.error("Erro ao buscar audit-log:", e.message);
+    res.status(500).json({ erro: "Erro ao buscar log de auditoria." });
   }
 });
 
@@ -1749,6 +1956,7 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
       "INSERT INTO users (id, username, password, role, escritorio, created_at) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5) RETURNING id",
       [username, hash, role || "financeiro", escritorio || "", new Date().toISOString()]
     );
+    registrarAuditoria(req, "criar_usuario", rows[0].id, { username, role: role || "financeiro" });
     sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
     res.json({ id: rows[0].id, username });
   } catch (e) {
@@ -1783,6 +1991,7 @@ app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
   if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
   if (rows[0].username === ADMIN_USER) return res.status(400).json({ erro: "Não é possível remover o admin." });
   await pgPool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+  registrarAuditoria(req, "excluir_usuario", req.params.id, { username: rows[0].username });
   sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
   res.json({ ok: true });
 });
@@ -2279,6 +2488,21 @@ async function enviarEmail({ to, subject, html, attachments = [] }) {
   }
 }
 
+// Carrega template HTML de web/templates/ e substitui variáveis {{chave}} pelos valores.
+function carregarTemplate(nome, variaveis = {}) {
+  try {
+    const templatePath = path.join(__dirname, "templates", nome);
+    let html = fs.readFileSync(templatePath, "utf8");
+    for (const [chave, valor] of Object.entries(variaveis)) {
+      html = html.replaceAll(`{{${chave}}}`, valor ?? "");
+    }
+    return html;
+  } catch (e) {
+    console.error(`❌ Erro ao carregar template ${nome}: ${e.message}`);
+    return null;
+  }
+}
+
 // POST /api/notificacoes/email-inadimplencia
 // Envia e-mail ao admin com lista de clientes inadimplentes.
 // Requer role admin ou financeiro.
@@ -2333,37 +2557,31 @@ app.post("/api/notificacoes/email-inadimplencia", auth, financeiroOnly, async (r
     const totalValor = inadimplentes.reduce((acc, c) => acc + parseFloat(c.valorAberto), 0);
     const dataRelatorio = hoje.toLocaleDateString("pt-BR");
 
-    const linhasTabela = inadimplentes.map(c => `
-      <tr>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">${c.nome}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${c.parcelasAtrasadas}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right">R$ ${parseFloat(c.valorAberto).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${c.diasAtraso} dias</td>
-      </tr>`).join("");
+    const linhasTabela = inadimplentes.length === 0
+      ? `<p style="color:#16a34a">Nenhum cliente inadimplente no momento. ✅</p>`
+      : `<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb">
+          <thead><tr style="background:#1E40AF;color:#fff">
+            <th style="padding:8px 10px;text-align:left">Cliente</th>
+            <th style="padding:8px 10px">Parcelas</th>
+            <th style="padding:8px 10px">Valor Aberto</th>
+            <th style="padding:8px 10px">Atraso</th>
+          </tr></thead>
+          <tbody>${inadimplentes.map(c => `
+            <tr>
+              <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">${c.nome}</td>
+              <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${c.parcelasAtrasadas}</td>
+              <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right">R$ ${parseFloat(c.valorAberto).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+              <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${c.diasAtraso} dias</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>`;
 
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto">
-        <div style="background:#1E40AF;padding:20px;border-radius:8px 8px 0 0">
-          <h2 style="color:#fff;margin:0">Araujo Prev — Relatório de Inadimplência</h2>
-          <p style="color:#bfdbfe;margin:4px 0 0">${dataRelatorio}</p>
-        </div>
-        <div style="background:#f9fafb;padding:20px;border:1px solid #e5e7eb;border-top:none">
-          <p style="margin:0 0 12px"><strong>${inadimplentes.length}</strong> cliente(s) inadimplente(s) — Total em aberto: <strong>R$ ${totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></p>
-          ${inadimplentes.length === 0 ? "<p style='color:#16a34a'>Nenhum cliente inadimplente no momento. ✅</p>" : `
-          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb">
-            <thead>
-              <tr style="background:#1E40AF;color:#fff">
-                <th style="padding:8px 10px;text-align:left">Cliente</th>
-                <th style="padding:8px 10px">Parcelas</th>
-                <th style="padding:8px 10px">Valor Aberto</th>
-                <th style="padding:8px 10px">Atraso</th>
-              </tr>
-            </thead>
-            <tbody>${linhasTabela}</tbody>
-          </table>`}
-        </div>
-        <p style="font-size:11px;color:#9ca3af;text-align:center;margin-top:12px">Enviado automaticamente pelo sistema Araujo Prev</p>
-      </div>`;
+    const html = carregarTemplate("email-inadimplencia.html", {
+      data_relatorio: dataRelatorio,
+      total_clientes: inadimplentes.length,
+      total_valor: totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }),
+      tabela_clientes: linhasTabela,
+    }) || `<p>Inadimplência ${dataRelatorio}: ${inadimplentes.length} cliente(s) — R$ ${totalValor.toFixed(2)}</p>`;
 
     const ok = await enviarEmail({
       to: adminEmail,
@@ -2383,28 +2601,34 @@ app.post("/api/notificacoes/email-inadimplencia", auth, financeiroOnly, async (r
 
 // POST /api/notificacoes/enviar-recibo-email
 // Gera PDF do recibo em memória e envia como anexo para o e-mail do cliente.
-// Body: mesmos campos de /api/gerar-recibo + { email_cliente, num_recibo }
+// Aceita email_cliente OU email (alias usado pelo frontend); num_recibo OU num (alias).
+// CPF, municipio_uf e data_extenso são opcionais — o PDF é gerado sem eles se ausentes.
 app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (req, res) => {
   if (!smtpConfigurado()) {
     return res.status(503).json({ erro: "Integração de e-mail não configurada. Defina SMTP_HOST, SMTP_USER e SMTP_PASS no painel do EB." });
   }
 
-  const { email_cliente, ...dados } = req.body;
-  if (!email_cliente || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_cliente)) {
-    return res.status(400).json({ erro: "E-mail do cliente inválido." });
+  const body = req.body;
+  // Aceita aliases usados pelo frontend (email → email_cliente, num → num_recibo)
+  const emailDest = body.email_cliente || body.email || "";
+  const numRecibo = body.num_recibo || body.num || "";
+  const { nome, cpf = "", valor, data, emitido_por, complemento, referencia, municipio_uf = "", data_extenso = "" } = body;
+
+  if (!emailDest || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailDest)) {
+    return res.status(400).json({ erro: "E-mail do destinatário inválido ou não informado." });
   }
-  if (!dados.nome || !dados.cpf || !dados.valor) {
-    return res.status(400).json({ erro: "Campos obrigatórios ausentes: nome, cpf, valor." });
+  if (!nome || !valor) {
+    return res.status(400).json({ erro: "Campos obrigatórios ausentes: nome, valor." });
   }
 
   try {
-    const digits = (dados.cpf || "").replace(/\D/g, "");
+    const digits = cpf.replace(/\D/g, "");
     const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
-    const complemento = dados.complemento ? ` - ${dados.complemento}` : "";
+    const textoComplemento = complemento ? ` - ${complemento}` : "";
     const logoPath = path.join(__dirname, "public", "logo.png");
     const logoExists = fs.existsSync(logoPath);
 
-    const textoCorpo = `Recebemos do (a) senhor (a) ${dados.nome}, residente e domiciliado(a) no Município de ${dados.municipio_uf || ""}, a importância de R$ ${dados.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${complemento}.`;
+    const textoCorpo = `Recebemos do (a) senhor (a) ${nome}${municipio_uf ? `, residente e domiciliado(a) no Município de ${municipio_uf}` : ""}, a importância de R$ ${valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${textoComplemento}.`;
 
     const chunks = [];
     const pdf = new PDFDocument({ margin: 60, size: "A4" });
@@ -2413,69 +2637,57 @@ app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (r
       pdf.on("end", resolve);
       pdf.on("error", reject);
 
-      if (logoExists) {
-        pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
-      }
+      if (logoExists) pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
       pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
         .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
-      pdf.fontSize(12).fillColor("#000000")
-        .text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
+      pdf.fontSize(12).fillColor("#000000").text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
 
       const lx = pdf.page.margins.left;
       const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
       pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
 
       pdf.fontSize(12).font("Helvetica-Bold")
-        .text(`Recibo Nº ${dados.num_recibo || ""}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
+        .text(`Recibo Nº ${numRecibo}${referencia ? "   |   Ref: " + referencia : ""}`, { align: "center" }).moveDown(0.2);
       pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
-      pdf.fontSize(11).font("Helvetica")
-        .text(textoCorpo, { align: "justify" }).moveDown(0.6);
+      pdf.fontSize(11).font("Helvetica").text(textoCorpo, { align: "justify" }).moveDown(0.6);
       pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
       pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
-      pdf.text(`${dados.municipio_uf || ""}, ${dados.data_extenso || ""}`, { align: "left" }).moveDown(6);
-      pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
-      pdf.fontSize(10).text(dados.nome, { align: "center" }).moveDown(0.1);
-      pdf.fontSize(9).text(`${labelDoc}: ${dados.cpf}`, { align: "center" }).moveDown(5);
-      pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
-      pdf.fontSize(10).text(dados.emitido_por || "A ARAUJO PREV", { align: "left" });
-      if (logoExists) {
-        pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
+      if (municipio_uf || data_extenso) {
+        pdf.text(`${municipio_uf}, ${data_extenso}`, { align: "left" }).moveDown(6);
+      } else {
+        pdf.moveDown(6);
       }
+      pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
+      pdf.fontSize(10).text(nome, { align: "center" }).moveDown(0.1);
+      if (cpf) pdf.fontSize(9).text(`${labelDoc}: ${cpf}`, { align: "center" }).moveDown(5);
+      else pdf.moveDown(5);
+      pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
+      pdf.fontSize(10).text(emitido_por || "A ARAUJO PREV", { align: "left" });
+      if (logoExists) pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
       pdf.end();
     });
 
     const pdfBuf = Buffer.concat(chunks);
-    const nomeArquivo = `recibo_${(dados.num_recibo || "").replace(/[\/\\]/g, "-")}.pdf`;
+    const nomeArquivo = `recibo_${String(numRecibo).replace(/[\/\\]/g, "-")}.pdf`;
 
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-        <div style="background:#1E40AF;padding:20px;border-radius:8px 8px 0 0">
-          <h2 style="color:#fff;margin:0">Recibo de Honorários</h2>
-        </div>
-        <div style="background:#f9fafb;padding:20px;border:1px solid #e5e7eb;border-top:none">
-          <p>Olá, <strong>${dados.nome}</strong>,</p>
-          <p>Segue em anexo o seu recibo de honorários advocatícios.</p>
-          <ul>
-            <li><strong>Recibo Nº:</strong> ${dados.num_recibo || ""}</li>
-            <li><strong>Valor:</strong> R$ ${dados.valor}</li>
-            <li><strong>Data:</strong> ${dados.data || ""}</li>
-          </ul>
-          <p>Em caso de dúvidas, entre em contato conosco.</p>
-          <p>Atenciosamente,<br><strong>Araujo Prev</strong></p>
-        </div>
-      </div>`;
+    const html = carregarTemplate("email-recibo.html", {
+      nome,
+      num_recibo: numRecibo,
+      valor,
+      data: data || "",
+    }) || `<p>Olá ${nome}, segue em anexo o recibo Nº ${numRecibo} no valor de R$ ${valor}.</p>`;
 
     const ok = await enviarEmail({
-      to: email_cliente,
-      subject: `Recibo de Honorários Nº ${dados.num_recibo || ""} — Araujo Prev`,
+      to: emailDest,
+      subject: `Recibo de Honorários Nº ${numRecibo} — Araujo Prev`,
       html,
       attachments: [{ filename: nomeArquivo, content: pdfBuf, contentType: "application/pdf" }],
     });
 
     if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configurações SMTP." });
 
-    console.log(`[${new Date().toISOString()}] Recibo ${dados.num_recibo} enviado por e-mail para ${email_cliente} por ${req.user.username}`);
-    res.json({ ok: true, destinatario: email_cliente });
+    console.log(`[${new Date().toISOString()}] Recibo ${numRecibo} enviado por e-mail para ${emailDest} por ${req.user.username}`);
+    res.json({ ok: true, destinatario: emailDest });
   } catch (e) {
     console.error("❌ Erro ao enviar recibo por e-mail:", e.message);
     res.status(500).json({ erro: "Erro interno ao processar envio." });
@@ -2639,34 +2851,50 @@ app.get("/api/govbr/status/:id", auth, async (req, res) => {
 
 // ── WEBHOOK — RECIBO GERADO ────────────────────────────────
 // Dispara um POST para WEBHOOK_URL (se configurado) a cada recibo salvo.
-// Fire-and-forget: erros são logados mas não bloqueiam a resposta.
+// Retry: 3 tentativas com backoff exponencial (1s → 4s → 16s).
+// Fire-and-forget — não bloqueia a resposta HTTP ao cliente.
 async function dispararWebhook(dadosRecibo) {
   const url = process.env.WEBHOOK_URL;
   if (!url) return;
-  try {
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        evento: "recibo_gerado",
-        recibo: {
-          num:             dadosRecibo.num,
-          nome:            dadosRecibo.nome,
-          cpf:             dadosRecibo.cpf,
-          valor:           dadosRecibo.valor,
-          data:            dadosRecibo.data,
-          forma_pagamento: dadosRecibo.forma_pagamento || "",
-          escritorio:      dadosRecibo.escritorio || "",
-          emitido_por:     dadosRecibo.emitido_por || "",
-          referencia:      dadosRecibo.referencia || "",
-        },
-        timestamp: new Date().toISOString(),
-      }),
-    });
-    console.log(`[${new Date().toISOString()}] Webhook disparado → ${url} (status ${resp.status})`);
-  } catch (e) {
-    console.error(`[${new Date().toISOString()}] ❌ Webhook falhou para ${url}: ${e.message}`);
+
+  const payload = JSON.stringify({
+    evento: "recibo_gerado",
+    recibo: {
+      num:             dadosRecibo.num,
+      nome:            dadosRecibo.nome,
+      cpf:             dadosRecibo.cpf,
+      valor:           dadosRecibo.valor,
+      data:            dadosRecibo.data,
+      forma_pagamento: dadosRecibo.forma_pagamento || "",
+      escritorio:      dadosRecibo.escritorio || "",
+      emitido_por:     dadosRecibo.emitido_por || "",
+      referencia:      dadosRecibo.referencia || "",
+    },
+    timestamp: new Date().toISOString(),
+  });
+
+  const MAX_TENTATIVAS = 3;
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+      if (resp.ok) {
+        console.log(`[${new Date().toISOString()}] ✅ Webhook disparado → ${url} (status ${resp.status}, tentativa ${tentativa})`);
+        return;
+      }
+      console.warn(`[${new Date().toISOString()}] ⚠️  Webhook → ${url} retornou status ${resp.status} (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
+    } catch (e) {
+      console.warn(`[${new Date().toISOString()}] ⚠️  Webhook → ${url} falhou: ${e.message} (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
+    }
+    if (tentativa < MAX_TENTATIVAS) {
+      const delay = Math.pow(4, tentativa - 1) * 1000; // 1s, 4s, 16s
+      await new Promise(r => setTimeout(r, delay));
+    }
   }
+  console.error(`[${new Date().toISOString()}] ❌ Webhook permanentemente falhou após ${MAX_TENTATIVAS} tentativas → ${url} (recibo: ${dadosRecibo.num})`);
 }
 
 // ── LEMBRETE AUTOMÁTICO DE PARCELAS ────────────────────────
@@ -2708,36 +2936,28 @@ async function verificarEEnviarLembretesParcelasProximas() {
       return;
     }
 
-    const linhas = lembretes.map(l => `
-      <tr>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">${l.cliente.nome}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${l.parcela.num}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right">R$ ${parseFloat(l.parcela.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${l.parcela.data_vencimento}</td>
-      </tr>`).join("");
+    const linhasLembrete = `<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb">
+        <thead><tr style="background:#d97706;color:#fff">
+          <th style="padding:8px 10px;text-align:left">Cliente</th>
+          <th style="padding:8px 10px">Parcela</th>
+          <th style="padding:8px 10px">Valor</th>
+          <th style="padding:8px 10px">Vencimento</th>
+        </tr></thead>
+        <tbody>${lembretes.map(l => `
+          <tr>
+            <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">${l.cliente.nome}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${l.parcela.num}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right">R$ ${parseFloat(l.parcela.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${l.parcela.data_vencimento}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>`;
 
-    const html = `
-      <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto">
-        <div style="background:#d97706;padding:20px;border-radius:8px 8px 0 0">
-          <h2 style="color:#fff;margin:0">⏰ Araujo Prev — Parcelas Vencendo em Breve</h2>
-          <p style="color:#fde68a;margin:4px 0 0">${new Date().toLocaleDateString("pt-BR")} — próximos 3 dias</p>
-        </div>
-        <div style="background:#f9fafb;padding:20px;border:1px solid #e5e7eb;border-top:none">
-          <p style="margin:0 0 12px"><strong>${lembretes.length}</strong> parcela(s) vencem nos próximos 3 dias:</p>
-          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb">
-            <thead>
-              <tr style="background:#d97706;color:#fff">
-                <th style="padding:8px 10px;text-align:left">Cliente</th>
-                <th style="padding:8px 10px">Parcela</th>
-                <th style="padding:8px 10px">Valor</th>
-                <th style="padding:8px 10px">Vencimento</th>
-              </tr>
-            </thead>
-            <tbody>${linhas}</tbody>
-          </table>
-        </div>
-        <p style="font-size:11px;color:#9ca3af;text-align:center;margin-top:12px">Enviado automaticamente pelo sistema Araujo Prev</p>
-      </div>`;
+    const html = carregarTemplate("email-lembrete.html", {
+      data_relatorio: new Date().toLocaleDateString("pt-BR"),
+      total_parcelas: lembretes.length,
+      tabela_parcelas: linhasLembrete,
+    }) || `<p>${lembretes.length} parcela(s) vencem nos próximos 3 dias.</p>`;
 
     const ok = await enviarEmail({
       to: adminEmail,
@@ -2764,8 +2984,119 @@ async function verificarEEnviarLembretesParcelasProximas() {
   }
 }
 
+// ── CRON — LEMBRETE DIÁRIO ─────────────────────────────────
+// Executa todo dia às 8h no horário de Brasília
+cron.schedule("0 8 * * *", () => {
+  console.log(`[${new Date().toISOString()}] 🕗 Cron disparado: verificando lembretes de parcelas...`);
+  verificarEEnviarLembretesParcelasProximas();
+}, { timezone: "America/Sao_Paulo" });
+
+// ── BACKUP AUTOMÁTICO DIÁRIO PARA S3 ───────────────────────
+// Zipa recibos.db + clientes.db e grava em s3://BUCKET/backups/YYYY-MM-DD_backup_db.zip
+async function fazerBackupDiario() {
+  const bucket = process.env.BUCKET_NAME;
+  if (!bucket) {
+    console.warn(`[${new Date().toISOString()}] ⚠️  Backup diário ignorado — BUCKET_NAME não configurado.`);
+    return;
+  }
+  const ts = new Date().toISOString().slice(0, 10);
+  const chaveS3 = `backups/${ts}_backup_db.zip`;
+  try {
+    const dataDir = path.join(__dirname, "data");
+    const arquivos = ["recibos.db", "clientes.db"].filter(f => fs.existsSync(path.join(dataDir, f)));
+    if (arquivos.length === 0) {
+      console.warn(`[${new Date().toISOString()}] ⚠️  Backup: nenhum arquivo .db encontrado em ${dataDir}`);
+      return;
+    }
+
+    const zipBuffer = await new Promise((resolve, reject) => {
+      const chunks = [];
+      const archive = archiver("zip", { zlib: { level: 9 } });
+      archive.on("data", chunk => chunks.push(chunk));
+      archive.on("end", () => resolve(Buffer.concat(chunks)));
+      archive.on("error", reject);
+      for (const f of arquivos) archive.file(path.join(dataDir, f), { name: f });
+      archive.finalize();
+    });
+
+    await s3Client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: chaveS3,
+      Body: zipBuffer,
+      ContentType: "application/zip",
+    }));
+    console.log(`[${new Date().toISOString()}] ✅ Backup diário → s3://${bucket}/${chaveS3} (${(zipBuffer.length / 1024).toFixed(1)} KB)`);
+  } catch (e) {
+    console.error(`[${new Date().toISOString()}] ❌ Erro no backup diário: ${e.message}`);
+  }
+}
+
+// Executa todo dia às 02:00 BRT (05:00 UTC)
+cron.schedule("0 5 * * *", () => {
+  console.log(`[${new Date().toISOString()}] 🕗 Cron disparado: backup diário para S3...`);
+  fazerBackupDiario();
+}, { timezone: "UTC" });
+
+// ── RENOVAÇÃO SEMANAL DE PRESIGNED URLS NO GOOGLE SHEETS ──
+// Percorre a coluna K da planilha e regera URLs de 30 dias para cada link S3 encontrado.
+async function renovarPresignedUrlsSheets() {
+  const sheets = getSheetsClient();
+  const bucket = process.env.BUCKET_NAME;
+  if (!sheets || !bucket) {
+    console.warn(`[${new Date().toISOString()}] ⚠️  Renovação de URLs ignorada — Sheets ou BUCKET_NAME não configurados.`);
+    return;
+  }
+  try {
+    const resp = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!K:K`,
+    });
+    const linhas = resp.data.values || [];
+
+    const atualizacoes = [];
+    for (let i = 0; i < linhas.length; i++) {
+      const celK = (linhas[i][0] || "").trim();
+      if (!celK) continue;
+
+      // Aceita /api/comprovante-s3/KEY e presigned URLs expiradas (https://...amazonaws.com/KEY?X-Amz-...)
+      const s3PathMatch = celK.match(/^\/api\/comprovante-s3\/(.+)$/);
+      const presignedMatch = celK.match(/amazonaws\.com\/(.+?)(?:\?|$)/);
+      const chave = s3PathMatch ? s3PathMatch[1] : presignedMatch ? presignedMatch[1] : null;
+      if (!chave) continue;
+
+      try {
+        const cmd = new GetObjectCommand({ Bucket: bucket, Key: decodeURIComponent(chave) });
+        const novaUrl = await getSignedUrl(s3SignerClient, cmd, { expiresIn: 30 * 24 * 3600 });
+        atualizacoes.push({ range: `${SHEET_NAME}!K${i + 1}`, values: [[novaUrl]] });
+      } catch (e) {
+        console.warn(`[${new Date().toISOString()}] ⚠️  Não foi possível renovar URL para chave "${chave}": ${e.message}`);
+      }
+    }
+
+    if (atualizacoes.length === 0) {
+      console.log(`[${new Date().toISOString()}] ℹ️  Renovação de URLs: nenhum link S3 encontrado na planilha.`);
+      return;
+    }
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: { valueInputOption: "USER_ENTERED", data: atualizacoes },
+    });
+    console.log(`[${new Date().toISOString()}] ✅ Renovação de presigned URLs — ${atualizacoes.length} link(s) atualizado(s).`);
+  } catch (e) {
+    console.error(`[${new Date().toISOString()}] ❌ Erro na renovação de presigned URLs: ${e.message}`);
+  }
+}
+
+// Executa todo domingo às 03:00 BRT (06:00 UTC)
+cron.schedule("0 6 * * 0", () => {
+  console.log(`[${new Date().toISOString()}] 🕗 Cron disparado: renovação de presigned URLs no Sheets...`);
+  renovarPresignedUrlsSheets();
+}, { timezone: "UTC" });
+
 // ── INICIAR ────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`✅ Araujo Prev rodando em http://localhost:${PORT}`);
+  // Executa também no startup (30s) para verificar parcelas do dia sem esperar o cron das 8h
   setTimeout(verificarEEnviarLembretesParcelasProximas, 30_000);
 });
