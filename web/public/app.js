@@ -1660,7 +1660,8 @@ async function excluirCliente(id, cadastro) {
 function atualizarDashboard(){
   const agora=new Date();
   const mesAtual=String(agora.getMonth()+1).padStart(2,"0");
-  const anoAtual=String(agora.getFullYear());
+  const anoSel=document.getElementById("dash-ano")?.value||String(agora.getFullYear());
+  const anoAtual=anoSel||String(agora.getFullYear());
   const doMes=historicoRecibos.filter(r=>r.data?.split("/")[1]===mesAtual&&r.data?.split("/")[2]===anoAtual);
   const doAno=historicoRecibos.filter(r=>r.data?.split("/")[2]===anoAtual);
   const todos=historicoRecibos;
@@ -2283,7 +2284,7 @@ function preencherFiltrosAnos(){
   const anoAtual=String(new Date().getFullYear());
   if(!anos.includes(anoAtual)) anos.unshift(anoAtual);
   anos.sort((a,b)=>b-a);
-  ["filtro-ano","rel-ano","rel-cliente-ano","rel-resp-ano","rel-exec-ano"].forEach(id=>{
+  ["filtro-ano","dash-ano","rel-ano","rel-cliente-ano","rel-resp-ano","rel-exec-ano"].forEach(id=>{
     const sel=document.getElementById(id);
     if(!sel) return;
     sel.innerHTML=`<option value="">Todos</option>`+anos.map(a=>`<option value="${esc(a)}" ${a===anoAtual?"selected":""}>${esc(a)}</option>`).join("");
@@ -3000,6 +3001,9 @@ function bindStaticHandlers() {
   document.querySelectorAll(".admin-tab[data-tab]").forEach(btn => {
     btn.addEventListener("click", () => abrirAdminTab(btn.dataset.tab, btn));
   });
+
+  // Dashboard — filtro de ano
+  document.getElementById("dash-ano")?.addEventListener("change", atualizarDashboard);
 
   // Analytics — filtro de período e exportar
   document.getElementById("analytics-de")?.addEventListener("change", _renderAnalytics);
