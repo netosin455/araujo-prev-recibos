@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erro na Assinatura Gov.br — Araujo Prev</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+      max-width: 520px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .header {
+      background: #dc2626;
+      padding: 28px 32px 24px;
+      color: #fff;
+    }
+    .header .icon { font-size: 40px; margin-bottom: 12px; }
+    .header h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .header p  { font-size: 14px; opacity: .85; }
+    .body { padding: 28px 32px; }
+    .msg-box {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: #991b1b;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 24px;
+      word-break: break-word;
+    }
+    .msg-box strong { display: block; margin-bottom: 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: #1E40AF; color: #fff; }
+    .btn-secondary { background: #f3f4f6; color: #374151; }
+    .footer {
+      padding: 16px 32px;
+      background: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="icon">⚠️</div>
+      <h1>Falha na Assinatura Gov.br</h1>
+      <p>Não foi possível completar o processo de autenticação.</p>
+    </div>
+    <div class="body">
+      <div class="msg-box">
+        <strong>Detalhes do erro</strong>
+        <span id="msg-texto">Ocorreu um erro durante o processo. Tente novamente.</span>
+      </div>
+      <p style="font-size:13px;color:#6b7280;margin-bottom:20px;line-height:1.6">
+        Se o problema persistir, verifique sua conexão com a internet e tente novamente.
+        Caso continue ocorrendo, entre em contato com o suporte do escritório.
+      </p>
+      <div class="actions">
+        <a href="javascript:history.back()" class="btn btn-primary" onclick="voltarETentar()">
+          ↩ Voltar e Tentar Novamente
+        </a>
+        <a href="/" class="btn btn-secondary">
+          🏠 Ir para o Início
+        </a>
+      </div>
+    </div>
+    <div class="footer">
+      Araujo Prev — Sistema de Recibos &nbsp;·&nbsp; Se precisar de ajuda, contate o administrador do sistema.
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const msg = params.get("msg");
+      if (msg) {
+        document.getElementById("msg-texto").textContent = msg;
+      }
+    })();
+
+    function voltarEComecar() {
+      window.location.href = "/";
+    }
+  </script>
+</body>
+</html>

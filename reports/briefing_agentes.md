@@ -11,12 +11,12 @@
 
 | Agente | Status | Última ação |
 |--------|--------|-------------|
-| Agente 1 — Backend | 🆕 Rodada 5 aguardando | Ver seção abaixo |
-| Agente 2 — Frontend | 🆕 Rodada 5 aguardando | Ver seção abaixo |
+| Agente 1 — Backend | ✅ Rodada 5 concluída | resumo-mes, por-responsavel, formas-pagamento, observações, lembrete parcela |
+| Agente 2 — Frontend | ✅ Rodada 5 concluída | KPIs dashboard, e-mail recibo, WhatsApp, filtros avançados, aba Por Responsável, observações cliente |
 | Agente 3 — DevOps | ✅ Rodada 3 concluída | SMTP docs, nodemailer, NeDB monitoring |
 | Agente 4 — QA | ✅ Revisão R4 concluída | commit 4181e60 — deploy ok |
 | Agente 5 — Analytics | 🆕 Rodada 2 aguardando | Ver seção abaixo |
-| Agente 6 — Integrações | 🆕 Rodada 2 aguardando | Ver seção abaixo |
+| Agente 6 — Integrações | ✅ Rodada 2 concluída | lembrete automático parcelas, botão WhatsApp, govbr-erro.html, webhook recibo |
 | **Deploy** | ✅ Em produção | commit `4181e60` |
 
 ---

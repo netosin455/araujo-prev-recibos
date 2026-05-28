@@ -150,14 +150,21 @@ async function registrarNoSheets(dados) {
       dados.referencia || "",                           // O: Referência (gaveta)
     ];
 
-    await sheets.spreadsheets.values.append({
+    // Determina a próxima linha vazia lendo a coluna A inteira — evita table-detection
+    // do values.append que pode inserir no meio dos dados quando há linhas em branco.
+    const colA = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A4:O`,
+      range: `${SHEET_NAME}!A:A`,
+    });
+    const nextRow = (colA.data.values || []).length + 1;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A${nextRow}:O${nextRow}`,
       valueInputOption: "USER_ENTERED",
-      insertDataOption: "INSERT_ROWS",
       requestBody: { values: [linha] },
     });
-    console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets`);
+    console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets (linha ${nextRow})`);
     return true;
   } catch (e) {
     console.error("❌ Erro ao registrar no Google Sheets:", e.message);

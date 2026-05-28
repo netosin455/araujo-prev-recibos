@@ -2,6 +2,79 @@
 
 ---
 
+## [2026-05-28] — Agente 4 (QA): Correções críticas — dashboard, recepção, Google Sheets
+
+### Corrigido
+- **Google Sheets — recibos indo ao topo (regressão):** `registrarNoSheets` trocou `values.append` com `INSERT_ROWS` por `values.get(A:A)` + `values.update` na linha exata; elimina table-detection instável do Sheets que inseria no meio dos dados quando havia linhas em branco
+- **Dashboard — KPIs e gráfico em branco:** `iniciarApp` aguarda agora `Promise.all([carregarRecibos(), carregarClientes()])` antes de exibir o dashboard, garantindo que inadimplentes e vencimentos sejam calculados com dados reais
+- **Projeção — gráfico vazio sem mensagem útil:** quando todas as parcelas têm valor zero (datas não cadastradas), mostra mensagem explicativa em vez de tela em branco
+- **Recepção bloqueada de criar recibos:** removido `financeiroOnly` do `POST /api/recibos` (agente havia adicionado por engano)
+- **Gráficos Chart.js sem dimensão:** adicionado `requestAnimationFrame` antes de `new Chart()` para garantir que o canvas tenha layout antes de calcular dimensões
+
+### Atualizado
+- `CLAUDE.md` — dois novos protocolos de erro: breaking change de API e `values.append` no Sheets
+
+---
+
+## [2026-05-28] — Agente 2 (Frontend): Rodada 5 — KPIs dashboard, e-mail recibo, WhatsApp, filtros avançados, aba Por Responsável, observações cliente
+
+### Adicionado
+- **Dashboard KPIs comparativos** (4 novos cards): Variação do Mês (verde/vermelho ±%), Clientes Inadimplentes, Parcelas Vencendo nos próximos 7 dias, Clientes Novos no mês — calculados localmente de `historicoRecibos` e `listaClientes`
+- **Campo "E-mail do cliente"** opcional no formulário de recibo; após gerar com sucesso e e-mail preenchido, exibe painel "Enviar por e-mail" com botão `enviarReciboEmail()` que chama `POST /api/notificacoes/enviar-recibo-email`; mostra "Em breve" se endpoint não existir
+- **Link WhatsApp no telefone do cliente** (`wa-link`): no card do cliente exibe telefone como `<a href="https://wa.me/55{fone}">` com ícone Bootstrap Icons; `stopPropagation` impede toggle do card ao clicar
+- **Filtros avançados no histórico** (painel colapsável): filtros por escritório, forma de pagamento, responsável e range de valor (mínimo/máximo); `preencherFiltrosAvancados()` popula selects com valores únicos de `historicoRecibos`; `toggleFiltrosAvancados()` / `limparFiltrosAvancados()` controlam estado; todos os filtros se combinam com busca e intervalo de datas existentes
+- **Aba "Por Responsável"** no painel admin: `carregarPorResponsavel()` consome `GET /api/relatorios/por-responsavel`; tabela ranqueada com rank, nome, qtd recibos, receita total, ticket médio e barra de progresso proporcional ao maior valor; "Em breve" se endpoint 404
+- **Observações no modal do cliente**: seção "Observações" com lista renderizada por `renderObservacoes()`, botão toggle e campo textarea para adicionar; `adicionarObservacaoCliente()` chama `POST /api/clientes/:id/observacoes`; visível apenas no modo edição (não no cadastro)
+
+### Alterado
+- `limparCampos()`: limpa campo `email-cliente` e oculta `area-enviar-email`
+- `limparModalCliente()`: limpa lista de observações, esconde painel de adição e botão toggle
+- `editarCliente()`: renderiza observações do cliente e exibe botão "Adicionar observação"
+- `carregarRecibos()`: chama `preencherFiltrosAvancados()` após carregar dados para manter selects atualizados
+- `navegarPara()` e `abrirAdminTab()`: adicionam suporte ao tab `responsaveis`
+
+---
+
+## [2026-05-28] — Agente 6 (Integrações): Rodada 2 — lembrete parcelas, WhatsApp, Gov.br erro page, webhook
+
+### Adicionado
+- **Lembrete automático de parcelas** (`verificarEEnviarLembretesParcelasProximas`): executa 30s após startup via `setTimeout`; consulta NeDB para parcelas não-pagas com `data_vencimento` nos próximos 3 dias e sem `lembrete_enviado_em`; envia e-mail HTML resumido ao `SMTP_ADMIN`; registra `lembrete_enviado_em` e `lembrete_enviado_por: "sistema"` diretamente no NeDB. Não executa se SMTP não estiver configurado
+- **Botão "💬 WhatsApp"** em cada parcela pendente/atrasada: função `_btnWhatsApp(telefone, nomeCliente, p)` em `app.js` gera link `https://wa.me/55{fone}?text=...` com mensagem pré-formatada (nome, parcela, valor, vencimento). Exibido na tabela "A Receber" do modal de detalhe do cliente. Não requer API — link direto
+- **Página de erro amigável Gov.br** (`web/public/govbr-erro.html`): HTML estático com mensagem de erro dinâmica (lida do query param `?msg=`), botão "Voltar e Tentar Novamente" e botão "Ir para o Início". Todos os redirects de erro do callback Gov.br atualizados para usar esta página
+- **Webhook `dispararWebhook()`** em `server.js`: função fire-and-forget que faz POST para `WEBHOOK_URL` (se configurada) com payload `{ evento: "recibo_gerado", recibo: {...}, timestamp }`. Erros são logados sem bloquear a resposta. Disparado ao final de `POST /api/recibos`
+
+---
+
+## [2026-05-28] — Agente 5 (Analytics): Export Excel, Por Responsável, Pizza Formas Pagamento, Filtro Período
+
+### Adicionado
+- **Export Excel — 3 abas** (`exportarAnalyticsExcel()`): gera `.xlsx` com SheetJS (`libs/xlsx.min.js`) com abas "Resumo Mensal" (período, qtd, receita, ticket médio), "Top Clientes" (rank, nome, qtd, total, ticket) e "Por Responsável" (responsável, qtd, receita, ticket). Nome do arquivo inclui período selecionado. Botão "Exportar Excel" no header do tab Analytics
+- **Seção "Receita por Responsável"** (`_renderPorResponsavel()`): gráfico de barras horizontal (Chart.js `indexAxis: "y"`) com receita por `emitido_por`, computado a partir de `historicoRecibos` filtrado pelo período — não faz chamada de API adicional
+- **Seção "Formas de Pagamento"** (`_renderFormasPagamento()`): gráfico doughnut com receita por `forma_pagamento` + legenda customizada com valor absoluto e percentual — computado do mesmo conjunto de dados do período
+- **Paleta de cores compartilhada** (`CORES_GRAFICO`): array de 9 cores usadas por ambos os gráficos para consistência visual
+- **`libs/xlsx.min.js`** adicionado ao `index.html` via `<script defer>`
+
+### Alterado
+- **Filtro de período** substitui filtro de ano: seletores "De" e "Até" (YYYY-MM) auto-populados com todos os meses presentes nos dados. Padrão: Jan do ano atual → mês corrente. Ao trocar qualquer seletor, re-renderiza gráfico mensal, top 5, ranking, por responsável e formas de pagamento simultaneamente
+- **Gráfico mensal** agora exibe todos os meses do período selecionado (eixo X dinâmico) em vez de fixar os 12 meses do ano — períodos curtos ficam mais legíveis; máx. 60 meses para evitar overflow
+- **Helper `_periodoMeses()`**: extrai e ordena todos os "YYYY-MM" únicos de `historicoRecibos`
+
+---
+
+## [2026-05-28] — Backend: Rodada 5 — 5 endpoints novos (resumo-mes, por-responsavel, formas-pagamento, observações, lembrete)
+
+### Adicionado
+- **`GET /api/relatorios/resumo-mes`** (`financeiroOnly`): KPIs comparativos mês atual vs anterior — receita, recibos, ticket médio, clientes novos, com delta percentual para cada métrica. Aceita `?mes=YYYY-MM` (padrão: mês corrente)
+- **`GET /api/relatorios/por-responsavel`** (`financeiroOnly`): receita, contagem de recibos e ticket médio por `emitido_por`, ordenado por receita desc. Aceita `?mes=YYYY-MM` para filtrar por mês
+- **`GET /api/relatorios/formas-pagamento`** (`financeiroOnly`): receita, contagem e percentual do total por `forma_pagamento`, ordenado por receita desc. Aceita `?mes=YYYY-MM`
+- **`POST /api/clientes/:id/observacoes`** (`financeiroOnly`): adiciona observação ao cliente — body `{ texto }` (máx. 500 chars); salva `{ texto, autor, criado_em }` no array `observacoes[]` do documento NeDB
+- **`DELETE /api/clientes/:id/observacoes/:idx`** (`adminOnly`): remove observação por índice do array
+- **`PATCH /api/clientes/:id/lembrete`** (`financeiroOnly`): ativa ou desativa lembrete no cliente — body `{ ativo: bool, texto?: string (máx. 200 chars) }`; salva `{ ativo, texto, criado_por, criado_em }` no campo `lembrete`
+- **`GET /api/clientes/:id`** (`auth`): retorna cliente único enriquecido — evita recarregar toda a lista após mutações pontuais
+- **Helper `mesDeData()`**: converte "DD/MM/YYYY" → "YYYY-MM" para todos os filtros de mês dos relatórios
+
+---
+
 ## [2026-05-27] — Backend: Rodada 4 — segurança (SEC-012, SEC-014, SEC-017) + 3 endpoints novos
 
 ### Segurança

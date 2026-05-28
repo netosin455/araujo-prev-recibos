@@ -558,6 +558,10 @@
             <input id="emitido_por" type="text" style="text-transform:uppercase" placeholder="Nome do responsável" />
           </div>
           <div class="form-group">
+            <label>E-mail do cliente <span style="font-weight:400;color:var(--muted)">(opcional — para envio do recibo)</span></label>
+            <input id="email-cliente" type="email" placeholder="cliente@exemplo.com" />
+          </div>
+          <div class="form-group">
             <label>Comprovante de depósito <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
             <label for="comprovante" class="comprovante-label" id="comprovante-label">
               <i class="bi bi-upload"></i> <span id="comprovante-label-text">Escolher arquivo (imagem ou PDF)</span>
@@ -579,6 +583,14 @@
             <button class="btn-secondary" id="btn-limpar-recibo">Limpar</button>
           </div>
           <div id="status" class="status"></div>
+          <div id="area-enviar-email" style="display:none;margin-top:12px;padding:14px 16px;background:var(--gold-pale);border:1px solid var(--gold);border-radius:var(--radius-sm)">
+            <div style="font-size:12px;font-weight:600;color:var(--mid);margin-bottom:10px"><i class="bi bi-envelope-check"></i> Recibo gerado! Deseja enviar por e-mail?</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-success btn-sm" id="btn-enviar-email-recibo"><i class="bi bi-envelope"></i> Enviar por e-mail</button>
+              <button class="btn-secondary btn-sm" id="btn-fechar-area-email">Fechar</button>
+            </div>
+            <div id="email-envio-status" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
+          </div>
         </div>
       </div>
 
@@ -598,6 +610,28 @@
           </div>
           <span id="historico-count" style="color:var(--muted);font-size:12px;white-space:nowrap"></span>
           <button class="btn-secondary btn-sm" id="btn-exportar-zip" style="display:none"><i class="bi bi-file-zip"></i> Exportar ZIP</button>
+        </div>
+        <div id="filtros-avancados-wrap" style="margin-bottom:12px">
+          <button class="btn-secondary btn-sm" id="btn-toggle-filtros-avancados" style="font-size:11px"><i class="bi bi-sliders"></i> Filtros avançados <i class="bi bi-chevron-down" id="icon-filtros-avancados"></i></button>
+          <div id="filtros-avancados" style="display:none;margin-top:10px">
+            <div class="filtros" style="background:var(--card);padding:14px;border-radius:var(--radius-sm);border:1px solid var(--border)">
+              <div class="form-group"><label>Escritório</label><select id="filtro-avancado-escritorio"><option value="">Todos</option></select></div>
+              <div class="form-group"><label>Forma de Pagamento</label>
+                <select id="filtro-avancado-forma">
+                  <option value="">Todas</option>
+                  <option value="Pix">Pix</option>
+                  <option value="Dinheiro">Dinheiro</option>
+                  <option value="Transferência">Transferência</option>
+                  <option value="Boleto">Boleto</option>
+                  <option value="Cheque">Cheque</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Responsável</label><select id="filtro-avancado-responsavel"><option value="">Todos</option></select></div>
+              <div class="form-group"><label>Valor mínimo</label><input id="filtro-avancado-min" type="text" placeholder="0,00" style="width:100px" /></div>
+              <div class="form-group"><label>Valor máximo</label><input id="filtro-avancado-max" type="text" placeholder="0,00" style="width:100px" /></div>
+              <button class="btn-secondary btn-sm" id="btn-limpar-filtros-avancados" style="margin-top:18px"><i class="bi bi-x-circle"></i> Limpar</button>
+            </div>
+          </div>
         </div>
         <div id="resumo-historico" class="resumo-tela"></div>
         <div id="historico-grid" class="historico-grid"></div>
@@ -626,6 +660,7 @@
           <button class="admin-tab" data-tab="analytics">Analytics</button>
           <button class="admin-tab" data-tab="projecao">Projeção</button>
           <button class="admin-tab" data-tab="escritorios">Por Escritório</button>
+          <button class="admin-tab" data-tab="responsaveis">Por Responsável</button>
         </div>
         <div id="admin-dashboard" class="admin-panel active">
           <div class="cards-grid">
@@ -648,6 +683,28 @@
               <div class="label">Total Geral</div>
               <div class="value" id="card-total">R$ 0,00</div>
               <div class="sub" id="card-total-qtd">0 recibos</div>
+            </div>
+          </div>
+          <div class="cards-grid" style="margin-bottom:20px">
+            <div class="dash-card" id="kpi-variacao-card">
+              <div class="label">Variação do Mês</div>
+              <div class="value" id="card-variacao" style="font-size:20px">—</div>
+              <div class="sub" id="card-variacao-sub">vs mês anterior</div>
+            </div>
+            <div class="dash-card red">
+              <div class="label">Clientes Inadimplentes</div>
+              <div class="value" id="card-inadimplentes">—</div>
+              <div class="sub">parcelas em atraso</div>
+            </div>
+            <div class="dash-card" style="border-top-color:#c07a2a">
+              <div class="label">Parcelas Vencendo</div>
+              <div class="value" id="card-parcelas-vencendo">—</div>
+              <div class="sub">próximos 7 dias</div>
+            </div>
+            <div class="dash-card" style="border-top-color:var(--muted)">
+              <div class="label">Clientes Novos</div>
+              <div class="value" id="card-clientes-novos">—</div>
+              <div class="sub">este mês</div>
             </div>
           </div>
           <div class="table-wrap" style="padding:24px;margin-bottom:20px">
@@ -765,19 +822,24 @@
         <!-- ── ANALYTICS ─────────────────────────────────── -->
         <div id="admin-analytics" class="admin-panel">
 
-          <!-- Filtro de ano -->
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">Ano</label>
-            <select id="analytics-ano" style="padding:6px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:'Inter',sans-serif;background:white;color:var(--dark);outline:none"></select>
-            <span id="analytics-ano-label" style="font-size:11px;color:var(--muted)"></span>
+          <!-- Barra de filtros + exportar -->
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:22px">
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">De</label>
+            <select id="analytics-de" style="padding:6px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:'Inter',sans-serif;background:white;color:var(--dark);outline:none"></select>
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">Até</label>
+            <select id="analytics-ate" style="padding:6px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:'Inter',sans-serif;background:white;color:var(--dark);outline:none"></select>
+            <span id="analytics-periodo-label" style="font-size:11px;color:var(--muted);margin-left:4px"></span>
+            <button id="btn-exportar-analytics-excel" class="btn-success btn-sm" style="margin-left:auto">
+              <i class="bi bi-file-earmark-spreadsheet"></i> Exportar Excel
+            </button>
           </div>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
 
-            <!-- Gráfico de receita mensal -->
+            <!-- Gráfico de receita mensal (período personalizado) -->
             <div class="table-wrap" style="padding:24px;grid-column:span 2">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">
-                Receita Total por Mês
+                Receita por Mês — Período Selecionado
               </div>
               <canvas id="grafico-analytics-mensal" height="80"></canvas>
             </div>
@@ -790,7 +852,7 @@
               <div id="analytics-top5"></div>
             </div>
 
-            <!-- Resumo rápido de analytics -->
+            <!-- Resumo rápido -->
             <div class="table-wrap" style="padding:24px">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:18px">
                 Resumo do Período
@@ -798,20 +860,35 @@
               <div id="analytics-resumo" style="display:flex;flex-direction:column;gap:14px"></div>
             </div>
 
+            <!-- Por Responsável — gráfico + tabela -->
+            <div class="table-wrap" style="padding:24px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">
+                Receita por Responsável
+              </div>
+              <canvas id="grafico-responsavel" height="160"></canvas>
+              <div id="responsavel-status" style="color:var(--muted);font-size:12px;padding:12px 0;display:none"></div>
+            </div>
+
+            <!-- Pizza formas de pagamento -->
+            <div class="table-wrap" style="padding:24px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">
+                Formas de Pagamento
+              </div>
+              <div style="max-width:260px;margin:0 auto">
+                <canvas id="grafico-formas-pag" height="220"></canvas>
+              </div>
+              <div id="formas-pag-status" style="color:var(--muted);font-size:12px;padding:12px 0;text-align:center;display:none"></div>
+              <div id="formas-pag-legenda" style="margin-top:14px"></div>
+            </div>
+
             <!-- Ranking de clientes com ticket médio -->
             <div class="table-wrap" style="grid-column:span 2">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;padding:20px 20px 12px">
-                Ranking de Clientes — Ticket Médio por Cliente
+                Ranking de Clientes — Ticket Médio
               </div>
               <table>
                 <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Cliente</th>
-                    <th>Qtd Recibos</th>
-                    <th>Total Pago</th>
-                    <th>Ticket Médio</th>
-                  </tr>
+                  <tr><th>#</th><th>Cliente</th><th>Qtd</th><th>Total Pago</th><th>Ticket Médio</th></tr>
                 </thead>
                 <tbody id="analytics-ticket-tbody"></tbody>
               </table>
@@ -849,6 +926,22 @@
               </table>
               <div class="table-footer">
                 <span id="escritorios-total" style="color:var(--success)">Total: R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── POR RESPONSÁVEL ────────────────────────── -->
+        <div id="admin-responsaveis" class="admin-panel">
+          <div id="responsaveis-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
+          <div id="responsaveis-wrap" style="display:none">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>#</th><th>Responsável</th><th>Qtd Recibos</th><th>Receita Total</th><th>Ticket Médio</th><th>Participação</th></tr></thead>
+                <tbody id="tabela-responsaveis"></tbody>
+              </table>
+              <div class="table-footer">
+                <span id="responsaveis-total" style="color:var(--success)">Total: R$ 0,00</span>
               </div>
             </div>
           </div>
@@ -991,6 +1084,16 @@
         </div>
         <div id="cliente-parcela-preview" style="font-size:13px;color:var(--success);font-weight:600;margin-top:4px;margin-bottom:8px"></div>
 
+        <div class="secao-label" style="margin-top:18px">Observações</div>
+        <div id="cliente-observacoes-lista" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
+        <div id="cliente-obs-add" style="display:none;margin-bottom:12px">
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <textarea id="cliente-obs-texto" rows="2" placeholder="Digite a observação..." style="flex:1;resize:vertical;padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit"></textarea>
+            <button class="btn-secondary btn-sm" id="btn-confirmar-obs" style="margin-top:2px;white-space:nowrap">Adicionar</button>
+          </div>
+        </div>
+        <button class="btn-secondary btn-sm" id="btn-toggle-obs" style="font-size:11px;margin-bottom:12px"><i class="bi bi-plus-circle"></i> Adicionar observação</button>
+
         <div style="display:flex;gap:10px;margin-top:16px">
           <button class="btn-gold" id="btn-salvar-cliente">Salvar</button>
           <button class="btn-secondary" id="btn-cancelar-modal-cliente">Cancelar</button>
@@ -1111,6 +1214,7 @@
   </div>
 
   <script src="libs/chart.min.js" defer></script>
+  <script src="libs/xlsx.min.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

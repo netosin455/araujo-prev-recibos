@@ -114,14 +114,15 @@ async function iniciarApp(){
     document.getElementById("nav-admin").style.display = "none";
     document.getElementById("bn-admin").style.display = "none";
   }
-  await carregarRecibos();
+  await Promise.all([carregarRecibos(), carregarClientes()]);
   await atualizarNumRecibo();
   await carregarReferenciaPadrao();
   iniciarAvisoSessao();
   atualizarSugestoesNomes();
   preencherFiltrosAnos();
   verificarClientesInativos();
-  carregarClientes().then(() => { atualizarBadgeClientes(); verificarParcelasVencendo(); });
+  atualizarBadgeClientes();
+  verificarParcelasVencendo();
 }
 
 async function carregarReferenciaPadrao() {
@@ -2158,10 +2159,15 @@ async function carregarProjecao() {
   if (!res || res.status === 404) { status.textContent = "Em breve — projeção de receita em desenvolvimento."; return; }
   if (!res.ok) { status.textContent = "Erro ao carregar projeção."; return; }
   const dados = await res.json();
-  if (!dados.length) { status.textContent = "Nenhuma parcela futura encontrada."; return; }
+  if (!Array.isArray(dados) || !dados.length) { status.textContent = "Nenhuma parcela futura encontrada."; return; }
   const labels = dados.map(d => d.mes);
   const valores = dados.map(d => d.valor || 0);
   const qtds    = dados.map(d => d.qtd || 0);
+  const totalGeral = valores.reduce((s,v)=>s+v,0);
+  if (totalGeral === 0) {
+    status.textContent = "Nenhuma parcela com data de vencimento cadastrada. Defina datas de vencimento nos contratos de clientes para ver a projeção.";
+    return;
+  }
   if (graficoProjecao){ try{ graficoProjecao.destroy(); }catch(e){} graficoProjecao=null; }
   requestAnimationFrame(()=>{
     try{
