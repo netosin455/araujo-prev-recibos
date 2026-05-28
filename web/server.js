@@ -2112,7 +2112,7 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
   }
 });
 
-// ── NORMALIZAR ESCRITÓRIOS ────────────────────────────────────
+// ── NORMALIZAR CAMPOS LIVRES (escritório + forma de pagamento) ────────────────
 function normalizarEscritorio(raw) {
   const v = (raw || "").trim().toUpperCase().replace(/[-/,]+/g, " ").replace(/\s+/g, " ").trim();
   if (v.includes("TERRA RICA"))              return "Terra Rica - PR";
@@ -2121,27 +2121,41 @@ function normalizarEscritorio(raw) {
       v.includes("PRES VENCESLAU"))          return "Presidente Venceslau - SP";
   if (v.includes("PRIMAVERA"))               return "Primavera - SP";
   if (v.includes("IVINHEMA"))                return "Ivinhema - MS";
-  return raw; // mantém original se não reconhecido
+  return raw;
+}
+
+function normalizarFormaPagamento(raw) {
+  const v = (raw || "").trim().toUpperCase().replace(/[^A-ZÁÉÍÓÚÃÕÂÊÔÇ0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  if (v === "PIX" || v === "PÌX")            return "Pix";
+  if (v.includes("LOTÉRIC") ||
+      v.includes("LOTERIC"))                 return "Depósito lotérica";
+  if (v.includes("CAIXA"))                   return "Depósito caixa";
+  if (v.includes("BB"))                      return "Depósito BB";
+  if (v === "TED")                           return "TED";
+  if (v.includes("TRANSFER"))               return "Transferência bancária";
+  if (v.includes("DINHEIRO"))               return "Dinheiro";
+  if (v.includes("CHEQUE"))                 return "Cheque";
+  return raw;
 }
 
 app.post("/api/admin/normalizar-escritorios", auth, adminOnly, async (req, res) => {
   try {
     const todos = await find(dbRecibos, {});
     let atualizados = 0;
-    const log = [];
     for (const r of todos) {
-      const normalizado = normalizarEscritorio(r.escritorio);
-      if (normalizado !== r.escritorio) {
-        await update(dbRecibos, { _id: r._id }, { escritorio: normalizado });
-        log.push(`${r.num}: "${r.escritorio}" → "${normalizado}"`);
+      const novoEsc  = normalizarEscritorio(r.escritorio);
+      const novaForma = normalizarFormaPagamento(r.forma_pagamento);
+      const mudou = novoEsc !== r.escritorio || novaForma !== r.forma_pagamento;
+      if (mudou) {
+        await update(dbRecibos, { _id: r._id }, { escritorio: novoEsc, forma_pagamento: novaForma });
         atualizados++;
       }
     }
-    console.log(`✅ Escritórios normalizados: ${atualizados} recibo(s)`);
-    res.json({ ok: true, atualizados, total: todos.length, log });
+    console.log(`✅ Dados normalizados: ${atualizados} recibo(s)`);
+    res.json({ ok: true, atualizados, total: todos.length });
   } catch (e) {
-    console.error("❌ Erro ao normalizar escritórios:", e.message);
-    res.status(500).json({ erro: "Erro ao normalizar escritórios.", detalhe: e.message });
+    console.error("❌ Erro ao normalizar:", e.message);
+    res.status(500).json({ erro: "Erro ao normalizar.", detalhe: e.message });
   }
 });
 
