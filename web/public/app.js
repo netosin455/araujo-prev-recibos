@@ -46,7 +46,7 @@ async function fazerLogin(){
   token = data.token;
   usuarioLogado = data.username;
   roleLogado = data.role || "financeiro";
-  escritorioLogado = (data.escritorio || "").toUpperCase();
+  escritorioLogado = data.escritorio || "";
   localStorage.setItem("token", token);
   localStorage.setItem("usuarioLogado", usuarioLogado);
   localStorage.setItem("roleLogado", roleLogado);
@@ -145,12 +145,15 @@ async function carregarReferenciaPadrao() {
   if (elEmitido && !elEmitido.value) elEmitido.value = me.nome_completo || me.username || usuarioLogado;
   // Garante que escritorioLogado está sempre atualizado (inclusive após reload com token salvo)
   if (me.escritorio) {
-    escritorioLogado = me.escritorio.toUpperCase();
+    escritorioLogado = me.escritorio;
     localStorage.setItem("escritorioLogado", escritorioLogado);
   }
   if (roleLogado === "recepcao") {
     const elEsc = document.getElementById("escritorio");
-    if (elEsc && !elEsc.value) elEsc.value = escritorioLogado;
+    if (elEsc) {
+      elEsc.value = escritorioLogado;
+      elEsc.disabled = true; // recepcao não pode alterar — escritório vem do perfil
+    }
   }
 }
 
@@ -361,7 +364,11 @@ function limparCampos(){
   });
   document.getElementById("mes").value="";
   document.getElementById("forma_pagamento").value="";
-  document.getElementById("escritorio").value = roleLogado === "recepcao" ? escritorioLogado : "";
+  const elEsc = document.getElementById("escritorio");
+  if (elEsc) {
+    elEsc.value = roleLogado === "recepcao" ? escritorioLogado : "";
+    elEsc.disabled = roleLogado === "recepcao";
+  }
   document.getElementById("motivo_pagamento").value="";
   const comp = document.getElementById("comprovante");
   if(comp) comp.value="";
@@ -2379,7 +2386,10 @@ function editarUsuario(id, usernameAtual, roleAtual, escritorioAtual){
   document.getElementById("edit-user-nome").value = usernameAtual;
   document.getElementById("edit-user-senha").value = "";
   document.getElementById("edit-user-role").value = roleAtual || "financeiro";
-  document.getElementById("edit-user-escritorio").value = escritorioAtual || "";
+  // Normaliza o escritório para bater com os valores do select (case-insensitive)
+  const sel = document.getElementById("edit-user-escritorio");
+  const optMatch = [...sel.options].find(o => o.value.toUpperCase() === (escritorioAtual||"").toUpperCase());
+  sel.value = optMatch ? optMatch.value : (escritorioAtual || "");
   toggleEscritorioEdit(roleAtual || "financeiro");
   document.getElementById("modal-editar-usuario").classList.add("active");
 }
@@ -2389,7 +2399,7 @@ async function salvarEdicaoUsuario(){
   const username = document.getElementById("edit-user-nome").value.trim();
   const password = document.getElementById("edit-user-senha").value;
   const role = document.getElementById("edit-user-role").value;
-  const escritorio = document.getElementById("edit-user-escritorio").value.trim().toUpperCase();
+  const escritorio = document.getElementById("edit-user-escritorio").value.trim();
   if(!username) return alert("Preencha o nome de usuário.");
   const body = { username, role, escritorio };
   if(password) body.password = password;
@@ -2405,7 +2415,7 @@ async function adicionarUsuario(){
   const username=document.getElementById("novo-usuario").value.trim();
   const password=document.getElementById("nova-senha").value;
   const role=document.getElementById("novo-role").value;
-  const escritorio=document.getElementById("novo-escritorio").value.trim().toUpperCase();
+  const escritorio=document.getElementById("novo-escritorio").value.trim();
   if(!username||!password) return alert("Preencha usuário e senha.");
   const res=await api("POST","/api/users",{username,password,role,escritorio});
   const data=await res.json();

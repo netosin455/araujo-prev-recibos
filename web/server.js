@@ -1200,7 +1200,11 @@ app.get("/api/recibos", auth, async (req, res) => {
 
 app.post("/api/recibos", auth, async (req, res) => {
   if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
-  const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
+  const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, motivo_pagamento, link_comprovante, timestamp } = req.body;
+  // Recepcao sempre usa o escritorio do seu perfil — impede digitação livre e garante nome padronizado
+  const escritorio = req.user.role === "recepcao"
+    ? (req.user.escritorio || "")
+    : (req.body.escritorio || "");
   const digsCPF = (cpf || "").replace(/\D/g, "");
   if (digsCPF.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
   if (digsCPF.length === 14 && !validarCNPJ(cpf)) return res.status(400).json({ erro: "CNPJ inválido." });
@@ -1209,7 +1213,7 @@ app.post("/api/recibos", auth, async (req, res) => {
   const nome = existente
     ? existente.nome
     : (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
-  const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
+  const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio, motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp });
   const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
   dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia });
   res.json({ id: doc._id, sheets_ok: sheets_result === true, sheets_erro: sheets_result !== true ? sheets_result : null });
