@@ -1183,7 +1183,7 @@ app.get("/api/recibos", auth, async (req, res) => {
   res.json({ recibos, total, pagina: page, totalPaginas });
 });
 
-app.post("/api/recibos", auth, financeiroOnly, async (req, res) => {
+app.post("/api/recibos", auth, async (req, res) => {
   const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
   const digsCPF = (cpf || "").replace(/\D/g, "");
   if (digsCPF.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });

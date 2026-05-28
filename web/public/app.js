@@ -1689,9 +1689,13 @@ function atualizarDashboard(){
     const m=String(i+1).padStart(2,"0");
     return historicoRecibos.filter(r=>r.data?.split("/")[1]===m&&r.data?.split("/")[2]===anoAtual).reduce((s,r)=>s+valorParaNumero(r.valor),0);
   });
-  if(graficoMensal) graficoMensal.destroy();
-  const ctx=document.getElementById("grafico-mensal")?.getContext("2d");
-  if(ctx) graficoMensal=new Chart(ctx,{type:"bar",data:{labels:mesesLabels,datasets:[{label:"Faturamento",data:totaisMes,backgroundColor:"rgba(184,151,58,0.7)",borderColor:"#b8973a",borderWidth:1,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>"R$ "+formatarValor(v)}}}}});
+  if(graficoMensal){ try{ graficoMensal.destroy(); }catch(e){} graficoMensal=null; }
+  requestAnimationFrame(()=>{
+    try{
+      const ctx=document.getElementById("grafico-mensal")?.getContext("2d");
+      if(ctx) graficoMensal=new Chart(ctx,{type:"bar",data:{labels:mesesLabels,datasets:[{label:"Faturamento",data:totaisMes,backgroundColor:"rgba(184,151,58,0.7)",borderColor:"#b8973a",borderWidth:1,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>"R$ "+formatarValor(v)}}}}});
+    }catch(e){ console.error("Dashboard chart error:", e); }
+  });
   const tbody=document.getElementById("tabela-mensal");
   if(tbody){
     tbody.innerHTML=mesesLabels.map((m,i)=>{
@@ -2158,12 +2162,16 @@ async function carregarProjecao() {
   const labels = dados.map(d => d.mes);
   const valores = dados.map(d => d.valor || 0);
   const qtds    = dados.map(d => d.qtd || 0);
-  if (graficoProjecao) graficoProjecao.destroy();
-  const ctx = document.getElementById("grafico-projecao")?.getContext("2d");
-  if (ctx) graficoProjecao = new Chart(ctx, {
-    type: "bar",
-    data: { labels, datasets: [{ label: "A Receber", data: valores, backgroundColor: "rgba(62,122,94,0.75)", borderColor: "#3e7a5e", borderWidth: 1, borderRadius: 4 }] },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } } }
+  if (graficoProjecao){ try{ graficoProjecao.destroy(); }catch(e){} graficoProjecao=null; }
+  requestAnimationFrame(()=>{
+    try{
+      const ctx = document.getElementById("grafico-projecao")?.getContext("2d");
+      if (ctx) graficoProjecao = new Chart(ctx, {
+        type: "bar",
+        data: { labels, datasets: [{ label: "A Receber", data: valores, backgroundColor: "rgba(62,122,94,0.75)", borderColor: "#3e7a5e", borderWidth: 1, borderRadius: 4 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } } }
+      });
+    }catch(e){ console.error("Projecao chart error:", e); }
   });
   const total = valores.reduce((s, v) => s + v, 0);
   document.getElementById("tabela-projecao").innerHTML = dados.map((d, i) =>
