@@ -576,3 +576,8 @@ Quando o usuário disser **"atualiza o CLAUDE.md com esse erro"**, adicione imed
 ---
 
 *(As entradas aparecem abaixo à medida que erros são registrados)*
+
+### [2026-05-28] — Agente 1 (Backend) — Mudança de formato de resposta quebrou o frontend
+**O que aconteceu:** O backend adicionou paginação ao `GET /api/recibos`, mudando a resposta de um array `[...]` para um objeto `{ recibos: [...], total, pagina, totalPaginas }`. O frontend continuou fazendo `historicoRecibos = await res.json()` esperando um array. Como `historicoRecibos` virou um objeto, todas as chamadas `.filter()/.map()/.reduce()` quebraram com `TypeError`, travando o app completamente.
+**Por que aconteceu:** O Agente 1 mudou o contrato da API sem avisar o Agente 2, e o Agente 2 não atualizou o consumo no frontend.
+**Como evitar:** Toda mudança de formato de resposta de uma rota existente é uma **breaking change**. Antes de alterar o shape de um endpoint já consumido pelo frontend: (1) avisar no `briefing_agentes.md` com destaque, (2) o Agente 2 deve atualizar todos os consumidores na mesma rodada, (3) o QA deve checar se `await res.json()` ainda é compatível com o novo formato antes de aprovar o deploy.
