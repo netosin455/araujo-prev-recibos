@@ -2112,6 +2112,39 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
   }
 });
 
+// ── NORMALIZAR ESCRITÓRIOS ────────────────────────────────────
+function normalizarEscritorio(raw) {
+  const v = (raw || "").trim().toUpperCase().replace(/[-/,]+/g, " ").replace(/\s+/g, " ").trim();
+  if (v.includes("TERRA RICA"))              return "Terra Rica - PR";
+  if (v.includes("TEODORO"))                 return "Teodoro Sampaio - SP";
+  if (v.includes("PRESIDENTE VENCESLAU") ||
+      v.includes("PRES VENCESLAU"))          return "Presidente Venceslau - SP";
+  if (v.includes("PRIMAVERA"))               return "Primavera - SP";
+  if (v.includes("IVINHEMA"))                return "Ivinhema - MS";
+  return raw; // mantém original se não reconhecido
+}
+
+app.post("/api/admin/normalizar-escritorios", auth, adminOnly, async (req, res) => {
+  try {
+    const todos = await find(dbRecibos, {});
+    let atualizados = 0;
+    const log = [];
+    for (const r of todos) {
+      const normalizado = normalizarEscritorio(r.escritorio);
+      if (normalizado !== r.escritorio) {
+        await update(dbRecibos, { _id: r._id }, { escritorio: normalizado });
+        log.push(`${r.num}: "${r.escritorio}" → "${normalizado}"`);
+        atualizados++;
+      }
+    }
+    console.log(`✅ Escritórios normalizados: ${atualizados} recibo(s)`);
+    res.json({ ok: true, atualizados, total: todos.length, log });
+  } catch (e) {
+    console.error("❌ Erro ao normalizar escritórios:", e.message);
+    res.status(500).json({ erro: "Erro ao normalizar escritórios.", detalhe: e.message });
+  }
+});
+
 // ── CORRIGIR DATAS NA PLANILHA ────────────────────────────
 app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();

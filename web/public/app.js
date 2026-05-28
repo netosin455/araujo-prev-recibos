@@ -2236,6 +2236,25 @@ async function carregarPorEscritorio() {
   status.style.display = "none"; wrap.style.display = "";
 }
 
+async function normalizarEscritorios() {
+  const btn = document.getElementById("btn-normalizar-escritorios");
+  const statusEl = document.getElementById("normalizar-escritorios-status");
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Normalizando...';
+  statusEl.textContent = "";
+  try {
+    const res = await api("POST", "/api/admin/normalizar-escritorios");
+    if (!res || !res.ok) { statusEl.textContent = "Erro ao normalizar."; return; }
+    const data = await res.json();
+    statusEl.textContent = `✅ ${data.atualizados} recibo(s) atualizados de ${data.total} total.`;
+    if (data.atualizados > 0) { await carregarRecibos(); preencherFiltrosAnos(); }
+  } catch(e) {
+    statusEl.textContent = "Erro: " + e.message;
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+}
+
 async function baixarBackupDB() {
   const btn = document.getElementById("btn-backup-db");
   const statusEl = document.getElementById("backup-db-status");
@@ -3000,6 +3019,7 @@ function bindStaticHandlers() {
   document.getElementById("btn-importar-de-sheets").addEventListener("click", importarDeSheets);
   document.getElementById("btn-reescrever-planilha").addEventListener("click", reescreverPlanilha);
   document.getElementById("btn-backup-db").addEventListener("click", baixarBackupDB);
+  document.getElementById("btn-normalizar-escritorios").addEventListener("click", normalizarEscritorios);
 
   // Usuários
   document.getElementById("novo-role").addEventListener("change", function() { toggleEscritorioNovo(this.value); });
