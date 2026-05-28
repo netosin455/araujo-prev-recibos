@@ -30,6 +30,8 @@ const { google } = require("googleapis");
 const multer = require("multer");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
+const archiver = require("archiver");
+const nodemailer = require("nodemailer");
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
 const SHEET_ID = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
@@ -106,6 +108,15 @@ async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
   }
 }
 
+// Converte presigned URL S3 para path relativo — nunca expõe URL temporária na planilha (SEC-014)
+function sanitizarLinkParaSheets(link) {
+  if (!link) return "";
+  // Presigned URL: https://bucket.s3.region.amazonaws.com/KEY?X-Amz-...
+  const s3Match = link.match(/amazonaws\.com\/(.+?)(?:\?|$)/);
+  if (s3Match) return `/api/comprovante-s3/${s3Match[1]}`;
+  return link;
+}
+
 async function registrarNoSheets(dados) {
   const sheets = getSheetsClient();
   if (!sheets) return false;
@@ -132,7 +143,7 @@ async function registrarNoSheets(dados) {
       dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // H: Motivo de pagamento
       dados.escritorio || "",                           // I: Escritório
       "",                                               // J: Alguma observação (não usado)
-      dados.link_comprovante || "",                     // K: Anexo comprovante
+      sanitizarLinkParaSheets(dados.link_comprovante),   // K: Anexo comprovante (path relativo — SEC-014)
       mesPagamento,                                     // L: Mês
       dados.num_recibo || "",                           // M: Número do recibo
       dados.emitido_por || "",                          // N: Responsável (emitido por)
@@ -179,7 +190,7 @@ async function atualizarNoSheets(num, dados) {
       dados.motivo_pagamento || dados.complemento || "",   // H: Motivo
       dados.escritorio || "",                              // I: Escritório
       "",                                                  // J: Observação
-      dados.link_comprovante || "",                        // K: Comprovante
+      sanitizarLinkParaSheets(dados.link_comprovante),      // K: Comprovante (path relativo — SEC-014)
       mes,                                                 // L: Mês
       num,                                                 // M: Número recibo
       dados.emitido_por || "",                             // N: Responsável
@@ -383,6 +394,21 @@ async function initDb() {
   await pgPool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS referencia_padrao TEXT DEFAULT ''
   `);
+  await pgPool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS nome_completo TEXT DEFAULT ''
+  `);
+  // Tabela de states OAuth Gov.br — TTL gerenciado por expira_em (SEC-012)
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS govbr_states (
+      state      TEXT PRIMARY KEY,
+      recibo_id  TEXT NOT NULL,
+      username   TEXT NOT NULL,
+      expira_em  TIMESTAMPTZ NOT NULL
+    )
+  `);
+  // Limpeza de states expirados ao iniciar
+  await pgPool.query(`DELETE FROM govbr_states WHERE expira_em < NOW()`);
+  console.log("✅ Tabela govbr_states pronta.");
 
   // Admin: sempre atualiza senha/role para refletir env vars (conta de sistema)
   const adminHash = bcrypt.hashSync(ADMIN_PASS, 10);
@@ -618,7 +644,7 @@ app.use((req, res, next) => {
   res.setHeader("Content-Security-Policy",
     "default-src 'self'; " +
     "script-src 'self'; " +
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
+    "style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
     "img-src 'self' data: blob: https:; " +
     "connect-src 'self'; " +
@@ -701,7 +727,7 @@ app.post("/api/login", loginLimiter, async (req, res) => {
 // ── DADOS DO USUÁRIO LOGADO ────────────────────────────────
 app.get("/api/me", auth, async (req, res) => {
   const { rows } = await pgPool.query(
-    "SELECT id, username, role, escritorio, referencia_padrao FROM users WHERE id=$1",
+    "SELECT id, username, nome_completo, role, escritorio, referencia_padrao FROM users WHERE id=$1",
     [req.user.id]
   );
   if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado" });
@@ -716,6 +742,14 @@ app.put("/api/me/referencia", auth, async (req, res) => {
     "UPDATE users SET referencia_padrao=$1 WHERE id=$2",
     [referencia_padrao.toUpperCase(), req.user.id]
   );
+  res.json({ ok: true });
+});
+
+app.put("/api/me/nome-completo", auth, async (req, res) => {
+  const { nome_completo } = req.body;
+  if (typeof nome_completo !== "string") return res.status(400).json({ erro: "Valor inválido" });
+  if (nome_completo.length > 80) return res.status(400).json({ erro: "Nome muito longo (máx. 80 caracteres)." });
+  await pgPool.query("UPDATE users SET nome_completo=$1 WHERE id=$2", [nome_completo.trim(), req.user.id]);
   res.json({ ok: true });
 });
 
@@ -1054,10 +1088,16 @@ app.patch("/api/clientes/:id/parcela/:num", auth, financeiroOnly, async (req, re
 app.get("/api/recibos", auth, async (req, res) => {
   const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: -1 });
   // Recepção vê apenas os recibos do seu escritório
-  const recibos = req.user.role === "recepcao" && req.user.escritorio
+  const filtrados = req.user.role === "recepcao" && req.user.escritorio
     ? todos.filter(r => (r.escritorio || "").toUpperCase() === req.user.escritorio.toUpperCase())
     : todos;
-  res.json(recibos.map(r => ({ ...r, id: r._id })));
+
+  const total = filtrados.length;
+  const page  = Math.max(1, parseInt(req.query.page)  || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+  const totalPaginas = Math.ceil(total / limit) || 1;
+  const recibos = filtrados.slice((page - 1) * limit, page * limit).map(r => ({ ...r, id: r._id }));
+  res.json({ recibos, total, pagina: page, totalPaginas });
 });
 
 app.post("/api/recibos", auth, financeiroOnly, async (req, res) => {
@@ -1079,7 +1119,19 @@ app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
   const { nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante } = req.body;
   const upd = { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"" };
   if (link_comprovante) upd.link_comprovante = link_comprovante;
-  await update(dbRecibos, { _id: req.params.id }, upd);
+
+  // Histórico de edições — diff dos campos auditados antes de sobrescrever
+  const atual = await findOne(dbRecibos, { _id: req.params.id });
+  const CAMPOS_AUDITADOS = ["nome","cpf","municipio_uf","valor","data","emitido_por","complemento","referencia","forma_pagamento","escritorio","motivo_pagamento","link_comprovante"];
+  const campos_alterados = CAMPOS_AUDITADOS
+    .filter(c => String(atual?.[c] ?? "") !== String(upd[c] ?? ""))
+    .map(c => ({ campo: c, anterior: String(atual?.[c] ?? ""), novo: String(upd[c] ?? "") }));
+  const historico_edicoes = atual?.historico_edicoes || [];
+  if (campos_alterados.length > 0) {
+    historico_edicoes.push({ data: new Date().toISOString(), editado_por: req.user.username, campos_alterados });
+  }
+
+  await update(dbRecibos, { _id: req.params.id }, { ...upd, historico_edicoes });
   // Atualiza também na planilha
   const recibo = await findOne(dbRecibos, { _id: req.params.id });
   if (recibo && recibo.num) {
@@ -1112,6 +1164,205 @@ app.get("/api/proximo-num", auth, async (req, res) => {
   }
   const num = maior + 1;
   res.json({ num: `${String(num).padStart(4, "0")}/${ano}` });
+});
+
+// ── RELATÓRIO DE INADIMPLÊNCIA ─────────────────────────────
+app.get("/api/relatorios/inadimplencia", auth, financeiroOnly, async (req, res) => {
+  try {
+    const clientes = await find(dbClientes, NAO_DELETADO);
+    const hoje = new Date().toISOString().slice(0, 10);
+    const relatorio = [];
+    for (const c of clientes) {
+      const enriquecido = await enriquecerCliente(c);
+      const atrasadas = (enriquecido.parcelas || []).filter(p => p.status === "atrasado");
+      if (atrasadas.length === 0) continue;
+      relatorio.push({
+        id: enriquecido._id,
+        nome: enriquecido.nome,
+        cpf: enriquecido.cpf,
+        telefone: enriquecido.telefone || "",
+        parcelas_atrasadas: atrasadas.length,
+        valor_em_aberto: atrasadas.reduce((s, p) => s + (p.valor || 0), 0),
+        parcelas: atrasadas.map(p => ({
+          num: p.num,
+          valor: p.valor,
+          data_vencimento: p.data_vencimento,
+          dias_atraso: p.data_vencimento
+            ? Math.floor((new Date(hoje) - new Date(p.data_vencimento)) / 86400000)
+            : null,
+        })),
+      });
+    }
+    relatorio.sort((a, b) => b.valor_em_aberto - a.valor_em_aberto);
+    res.json({ total_inadimplentes: relatorio.length, relatorio });
+  } catch (e) {
+    console.error("Erro ao gerar relatório de inadimplência:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar relatório." });
+  }
+});
+
+// ── HELPER: gera buffer PDF de um recibo do banco ──────────
+async function gerarBufferPDFRecibo(recibo) {
+  const logoPath = path.join(__dirname, "public", "logo.png");
+  const logoExists = fs.existsSync(logoPath);
+  const digits = (recibo.cpf || "").replace(/\D/g, "");
+  const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
+  const complemento = recibo.complemento ? ` - ${recibo.complemento}` : "";
+  const MESES_EXT = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  const [dia, mes, ano] = (recibo.data || "").split("/");
+  const mesNome = MESES_EXT[parseInt(mes, 10) - 1] || "";
+  const data_extenso = dia && mes && ano ? `${parseInt(dia, 10)} de ${mesNome} de ${ano}` : (recibo.data || "");
+  const textoCorpo = `Recebemos do (a) senhor (a) ${recibo.nome}, residente e domiciliado(a) no Município de ${recibo.municipio_uf}, a importância de R$ ${recibo.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${complemento}.`;
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const pdf = new PDFDocument({ margin: 60, size: "A4" });
+    pdf.on("data", c => chunks.push(c));
+    pdf.on("end", () => resolve(Buffer.concat(chunks)));
+    pdf.on("error", reject);
+
+    if (logoExists) pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
+    pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
+      .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
+    pdf.fontSize(12).fillColor("#000000").text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
+    const lx = pdf.page.margins.left;
+    const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
+    pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
+    pdf.fontSize(12).font("Helvetica-Bold")
+      .text(`Recibo Nº ${recibo.num}${recibo.referencia ? "   |   Ref: " + recibo.referencia : ""}`, { align: "center" }).moveDown(0.2);
+    pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
+    pdf.fontSize(11).font("Helvetica").text(textoCorpo, { align: "justify" }).moveDown(0.6);
+    pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
+    pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
+    pdf.text(`${recibo.municipio_uf}, ${data_extenso}`, { align: "left" }).moveDown(6);
+    pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
+    pdf.fontSize(10).text(recibo.nome, { align: "center" }).moveDown(0.1);
+    pdf.fontSize(9).text(`${labelDoc}: ${recibo.cpf}`, { align: "center" }).moveDown(5);
+    pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
+    pdf.fontSize(10).text(recibo.emitido_por || "A ARAUJO PREV", { align: "left" });
+    if (logoExists) pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
+    pdf.end();
+  });
+}
+
+// ── EXPORTAR RECIBOS EM LOTE (ZIP) ──────────────────────────
+app.post("/api/recibos/exportar-zip", auth, financeiroOnly, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ erro: "Informe ao menos um ID." });
+    if (ids.length > 100) return res.status(400).json({ erro: "Máximo de 100 recibos por exportação." });
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="recibos_${Date.now()}.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 6 } });
+    archive.on("error", e => { console.error("Erro archiver:", e.message); });
+    archive.pipe(res);
+
+    for (const id of ids) {
+      const recibo = await findOne(dbRecibos, { _id: id });
+      if (!recibo || recibo.deletado_em) continue;
+      try {
+        const buf = await gerarBufferPDFRecibo(recibo);
+        const nomeArq = `recibo_${(recibo.num || id).replace(/[\/\\]/g, "-")}_${(recibo.nome || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "_").toLowerCase()}.pdf`;
+        archive.append(buf, { name: nomeArq });
+      } catch (e) {
+        console.error(`Erro ao gerar PDF do recibo ${id}:`, e.message);
+      }
+    }
+
+    await archive.finalize();
+  } catch (e) {
+    console.error("Erro ao exportar ZIP:", e.message);
+    if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar arquivo ZIP." });
+  }
+});
+
+// ── RELATÓRIO: PROJEÇÃO DE RECEBIMENTOS (6 MESES) ──────────
+app.get("/api/relatorios/projecao", auth, financeiroOnly, async (req, res) => {
+  try {
+    const clientes = await find(dbClientes, NAO_DELETADO);
+    const hoje = new Date();
+    // Mapa mes-chave → valor acumulado para os próximos 6 meses
+    const mesesPT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+    const limite = new Date(hoje.getFullYear(), hoje.getMonth() + 6, 1);
+    const mapa = {};
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+      const chave = `${mesesPT[d.getMonth()]}/${d.getFullYear()}`;
+      mapa[chave] = 0;
+    }
+    for (const c of clientes) {
+      const enriquecido = await enriquecerCliente(c);
+      for (const p of (enriquecido.parcelas || [])) {
+        if (p.status === "pago") continue;
+        if (!p.data_vencimento) continue;
+        const [aaaa, mm] = p.data_vencimento.split("-");
+        if (!aaaa || !mm) continue;
+        const venc = new Date(parseInt(aaaa), parseInt(mm) - 1, 1);
+        if (venc < new Date(hoje.getFullYear(), hoje.getMonth(), 1) || venc >= limite) continue;
+        const chave = `${mesesPT[venc.getMonth()]}/${venc.getFullYear()}`;
+        if (chave in mapa) mapa[chave] += p.valor || 0;
+      }
+    }
+    const resultado = Object.entries(mapa).map(([mes, valor]) => ({ mes, valor: Math.round(valor * 100) / 100 }));
+    res.json(resultado);
+  } catch (e) {
+    console.error("Erro ao gerar projeção:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar projeção." });
+  }
+});
+
+// ── RELATÓRIO: RECEITA POR ESCRITÓRIO ──────────────────────
+app.get("/api/relatorios/por-escritorio", auth, financeiroOnly, async (req, res) => {
+  try {
+    const recibos  = await find(dbRecibos,  NAO_DELETADO);
+    const clientes = await find(dbClientes, NAO_DELETADO);
+    const escritorios = {};
+    for (const r of recibos) {
+      const esc = (r.escritorio || "").trim() || "(sem escritório)";
+      if (!escritorios[esc]) escritorios[esc] = { escritorio: esc, receita: 0, recibos: 0, clientes: 0 };
+      const val = parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
+      escritorios[esc].receita  += val;
+      escritorios[esc].recibos  += 1;
+    }
+    for (const c of clientes) {
+      const esc = (c.escritorio || "").trim() || "(sem escritório)";
+      if (!escritorios[esc]) escritorios[esc] = { escritorio: esc, receita: 0, recibos: 0, clientes: 0 };
+      escritorios[esc].clientes += 1;
+    }
+    const resultado = Object.values(escritorios)
+      .map(e => ({ ...e, receita: Math.round(e.receita * 100) / 100 }))
+      .sort((a, b) => b.receita - a.receita);
+    res.json(resultado);
+  } catch (e) {
+    console.error("Erro ao gerar relatório por escritório:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar relatório." });
+  }
+});
+
+// ── BACKUP DO BANCO DE DADOS ────────────────────────────────
+app.get("/api/admin/backup-db", auth, adminOnly, async (req, res) => {
+  try {
+    const dbDir = path.join(__dirname, "data");
+    const arquivos = ["recibos.db", "clientes.db"].filter(f => fs.existsSync(path.join(dbDir, f)));
+    if (arquivos.length === 0) return res.status(404).json({ erro: "Nenhum arquivo de banco encontrado." });
+
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="backup_db_${ts}.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", e => { console.error("Erro backup ZIP:", e.message); });
+    archive.pipe(res);
+    for (const f of arquivos) {
+      archive.file(path.join(dbDir, f), { name: f });
+    }
+    await archive.finalize();
+  } catch (e) {
+    console.error("Erro ao gerar backup:", e.message);
+    if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar backup." });
+  }
 });
 
 // ── GERAR DOCUMENTO ────────────────────────────────────────
@@ -1718,6 +1969,256 @@ app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
   }
 });
 
+// ── EMAIL SMTP ─────────────────────────────────────────────
+// Variáveis de ambiente necessárias no Elastic Beanstalk:
+//   SMTP_HOST=smtp.gmail.com
+//   SMTP_PORT=587
+//   SMTP_USER=email@dominio.com
+//   SMTP_PASS=senha_de_app          ← use App Password do Google, não a senha da conta
+//   SMTP_FROM=Araujo Prev <email@dominio.com>
+//   SMTP_ADMIN=email-do-admin@dominio.com  ← destinatário dos alertas de inadimplência
+
+function smtpConfigurado() {
+  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+function criarTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || "587", 10),
+    secure: process.env.SMTP_PORT === "465",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
+async function enviarEmail({ to, subject, html, attachments = [] }) {
+  if (!smtpConfigurado()) {
+    console.warn("⚠️  SMTP não configurado — e-mail não enviado.");
+    return false;
+  }
+  const transporter = criarTransporter();
+  try {
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to,
+      subject,
+      html,
+      attachments,
+    });
+    console.log(`✅ E-mail enviado para ${to} — messageId: ${info.messageId}`);
+    return true;
+  } catch (e) {
+    console.error(`❌ Falha ao enviar e-mail para ${to}: ${e.message}`);
+    return false;
+  }
+}
+
+// POST /api/notificacoes/email-inadimplencia
+// Envia e-mail ao admin com lista de clientes inadimplentes.
+// Requer role admin ou financeiro.
+app.post("/api/notificacoes/email-inadimplencia", auth, financeiroOnly, async (req, res) => {
+  if (!smtpConfigurado()) {
+    return res.status(503).json({ erro: "Integração de e-mail não configurada. Defina SMTP_HOST, SMTP_USER e SMTP_PASS no painel do EB." });
+  }
+
+  const adminEmail = process.env.SMTP_ADMIN || process.env.SMTP_USER;
+  if (!adminEmail) {
+    return res.status(503).json({ erro: "Defina SMTP_ADMIN com o e-mail do destinatário do alerta." });
+  }
+
+  try {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const clientes = await find(dbClientes, NAO_DELETADO);
+    const inadimplentes = [];
+
+    for (const cliente of clientes) {
+      const parcelas = cliente.parcelas || [];
+      const atrasadas = parcelas.filter(p => {
+        if (p.status === "pago") return false;
+        if (!p.data_vencimento) return false;
+        const [d, m, y] = p.data_vencimento.split("/");
+        const venc = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+        return venc < hoje;
+      });
+
+      if (atrasadas.length === 0) continue;
+
+      const valorAberto = atrasadas.reduce((acc, p) => acc + (parseFloat(p.valor) || 0), 0);
+      const maisAntiga = atrasadas.reduce((min, p) => {
+        const [d, m, y] = p.data_vencimento.split("/");
+        const v = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+        return v < min ? v : min;
+      }, new Date());
+      const diasAtraso = Math.floor((hoje - maisAntiga) / (1000 * 60 * 60 * 24));
+
+      inadimplentes.push({
+        nome: cliente.nome,
+        cpf: cliente.cpf || "",
+        parcelasAtrasadas: atrasadas.length,
+        valorAberto: valorAberto.toFixed(2),
+        diasAtraso,
+      });
+    }
+
+    inadimplentes.sort((a, b) => parseFloat(b.valorAberto) - parseFloat(a.valorAberto));
+
+    const totalValor = inadimplentes.reduce((acc, c) => acc + parseFloat(c.valorAberto), 0);
+    const dataRelatorio = hoje.toLocaleDateString("pt-BR");
+
+    const linhasTabela = inadimplentes.map(c => `
+      <tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">${c.nome}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${c.parcelasAtrasadas}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right">R$ ${parseFloat(c.valorAberto).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${c.diasAtraso} dias</td>
+      </tr>`).join("");
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto">
+        <div style="background:#1E40AF;padding:20px;border-radius:8px 8px 0 0">
+          <h2 style="color:#fff;margin:0">Araujo Prev — Relatório de Inadimplência</h2>
+          <p style="color:#bfdbfe;margin:4px 0 0">${dataRelatorio}</p>
+        </div>
+        <div style="background:#f9fafb;padding:20px;border:1px solid #e5e7eb;border-top:none">
+          <p style="margin:0 0 12px"><strong>${inadimplentes.length}</strong> cliente(s) inadimplente(s) — Total em aberto: <strong>R$ ${totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></p>
+          ${inadimplentes.length === 0 ? "<p style='color:#16a34a'>Nenhum cliente inadimplente no momento. ✅</p>" : `
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb">
+            <thead>
+              <tr style="background:#1E40AF;color:#fff">
+                <th style="padding:8px 10px;text-align:left">Cliente</th>
+                <th style="padding:8px 10px">Parcelas</th>
+                <th style="padding:8px 10px">Valor Aberto</th>
+                <th style="padding:8px 10px">Atraso</th>
+              </tr>
+            </thead>
+            <tbody>${linhasTabela}</tbody>
+          </table>`}
+        </div>
+        <p style="font-size:11px;color:#9ca3af;text-align:center;margin-top:12px">Enviado automaticamente pelo sistema Araujo Prev</p>
+      </div>`;
+
+    const ok = await enviarEmail({
+      to: adminEmail,
+      subject: `[Araujo Prev] Inadimplência — ${inadimplentes.length} cliente(s) — ${dataRelatorio}`,
+      html,
+    });
+
+    if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configurações SMTP." });
+
+    console.log(`[${new Date().toISOString()}] E-mail de inadimplência enviado por ${req.user.username} — ${inadimplentes.length} clientes`);
+    res.json({ ok: true, inadimplentes: inadimplentes.length, destinatario: adminEmail });
+  } catch (e) {
+    console.error("❌ Erro ao gerar relatório de inadimplência por e-mail:", e.message);
+    res.status(500).json({ erro: "Erro interno ao processar relatório." });
+  }
+});
+
+// POST /api/notificacoes/enviar-recibo-email
+// Gera PDF do recibo em memória e envia como anexo para o e-mail do cliente.
+// Body: mesmos campos de /api/gerar-recibo + { email_cliente, num_recibo }
+app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (req, res) => {
+  if (!smtpConfigurado()) {
+    return res.status(503).json({ erro: "Integração de e-mail não configurada. Defina SMTP_HOST, SMTP_USER e SMTP_PASS no painel do EB." });
+  }
+
+  const { email_cliente, ...dados } = req.body;
+  if (!email_cliente || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_cliente)) {
+    return res.status(400).json({ erro: "E-mail do cliente inválido." });
+  }
+  if (!dados.nome || !dados.cpf || !dados.valor) {
+    return res.status(400).json({ erro: "Campos obrigatórios ausentes: nome, cpf, valor." });
+  }
+
+  try {
+    const digits = (dados.cpf || "").replace(/\D/g, "");
+    const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
+    const complemento = dados.complemento ? ` - ${dados.complemento}` : "";
+    const logoPath = path.join(__dirname, "public", "logo.png");
+    const logoExists = fs.existsSync(logoPath);
+
+    const textoCorpo = `Recebemos do (a) senhor (a) ${dados.nome}, residente e domiciliado(a) no Município de ${dados.municipio_uf || ""}, a importância de R$ ${dados.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${complemento}.`;
+
+    const chunks = [];
+    const pdf = new PDFDocument({ margin: 60, size: "A4" });
+    pdf.on("data", c => chunks.push(c));
+    await new Promise((resolve, reject) => {
+      pdf.on("end", resolve);
+      pdf.on("error", reject);
+
+      if (logoExists) {
+        pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
+      }
+      pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
+        .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
+      pdf.fontSize(12).fillColor("#000000")
+        .text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
+
+      const lx = pdf.page.margins.left;
+      const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
+      pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
+
+      pdf.fontSize(12).font("Helvetica-Bold")
+        .text(`Recibo Nº ${dados.num_recibo || ""}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
+      pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
+      pdf.fontSize(11).font("Helvetica")
+        .text(textoCorpo, { align: "justify" }).moveDown(0.6);
+      pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
+      pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
+      pdf.text(`${dados.municipio_uf || ""}, ${dados.data_extenso || ""}`, { align: "left" }).moveDown(6);
+      pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
+      pdf.fontSize(10).text(dados.nome, { align: "center" }).moveDown(0.1);
+      pdf.fontSize(9).text(`${labelDoc}: ${dados.cpf}`, { align: "center" }).moveDown(5);
+      pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
+      pdf.fontSize(10).text(dados.emitido_por || "A ARAUJO PREV", { align: "left" });
+      if (logoExists) {
+        pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
+      }
+      pdf.end();
+    });
+
+    const pdfBuf = Buffer.concat(chunks);
+    const nomeArquivo = `recibo_${(dados.num_recibo || "").replace(/[\/\\]/g, "-")}.pdf`;
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+        <div style="background:#1E40AF;padding:20px;border-radius:8px 8px 0 0">
+          <h2 style="color:#fff;margin:0">Recibo de Honorários</h2>
+        </div>
+        <div style="background:#f9fafb;padding:20px;border:1px solid #e5e7eb;border-top:none">
+          <p>Olá, <strong>${dados.nome}</strong>,</p>
+          <p>Segue em anexo o seu recibo de honorários advocatícios.</p>
+          <ul>
+            <li><strong>Recibo Nº:</strong> ${dados.num_recibo || ""}</li>
+            <li><strong>Valor:</strong> R$ ${dados.valor}</li>
+            <li><strong>Data:</strong> ${dados.data || ""}</li>
+          </ul>
+          <p>Em caso de dúvidas, entre em contato conosco.</p>
+          <p>Atenciosamente,<br><strong>Araujo Prev</strong></p>
+        </div>
+      </div>`;
+
+    const ok = await enviarEmail({
+      to: email_cliente,
+      subject: `Recibo de Honorários Nº ${dados.num_recibo || ""} — Araujo Prev`,
+      html,
+      attachments: [{ filename: nomeArquivo, content: pdfBuf, contentType: "application/pdf" }],
+    });
+
+    if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configurações SMTP." });
+
+    console.log(`[${new Date().toISOString()}] Recibo ${dados.num_recibo} enviado por e-mail para ${email_cliente} por ${req.user.username}`);
+    res.json({ ok: true, destinatario: email_cliente });
+  } catch (e) {
+    console.error("❌ Erro ao enviar recibo por e-mail:", e.message);
+    res.status(500).json({ erro: "Erro interno ao processar envio." });
+  }
+});
+
 // ── GOV.BR — ASSINATURA DIGITAL ────────────────────────────
 // Credenciais fornecidas pelo Gov.br após cadastro em:
 // https://www.gov.br/governodigital/pt-br/privacidade-e-seguranca/login-unico
@@ -1748,45 +2249,70 @@ function gerarState() {
   return require("crypto").randomBytes(16).toString("hex");
 }
 
-// Armazena states temporários (expira em 10 min)
-const govbrStates = new Map();
+// States OAuth Gov.br persistidos no Neon (SEC-012 — sem Map em memória)
 
 // PASSO 1 — Inicia fluxo OAuth2: retorna URL de redirecionamento para o Gov.br
-app.get("/api/govbr/iniciar", auth, (req, res) => {
+app.get("/api/govbr/iniciar", auth, async (req, res) => {
   if (!govbrConfigurado()) {
     return res.status(503).json({ erro: "Integração Gov.br não configurada. Aguardando credenciais." });
   }
   const { recibo_id } = req.query;
   if (!recibo_id) return res.status(400).json({ erro: "recibo_id obrigatório" });
 
-  const state = gerarState();
-  govbrStates.set(state, { recibo_id, user: req.user.username, expires: Date.now() + 10 * 60 * 1000 });
+  try {
+    const state = gerarState();
+    await pgPool.query(
+      `INSERT INTO govbr_states (state, recibo_id, username, expira_em)
+       VALUES ($1, $2, $3, NOW() + INTERVAL '10 minutes')`,
+      [state, recibo_id, req.user.username]
+    );
 
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: GOVBR_CLIENT_ID,
-    scope: "openid email profile govbr_empresa govbr_confiabilidades",
-    redirect_uri: GOVBR_REDIRECT_URI,
-    state,
-    nonce: gerarState(),
-  });
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: GOVBR_CLIENT_ID,
+      scope: "openid email profile govbr_empresa govbr_confiabilidades",
+      redirect_uri: GOVBR_REDIRECT_URI,
+      state,
+      nonce: gerarState(),
+    });
 
-  res.json({ url: `${GOVBR_BASE_URL}/authorize?${params.toString()}` });
+    res.json({ url: `${GOVBR_BASE_URL}/authorize?${params.toString()}` });
+  } catch (e) {
+    console.error("Erro ao iniciar Gov.br:", e.message);
+    res.status(500).json({ erro: "Erro interno ao iniciar autenticação Gov.br." });
+  }
 });
 
 // PASSO 2 — Callback: Gov.br redireciona aqui após o cliente autenticar
 app.get("/api/govbr/callback", async (req, res) => {
-  const { code, state, error } = req.query;
+  const { code, state, error, error_description } = req.query;
+  const agora = new Date().toISOString();
 
   if (error) {
-    return res.redirect(`/?govbr_erro=${encodeURIComponent(error)}`);
+    const mensagem = error_description
+      ? `${error}: ${error_description}`
+      : error === "access_denied"
+        ? "Acesso negado pelo usuário no Gov.br."
+        : `Erro retornado pelo Gov.br: ${error}`;
+    console.warn(`[${agora}] Gov.br callback — erro retornado pelo provedor: ${mensagem}`);
+    return res.redirect(`/?govbr_erro=${encodeURIComponent(mensagem)}`);
   }
 
-  const stateData = govbrStates.get(state);
-  if (!stateData || Date.now() > stateData.expires) {
-    return res.redirect("/?govbr_erro=state_invalido");
+  const { rows: stateRows } = await pgPool.query(
+    `DELETE FROM govbr_states WHERE state = $1 RETURNING recibo_id, username, expira_em`,
+    [state]
+  );
+  const stateData = stateRows[0] ? { recibo_id: stateRows[0].recibo_id, user: stateRows[0].username, expires: new Date(stateRows[0].expira_em).getTime() } : null;
+  if (!stateData) {
+    console.warn(`[${agora}] Gov.br callback — state desconhecido ou já utilizado: ${state}`);
+    return res.redirect(`/?govbr_erro=${encodeURIComponent("Sessão expirada ou inválida. Inicie o processo novamente.")}`);
   }
-  govbrStates.delete(state);
+  if (Date.now() > stateData.expires) {
+    console.warn(`[${agora}] Gov.br callback — state expirado para usuário ${stateData.user}`);
+    return res.redirect(`/?govbr_erro=${encodeURIComponent("Sessão Gov.br expirada (limite de 10 minutos). Tente novamente.")}`);
+  }
+
+  console.log(`[${agora}] Gov.br callback — iniciando troca de code por token para recibo ${stateData.recibo_id} (usuário: ${stateData.user})`);
 
   try {
     // Troca code por token
@@ -1802,7 +2328,10 @@ app.get("/api/govbr/callback", async (req, res) => {
       }),
     });
     const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) throw new Error("Token não recebido");
+    if (!tokenData.access_token) {
+      console.error(`[${agora}] Gov.br callback — token não recebido. Resposta: ${JSON.stringify(tokenData)}`);
+      throw new Error("Token de acesso não recebido. Verifique as credenciais Gov.br ou tente novamente.");
+    }
 
     // Busca dados do usuário (nome, CPF)
     const userRes = await fetch(`${GOVBR_BASE_URL}/userinfo`, {
@@ -1822,13 +2351,15 @@ app.get("/api/govbr/callback", async (req, res) => {
     };
 
     await update(dbRecibos, { _id: stateData.recibo_id }, { assinatura_govbr: assinatura });
-    console.log(`✅ Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante}`);
+    console.log(`[${new Date().toISOString()}] ✅ Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante} (CPF: ${assinatura.cpf_assinante || "n/d"}) — usuário do sistema: ${stateData.user}`);
 
-    // Redireciona de volta para o app com sucesso
     res.redirect(`/?govbr_ok=1&recibo_id=${stateData.recibo_id}`);
   } catch (e) {
-    console.error("❌ Erro no callback Gov.br:", e.message);
-    res.redirect(`/?govbr_erro=${encodeURIComponent(e.message)}`);
+    console.error(`[${new Date().toISOString()}] ❌ Erro no callback Gov.br para recibo ${stateData?.recibo_id}: ${e.message}`);
+    const msgUsuario = e.message.includes("Token") || e.message.includes("userinfo")
+      ? "Falha na comunicação com Gov.br. Tente novamente em instantes."
+      : e.message;
+    res.redirect(`/?govbr_erro=${encodeURIComponent(msgUsuario)}`);
   }
 });
 

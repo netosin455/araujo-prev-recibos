@@ -71,16 +71,34 @@ document.getElementById("login-usuario").addEventListener("keydown", e=>{ if(e.k
 // ── ESTADO ─────────────────────────────────────────────────
 let historicoRecibos = [];
 let graficoMensal = null;
+let graficoProjecao = null;
+let graficoAnalyticsMensal = null;
 let modoEdicao = null;
+const _selecionadosZip = new Set();
 let idEdicao = null;
 let referenciaPadrao = "";
 let _clienteContexto = null; // cliente ativo ao clicar em "+ Recibo"
+
+// ── SKELETON LOADING ───────────────────────────────────────
+function mostrarSkeleton(containerId, rows = 4) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = Array.from({length: rows}, () =>
+    `<div class="skeleton-card">
+       <div class="skeleton-line" style="width:38%;height:14px;margin-bottom:8px"></div>
+       <div class="skeleton-line" style="width:65%;height:12px;margin-bottom:6px"></div>
+       <div class="skeleton-line" style="width:50%;height:12px"></div>
+     </div>`
+  ).join("");
+}
 
 // ── INICIAR ────────────────────────────────────────────────
 async function iniciarApp(){
   document.getElementById("nome-usuario").textContent = usuarioLogado;
   document.getElementById("perfil-usuario").textContent = roleLogado === "recepcao" ? "Recepção" : "Financeiro";
   aplicarTema(localStorage.getItem("tema")||"light");
+  mostrarSkeleton("historico-grid");
+  mostrarSkeleton("clientes-grid");
   // Mostra menu de usuários só para admin
   const res = await api("GET", "/api/users");
   if(res && res.ok) {
@@ -100,7 +118,7 @@ async function iniciarApp(){
   atualizarSugestoesNomes();
   preencherFiltrosAnos();
   verificarClientesInativos();
-  carregarClientes().then(atualizarBadgeClientes);
+  carregarClientes().then(() => { atualizarBadgeClientes(); verificarParcelasVencendo(); });
 }
 
 async function carregarReferenciaPadrao() {
@@ -111,7 +129,7 @@ async function carregarReferenciaPadrao() {
   const el = document.getElementById("referencia");
   if (el && referenciaPadrao && !el.value) el.value = referenciaPadrao;
   const elEmitido = document.getElementById("emitido_por");
-  if (elEmitido && !elEmitido.value) elEmitido.value = me.username || usuarioLogado;
+  if (elEmitido && !elEmitido.value) elEmitido.value = me.nome_completo || me.username || usuarioLogado;
   // Garante que escritorioLogado está sempre atualizado (inclusive após reload com token salvo)
   if (me.escritorio) {
     escritorioLogado = me.escritorio.toUpperCase();
@@ -133,6 +151,21 @@ function iniciarAvisoSessao() {
       }, avisarEm);
     }
   } catch(e) { /* token sem exp ou inválido */ }
+}
+
+function verificarParcelasVencendo() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const em7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  let count = 0;
+  listaClientes.forEach(c => {
+    if (!Array.isArray(c.parcelas)) return;
+    c.parcelas.forEach(p => {
+      if (p.status !== "pago" && p.data_vencimento && p.data_vencimento >= hoje && p.data_vencimento <= em7) count++;
+    });
+  });
+  if (count > 0) {
+    mostrarToast(`${count} parcela${count!==1?"s":""} vencem nos próximos 7 dias.`, () => navegarPara("clientes"), "error");
+  }
 }
 
 function validarCPF(cpf) {
@@ -230,6 +263,9 @@ function navegarPara(tela){
   if(tela==="admin"){
     atualizarDashboard();
     if(document.getElementById("admin-financeiro")?.classList.contains("active")){preencherFiltrosAnos();aplicarFiltros();}
+    if(document.getElementById("admin-inadimplencia")?.classList.contains("active")) carregarInadimplencia();
+    if(document.getElementById("admin-projecao")?.classList.contains("active")) carregarProjecao();
+    if(document.getElementById("admin-escritorios")?.classList.contains("active")) carregarPorEscritorio();
   }
   if(tela==="usuarios") renderUsuarios();
 }
@@ -645,6 +681,47 @@ function limparFiltroData(){
   renderHistorico();
 }
 
+function renderBuscaGlobal(termo) {
+  const dropdown = document.getElementById("busca-global-dropdown");
+  if (!termo || termo.length < 2) { dropdown.style.display = "none"; return; }
+  const t = termo.toLowerCase();
+  const recibos = historicoRecibos.filter(r =>
+    (r.nome||"").toLowerCase().includes(t) || (r.num||"").toLowerCase().includes(t) || (r.cpf||"").replace(/\D/g,"").includes(t.replace(/\D/g,""))
+  ).slice(0, 5);
+  const clientes = listaClientes.filter(c =>
+    (c.nome||"").toLowerCase().includes(t) || (c.cpf||"").replace(/\D/g,"").includes(t.replace(/\D/g,""))
+  ).slice(0, 5);
+  if (!recibos.length && !clientes.length) { dropdown.style.display = "none"; return; }
+  let html = "";
+  if (recibos.length) {
+    html += `<div class="global-dropdown-group">Recibos</div>`;
+    html += recibos.map(r => `<div class="global-dropdown-item" data-type="recibo" data-id="${esc(r.id||r._id)}"><strong>${esc(r.num)}</strong> — ${esc(r.nome)} <span>R$ ${esc(r.valor)}</span></div>`).join("");
+  }
+  if (clientes.length) {
+    html += `<div class="global-dropdown-group">Clientes</div>`;
+    html += clientes.map(c => `<div class="global-dropdown-item" data-type="cliente" data-id="${esc(c.id||c._id)}"><strong>${esc(c.nome)}</strong> <span>${esc(c.cpf||"")}</span></div>`).join("");
+  }
+  dropdown.innerHTML = html;
+  dropdown.style.display = "";
+  dropdown.querySelectorAll(".global-dropdown-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const buscaGlobal = document.getElementById("busca-global");
+      dropdown.style.display = "none";
+      buscaGlobal.value = "";
+      if (item.dataset.type === "recibo") {
+        const r = historicoRecibos.find(x => (x.id||x._id) === item.dataset.id);
+        navegarPara("historico");
+        if (r) setTimeout(() => abrirDetalhe(r), 100);
+      } else {
+        navegarPara("clientes");
+        const inp = document.getElementById("busca-clientes");
+        const c = listaClientes.find(x => (x.id||x._id) === item.dataset.id);
+        if (inp && c) { inp.value = c.nome; renderClientes(); }
+      }
+    });
+  });
+}
+
 function renderHistorico(){
   const busca=(document.getElementById("busca-historico").value||"").toLowerCase();
   const dataIni=document.getElementById("filtro-data-ini")?.value||"";
@@ -675,12 +752,19 @@ function renderHistorico(){
     grid.innerHTML=`<div class="empty-state"><div class="icon">🧾</div><p>${busca?"Nenhum recibo encontrado.":"Nenhum recibo gerado ainda."}</p></div>`;
     return;
   }
+  _selecionadosZip.clear();
+  document.getElementById("btn-exportar-zip").style.display = "none";
   grid.innerHTML="";
   lista.forEach(recibo=>{
+    const rid = recibo.id || recibo._id;
     const item=document.createElement("div");
     item.className="recibo-item";
+    item.style.position="relative";
     item.innerHTML=`
-      <div class="recibo-info">
+      <label style="position:absolute;top:10px;left:10px;cursor:pointer;z-index:1" title="Selecionar para ZIP">
+        <input type="checkbox" class="recibo-check" data-id="${esc(rid)}" style="width:15px;height:15px;cursor:pointer" />
+      </label>
+      <div class="recibo-info" style="padding-left:28px">
         <div class="recibo-num">${esc(recibo.num)}</div>
         <div class="recibo-nome">${esc(recibo.nome)}</div>
         <div class="recibo-valor">R$ ${esc(recibo.valor)}</div>
@@ -711,11 +795,40 @@ function renderHistorico(){
         }
       });
     });
+    const chk = item.querySelector(".recibo-check");
+    if (chk) chk.addEventListener("change", () => {
+      if (chk.checked) _selecionadosZip.add(chk.dataset.id);
+      else _selecionadosZip.delete(chk.dataset.id);
+      const btnZip = document.getElementById("btn-exportar-zip");
+      if (btnZip) btnZip.style.display = _selecionadosZip.size > 0 ? "" : "none";
+    });
     grid.appendChild(item);
   });
 }
 
-async function abrirPDFRecibo(r){
+async function exportarZipSelecionados() {
+  if (_selecionadosZip.size === 0) return;
+  const btn = document.getElementById("btn-exportar-zip");
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Gerando...';
+  try {
+    const res = await api("POST", "/api/recibos/exportar-zip", { ids: [..._selecionadosZip] });
+    if (!res || res.status === 404) {
+      mostrarToast("Em breve — exportação ZIP em desenvolvimento.", null, "error"); return;
+    }
+    if (!res.ok) { mostrarToast("Erro ao gerar ZIP.", null, "error"); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url;
+    a.download = `recibos_${new Date().toISOString().slice(0,10)}.zip`; a.click();
+    URL.revokeObjectURL(url);
+    mostrarToast(`${_selecionadosZip.size} recibo(s) exportado(s) com sucesso!`, null, "success");
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+}
+
+async function abrirPDFRecibo(r, print=false){
   await garantirJSPDF();
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
@@ -752,6 +865,7 @@ async function abrirPDFRecibo(r){
   const yAssin2=yAssin+28;
   doc.line(20,yAssin2,W/2-10,yAssin2);
   doc.text(r.emitido_por||"Responsável",20,yAssin2+5);
+  if (print) doc.autoPrint();
   const blob=doc.output("blob");
   const url=URL.createObjectURL(blob);
   window.open(url,"_blank");
@@ -794,6 +908,7 @@ function abrirDetalhe(r){
     ${r.assinatura_govbr ? `<div class="detail-row"><div class="detail-label">Assinatura</div><div class="detail-value" style="color:var(--success)"><i class="bi bi-shield-check"></i> Assinado por ${esc(r.assinatura_govbr.nome_assinante)} em ${esc(r.assinatura_govbr.assinado_em)}</div></div>` : ""}
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
+      <button class="btn-secondary" id="btn-imprimir-modal"><i class="bi bi-printer"></i> Imprimir</button>
       <button class="btn-primary" id="btn-reimprimir-modal">📄 Baixar .docx</button>
       ${!r.assinatura_govbr ? `<button class="btn-success" id="btn-assinar-modal" style="display:none"><i class="bi bi-shield-check"></i> Assinar Gov.br</button>` : ""}
     </div>`;
@@ -802,12 +917,26 @@ function abrirDetalhe(r){
     if (btnComp) btnComp.onclick = () => abrirComprovante(r.link_comprovante);
   }
   document.getElementById("btn-ver-modal").onclick=()=>{ abrirPDFRecibo(r); fecharModal("modal-detalhe"); };
+  document.getElementById("btn-imprimir-modal").onclick=()=>{ abrirPDFRecibo(r, true); fecharModal("modal-detalhe"); };
   document.getElementById("btn-reimprimir-modal").onclick=()=>{ reimprimirRecibo(r); fecharModal("modal-detalhe"); };
   // Botão de assinatura Gov.br — só aparece no mobile/app
   const btnAssinar = document.getElementById("btn-assinar-modal");
   if(btnAssinar){
     if(window.innerWidth <= 768) btnAssinar.style.display = "";
     btnAssinar.onclick = () => abrirModalGovBr(r);
+  }
+  if (Array.isArray(r.historico_edicoes) && r.historico_edicoes.length > 0) {
+    const rows = r.historico_edicoes.map(h => {
+      const campos = h.campos_alterados
+        ? Object.entries(h.campos_alterados).map(([k,v]) => `<span style="color:var(--muted)">${esc(k)}</span>: ${esc(String(v))}`).join(" · ")
+        : "-";
+      return `<div style="font-size:12px;padding:6px 0;border-top:1px solid var(--border)">${esc(h.data||"")} — <strong>${esc(h.editado_por||"")}</strong> — ${campos}</div>`;
+    }).join("");
+    document.getElementById("modal-detalhe-body").innerHTML += `
+      <div style="margin-top:20px;border-top:2px solid var(--border);padding-top:14px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px"><i class="bi bi-clock-history"></i> Histórico de Edições</div>
+        ${rows}
+      </div>`;
   }
   document.getElementById("modal-detalhe").classList.add("active");
 }
@@ -1009,6 +1138,7 @@ function _buildTabelasParcelamento(cadastro) {
 }
 
 async function renderClientes() {
+  mostrarSkeleton("clientes-grid");
   await carregarClientes();
   const busca        = (document.getElementById("busca-clientes").value || "").toLowerCase();
   const buscaDigitos = busca.replace(/\D/g, "");
@@ -1416,6 +1546,229 @@ function abrirAdminTab(tab,el){
   if(tab==="dashboard") atualizarDashboard();
   if(tab==="financeiro"){preencherFiltrosAnos();aplicarFiltros();}
   if(tab==="relatorios") preencherFiltrosAnos();
+  if(tab==="inadimplencia") carregarInadimplencia();
+  if(tab==="analytics") carregarAnalytics();
+  if(tab==="projecao") carregarProjecao();
+  if(tab==="escritorios") carregarPorEscritorio();
+}
+
+async function carregarInadimplencia() {
+  const status = document.getElementById("inadimplencia-status");
+  const wrap   = document.getElementById("inadimplencia-wrap");
+  status.style.display = ""; wrap.style.display = "none";
+  status.textContent = "Carregando...";
+  const res = await api("GET", "/api/relatorios/inadimplencia");
+  if (!res || res.status === 404) {
+    status.textContent = "Em breve — relatório de inadimplência em desenvolvimento.";
+    return;
+  }
+  if (!res.ok) { status.textContent = "Erro ao carregar relatório."; return; }
+  const body = await res.json();
+  const dados = Array.isArray(body) ? body : (body.relatorio || []);
+  if (!dados.length) {
+    status.textContent = "Nenhum cliente inadimplente no momento.";
+    return;
+  }
+  let totalAberto = 0;
+  document.getElementById("tabela-inadimplencia").innerHTML = dados.map(c => {
+    totalAberto += c.valor_em_aberto || 0;
+    const maiorAtraso = c.parcelas?.reduce((mx, p) => Math.max(mx, p.dias_atraso || 0), 0) || 0;
+    return `<tr>
+      <td>${esc(c.nome)}</td>
+      <td>${esc(c.cpf||"-")}</td>
+      <td style="color:var(--error);font-weight:600">${c.parcelas_atrasadas||0}</td>
+      <td style="color:var(--error);font-weight:700">R$ ${formatarValor(c.valor_em_aberto||0)}</td>
+      <td>${maiorAtraso} dia${maiorAtraso!==1?"s":""}</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("inadimplencia-count").textContent = `${dados.length} cliente${dados.length!==1?"s":""}`;
+  document.getElementById("inadimplencia-total").textContent = `Total em aberto: R$ ${formatarValor(totalAberto)}`;
+  status.style.display = "none"; wrap.style.display = "";
+}
+
+// ── ANALYTICS ─────────────────────────────────────────────
+function carregarAnalytics() {
+  const sel = document.getElementById("analytics-ano");
+  if (sel) {
+    const anos = [...new Set(historicoRecibos.map(r => r.data?.split("/")[2]).filter(Boolean))].sort((a, b) => b - a);
+    const anoAtual = String(new Date().getFullYear());
+    if (!anos.includes(anoAtual)) anos.unshift(anoAtual);
+    const prevAno = sel.value;
+    sel.innerHTML = `<option value="">Todos os anos</option>` + anos.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join("");
+    if (prevAno && anos.includes(prevAno)) sel.value = prevAno;
+    else if (anos.includes(anoAtual)) sel.value = anoAtual;
+  }
+  _renderAnalytics();
+}
+
+function _renderAnalytics() {
+  const anoFiltro = document.getElementById("analytics-ano")?.value || "";
+  const recibos = anoFiltro
+    ? historicoRecibos.filter(r => r.data?.split("/")[2] === anoFiltro)
+    : historicoRecibos;
+
+  const label = document.getElementById("analytics-ano-label");
+  if (label) label.textContent = recibos.length + " recibo" + (recibos.length !== 1 ? "s" : "");
+
+  // ── Gráfico mensal
+  const mesesLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const totaisMes = Array.from({ length: 12 }, (_, i) => {
+    const m = String(i + 1).padStart(2, "0");
+    return recibos.filter(r => r.data?.split("/")[1] === m).reduce((s, r) => s + valorParaNumero(r.valor), 0);
+  });
+  if (graficoAnalyticsMensal) graficoAnalyticsMensal.destroy();
+  const ctx = document.getElementById("grafico-analytics-mensal")?.getContext("2d");
+  if (ctx) {
+    graficoAnalyticsMensal = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: mesesLabels,
+        datasets: [{ label: "Receita", data: totaisMes, backgroundColor: "rgba(184,151,58,0.7)", borderColor: "#b8973a", borderWidth: 1, borderRadius: 4 }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } }
+      }
+    });
+  }
+
+  // ── Ranking por cliente
+  const porCliente = {};
+  recibos.forEach(r => {
+    if (!r.nome) return;
+    if (!porCliente[r.nome]) porCliente[r.nome] = { total: 0, qtd: 0 };
+    porCliente[r.nome].total += valorParaNumero(r.valor);
+    porCliente[r.nome].qtd++;
+  });
+  const ranking = Object.entries(porCliente)
+    .map(([nome, d]) => ({ nome, total: d.total, qtd: d.qtd, ticket: d.qtd ? d.total / d.qtd : 0 }))
+    .sort((a, b) => b.total - a.total);
+
+  const top5 = ranking.slice(0, 5);
+  const maxVal = top5.length ? top5[0].total : 1;
+
+  const top5el = document.getElementById("analytics-top5");
+  if (top5el) {
+    top5el.innerHTML = top5.length ? top5.map((c, i) => `
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-weight:600;font-size:13px">${i + 1}. ${esc(c.nome)}</span>
+          <span style="color:var(--success);font-weight:700;font-size:13px">R$ ${formatarValor(c.total)}</span>
+        </div>
+        <div style="background:var(--border);border-radius:4px;height:7px">
+          <div style="background:var(--gold,#b8973a);border-radius:4px;height:7px;width:${Math.round(c.total / maxVal * 100)}%;transition:width 0.4s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">${c.qtd} recibo${c.qtd !== 1 ? "s" : ""} · ticket médio R$ ${formatarValor(c.ticket)}</div>
+      </div>`).join("")
+      : '<p style="color:var(--muted);font-size:13px">Nenhum dado disponível.</p>';
+  }
+
+  const totalGeral = ranking.reduce((s, c) => s + c.total, 0);
+  const ticketGlobal = recibos.length ? totalGeral / recibos.length : 0;
+  const resumoEl = document.getElementById("analytics-resumo");
+  if (resumoEl) {
+    resumoEl.innerHTML = [
+      { label: "Clientes distintos", value: ranking.length },
+      { label: "Receita total", value: `R$ ${formatarValor(totalGeral)}` },
+      { label: "Ticket médio global", value: `R$ ${formatarValor(ticketGlobal)}` },
+      { label: "Maior cliente", value: top5.length ? esc(top5[0].nome) : "—" },
+    ].map(item => `
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--muted)">${item.label}</span>
+        <span style="font-weight:700;font-size:13px">${item.value}</span>
+      </div>`).join("");
+  }
+
+  const ticketEl = document.getElementById("analytics-ticket-tbody");
+  if (ticketEl) {
+    ticketEl.innerHTML = ranking.length ? ranking.slice(0, 30).map((c, i) => `
+      <tr>
+        <td style="color:var(--muted);font-weight:600">${i + 1}</td>
+        <td>${esc(c.nome)}</td>
+        <td>${c.qtd}</td>
+        <td style="color:var(--success);font-weight:700">R$ ${formatarValor(c.total)}</td>
+        <td style="font-weight:600">R$ ${formatarValor(c.ticket)}</td>
+      </tr>`).join("")
+      : '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:20px">Nenhum dado.</td></tr>';
+  }
+}
+
+async function carregarProjecao() {
+  const status = document.getElementById("projecao-status");
+  const wrap   = document.getElementById("projecao-wrap");
+  status.style.display = ""; wrap.style.display = "none";
+  status.textContent = "Carregando...";
+  const res = await api("GET", "/api/relatorios/projecao");
+  if (!res || res.status === 404) { status.textContent = "Em breve — projeção de receita em desenvolvimento."; return; }
+  if (!res.ok) { status.textContent = "Erro ao carregar projeção."; return; }
+  const dados = await res.json();
+  if (!dados.length) { status.textContent = "Nenhuma parcela futura encontrada."; return; }
+  const labels = dados.map(d => d.mes);
+  const valores = dados.map(d => d.valor || 0);
+  const qtds    = dados.map(d => d.qtd || 0);
+  if (graficoProjecao) graficoProjecao.destroy();
+  const ctx = document.getElementById("grafico-projecao")?.getContext("2d");
+  if (ctx) graficoProjecao = new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ label: "A Receber", data: valores, backgroundColor: "rgba(62,122,94,0.75)", borderColor: "#3e7a5e", borderWidth: 1, borderRadius: 4 }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } } }
+  });
+  const total = valores.reduce((s, v) => s + v, 0);
+  document.getElementById("tabela-projecao").innerHTML = dados.map((d, i) =>
+    `<tr><td>${esc(d.mes)}</td><td style="color:var(--success);font-weight:700">R$ ${formatarValor(d.valor || 0)}</td><td>${qtds[i]}</td></tr>`
+  ).join("");
+  document.getElementById("projecao-total").textContent = `Total projetado: R$ ${formatarValor(total)}`;
+  status.style.display = "none"; wrap.style.display = "";
+}
+
+async function carregarPorEscritorio() {
+  const status = document.getElementById("escritorios-status");
+  const wrap   = document.getElementById("escritorios-wrap");
+  status.style.display = ""; wrap.style.display = "none";
+  status.textContent = "Carregando...";
+  const res = await api("GET", "/api/relatorios/por-escritorio");
+  if (!res || res.status === 404) { status.textContent = "Em breve — relatório por escritório em desenvolvimento."; return; }
+  if (!res.ok) { status.textContent = "Erro ao carregar relatório."; return; }
+  const dados = await res.json();
+  if (!dados.length) { status.textContent = "Nenhum dado encontrado."; return; }
+  let totalGeral = 0;
+  document.getElementById("tabela-escritorios").innerHTML = dados.map(e => {
+    totalGeral += e.receita || 0;
+    const ticket = e.qtd_recibos > 0 ? (e.receita / e.qtd_recibos) : 0;
+    return `<tr>
+      <td style="font-weight:600">${esc(e.escritorio || "-")}</td>
+      <td style="color:var(--success);font-weight:700">R$ ${formatarValor(e.receita || 0)}</td>
+      <td>${e.qtd_recibos || 0}</td>
+      <td>${e.qtd_clientes || 0}</td>
+      <td>R$ ${formatarValor(ticket)}</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("escritorios-total").textContent = `Total: R$ ${formatarValor(totalGeral)}`;
+  status.style.display = "none"; wrap.style.display = "";
+}
+
+async function baixarBackupDB() {
+  const btn = document.getElementById("btn-backup-db");
+  const statusEl = document.getElementById("backup-db-status");
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Gerando...';
+  statusEl.textContent = "";
+  try {
+    const res = await api("GET", "/api/admin/backup-db");
+    if (!res || res.status === 404) { statusEl.textContent = "Em breve — backup do banco em desenvolvimento."; return; }
+    if (!res.ok) { statusEl.textContent = "Erro ao gerar backup."; return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url;
+    a.download = `backup_db_${new Date().toISOString().slice(0,10)}.zip`; a.click();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = "Backup baixado com sucesso!";
+  } catch(e) {
+    statusEl.textContent = "Erro: " + e.message;
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
 }
 
 function preencherFiltrosAnos(){
@@ -2109,6 +2462,7 @@ function bindStaticHandlers() {
   document.getElementById("filtro-data-ini").addEventListener("input", renderHistorico);
   document.getElementById("filtro-data-fim").addEventListener("input", renderHistorico);
   document.getElementById("btn-limpar-data").addEventListener("click", limparFiltroData);
+  document.getElementById("btn-exportar-zip").addEventListener("click", exportarZipSelecionados);
 
   // Clientes
   document.getElementById("busca-clientes").addEventListener("input", renderClientes);
@@ -2118,6 +2472,9 @@ function bindStaticHandlers() {
   document.querySelectorAll(".admin-tab[data-tab]").forEach(btn => {
     btn.addEventListener("click", () => abrirAdminTab(btn.dataset.tab, btn));
   });
+
+  // Analytics — filtro de ano
+  document.getElementById("analytics-ano")?.addEventListener("change", _renderAnalytics);
 
   // Relatórios / exportações
   document.getElementById("btn-aplicar-filtros").addEventListener("click", aplicarFiltros);
@@ -2131,6 +2488,7 @@ function bindStaticHandlers() {
   document.getElementById("btn-sync-sheets").addEventListener("click", syncSheets);
   document.getElementById("btn-importar-de-sheets").addEventListener("click", importarDeSheets);
   document.getElementById("btn-reescrever-planilha").addEventListener("click", reescreverPlanilha);
+  document.getElementById("btn-backup-db").addEventListener("click", baixarBackupDB);
 
   // Usuários
   document.getElementById("novo-role").addEventListener("change", function() { toggleEscritorioNovo(this.value); });
@@ -2177,4 +2535,21 @@ function bindStaticHandlers() {
   // Imagens com fallback (substitui onerror inline)
   document.getElementById("logo-sidebar").addEventListener("error", function() { this.style.display = "none"; });
   document.getElementById("img-govbr").addEventListener("error", function() { this.style.display = "none"; });
+
+  // Busca global
+  const buscaGlobal = document.getElementById("busca-global");
+  const dropdown = document.getElementById("busca-global-dropdown");
+  if (buscaGlobal) {
+    buscaGlobal.addEventListener("input", () => renderBuscaGlobal(buscaGlobal.value.trim()));
+    buscaGlobal.addEventListener("keydown", e => { if (e.key === "Escape") { dropdown.style.display = "none"; buscaGlobal.blur(); } });
+    document.addEventListener("click", e => { if (!buscaGlobal.contains(e.target) && !dropdown.contains(e.target)) dropdown.style.display = "none"; });
+  }
+
+  // Atalhos de teclado
+  document.addEventListener("keydown", e => {
+    if (!token) return;
+    if (e.ctrlKey && e.key === "n") { e.preventDefault(); navegarPara("gerar"); setTimeout(() => document.getElementById("nome")?.focus(), 50); }
+    if (e.ctrlKey && e.key === "h") { e.preventDefault(); navegarPara("historico"); }
+    if (e.ctrlKey && e.key === "k") { e.preventDefault(); document.getElementById("busca-global")?.focus(); }
+  });
 }

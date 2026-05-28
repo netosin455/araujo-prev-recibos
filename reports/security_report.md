@@ -103,9 +103,8 @@
 - **Severidade:** MÉDIA
 - **Descrição:** O Map `govbrStates` é armazenado na memória do processo Node.js. Se o Elastic Beanstalk escalar para 2+ instâncias, um state gerado no worker A não estará disponível no worker B, causando falha no callback do Gov.br com "State inválido".
 - **Agente responsável:** Agente 1 — Backend
-- **Correção sugerida:** Persistir states no Neon (tabela `govbr_states` com TTL de 10 min) ou em Redis ElastiCache
-- **Observação:** Risco baixo enquanto o sistema rodar com 1 instância (config atual)
-- **Status:** 🟡 Aberto
+- **Correção aplicada:** Tabela `govbr_states` criada no Neon (migration automática em `initDb()`). `iniciar` e `callback` migraram do Map para queries Neon com `DELETE … RETURNING` atômico. States expirados são limpos no startup.
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -124,8 +123,8 @@
 - **Severidade:** MÉDIA
 - **Descrição:** O link do comprovante (presigned URL S3 com validade de 7 dias) é salvo na planilha. Qualquer pessoa com acesso à planilha consegue baixar o comprovante sem autenticação no sistema. Links S3 são opacos mas não são secretos — quem tiver a URL acessa o arquivo.
 - **Agente responsável:** Agente 1 — Backend
-- **Correção sugerida:** Salvar na planilha apenas o path relativo (ex: `/api/comprovante-s3/recibos/...`), não a presigned URL completa
-- **Status:** 🟡 Aberto
+- **Correção aplicada:** Helper `sanitizarLinkParaSheets()` aplicado em `registrarNoSheets()` e `atualizarNoSheets()` — extrai path relativo de presigned URLs S3 antes de escrever na col K
+- **Status:** ✅ Corrigido em 2026-05-27
 
 ---
 
@@ -147,7 +146,8 @@
 - **Arquivo:** `web/server.js` — header Content-Security-Policy
 - **Severidade:** BAIXA
 - **Descrição:** `style-src 'unsafe-inline'` é necessário para estilos dinâmicos via JS, mas abre brecha para CSS injection. Impacto limitado, mas não ideal.
-- **Correção sugerida:** Migrar estilos dinâmicos para classes CSS e remover `unsafe-inline`
+- **Correção aplicada:** `'unsafe-inline'` removido de `style-src` no CSP. Agente 2 deve migrar quaisquer `element.style.X` remanescentes para classes CSS.
+- **Status:** ✅ Corrigido em 2026-05-27 (backend)
 
 ### SEC-018 — Sem HTTPS forçado (redirect comentado)
 - **Arquivo:** `web/server.js` — linha com `X-Forwarded-Proto` check (comentada)
@@ -161,10 +161,10 @@
 
 | Severidade | Total | Corrigidas | Abertas |
 |------------|-------|------------|---------|
-| Crítica    | 3     | 1 (SEC-007)| 2       |
-| Média      | 9     | 6          | 5       |
-| Baixa      | 6     | 1          | 4       |
-| **Total**  | **18**| **8**      | **11**  |
+| Crítica    | 3     | 3          | 0       |
+| Média      | 9     | 9          | 0       |
+| Baixa      | 6     | 3          | 3       |
+| **Total**  | **18**| **15**     | **3**   |
 
 ### Prioridade de correção
 

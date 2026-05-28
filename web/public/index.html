@@ -82,6 +82,16 @@
     .nav-item.active{background:rgba(184,151,58,0.15);color:var(--gold-light);box-shadow:inset 3px 0 0 var(--gold)}
     .nav-item .icon{font-size:14px;width:18px;text-align:center}
     .sidebar-footer{padding:14px 20px;border-top:1px solid rgba(255,255,255,0.05);color:rgba(255,255,255,0.18);font-size:10px;text-align:center}
+    .sidebar-search-wrap{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.06);position:relative}
+    .sidebar-search-wrap input{width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:rgba(255,255,255,0.75);font-size:11px;padding:7px 10px;outline:none;box-sizing:border-box}
+    .sidebar-search-wrap input::placeholder{color:rgba(255,255,255,0.3)}
+    .sidebar-search-wrap input:focus{border-color:rgba(184,151,58,0.5);background:rgba(255,255,255,0.1)}
+    .global-dropdown{position:absolute;left:12px;right:12px;top:calc(100% - 4px);background:var(--card);border:1.5px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:200;max-height:320px;overflow-y:auto}
+    .global-dropdown-group{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;padding:8px 12px 4px}
+    .global-dropdown-item{padding:8px 12px;font-size:12px;cursor:pointer;border-top:1px solid var(--border);color:var(--dark)}
+    .global-dropdown-item:hover{background:var(--gold-pale)}
+    .global-dropdown-item strong{color:var(--dark);font-weight:600}
+    .global-dropdown-item span{color:var(--muted);font-size:11px}
     #usuario-logado{color:rgba(255,255,255,0.45);font-size:11px;padding:10px 20px;border-top:1px solid rgba(255,255,255,0.05)}
 
     /* ── MAIN ── */
@@ -147,6 +157,9 @@
     .admin-tab.active{background:linear-gradient(135deg,#252525,#1a1a1a);color:white;box-shadow:0 2px 8px rgba(0,0,0,0.18)}
     .admin-panel{display:none}
     .admin-panel.active{display:block}
+    .skeleton-card{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:8px}
+    .skeleton-line{border-radius:4px;background:linear-gradient(90deg,var(--border) 25%,#f0ece4 50%,var(--border) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
     .cards-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
     .dash-card{background:linear-gradient(145deg,#ffffff 0%,#faf7f2 100%);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow);border:1.5px solid var(--border);border-top:3px solid var(--gold);transition:all 0.18s}
     .dash-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
@@ -385,6 +398,10 @@
       <div class="firm-name">ARAUJO PREV</div>
       <div class="firm-sub">A ARAUJO SERVIÇOS LTDA ME</div>
     </div>
+    <div class="sidebar-search-wrap">
+      <input id="busca-global" type="text" placeholder="Buscar... (Ctrl+K)" autocomplete="off" />
+      <div id="busca-global-dropdown" class="global-dropdown" style="display:none"></div>
+    </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Documentos</div>
       <div class="nav-item active" id="nav-gerar"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
@@ -580,6 +597,7 @@
             <button class="btn-secondary btn-sm" id="btn-limpar-data"><i class="bi bi-x-lg"></i></button>
           </div>
           <span id="historico-count" style="color:var(--muted);font-size:12px;white-space:nowrap"></span>
+          <button class="btn-secondary btn-sm" id="btn-exportar-zip" style="display:none"><i class="bi bi-file-zip"></i> Exportar ZIP</button>
         </div>
         <div id="resumo-historico" class="resumo-tela"></div>
         <div id="historico-grid" class="historico-grid"></div>
@@ -604,6 +622,10 @@
           <button class="admin-tab active" data-tab="dashboard">Dashboard</button>
           <button class="admin-tab" data-tab="financeiro">Financeiro</button>
           <button class="admin-tab" data-tab="relatorios">Relatórios</button>
+          <button class="admin-tab" data-tab="inadimplencia">Inadimplência</button>
+          <button class="admin-tab" data-tab="analytics">Analytics</button>
+          <button class="admin-tab" data-tab="projecao">Projeção</button>
+          <button class="admin-tab" data-tab="escritorios">Por Escritório</button>
         </div>
         <div id="admin-dashboard" class="admin-panel active">
           <div class="cards-grid">
@@ -717,8 +739,121 @@
               <div id="sync-sheets-resultado" style="margin-top:12px;font-size:13px;display:none"></div>
             </div>
 
+            <div class="card" style="max-width:none;grid-column:span 2">
+              <div class="card-title"><i class="bi bi-database-down"></i> Backup do Banco de Dados</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Baixa um ZIP com os dados completos do banco (recibos e clientes). Use para backup manual antes de manutenções.</p>
+              <button class="btn-primary btn-sm" id="btn-backup-db"><i class="bi bi-download"></i> Baixar backup do banco</button>
+              <div id="backup-db-status" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
+            </div>
+
           </div>
         </div>
+        <div id="admin-inadimplencia" class="admin-panel">
+          <div id="inadimplencia-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
+          <div class="table-wrap" id="inadimplencia-wrap" style="display:none">
+            <table>
+              <thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Parcelas Atrasadas</th><th>Valor em Aberto</th><th>Maior Atraso (dias)</th></tr></thead>
+              <tbody id="tabela-inadimplencia"></tbody>
+            </table>
+            <div class="table-footer">
+              <span id="inadimplencia-count">0 clientes</span>
+              <span id="inadimplencia-total" style="color:var(--error)">Total: R$ 0,00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ANALYTICS ─────────────────────────────────── -->
+        <div id="admin-analytics" class="admin-panel">
+
+          <!-- Filtro de ano -->
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">Ano</label>
+            <select id="analytics-ano" style="padding:6px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:'Inter',sans-serif;background:white;color:var(--dark);outline:none"></select>
+            <span id="analytics-ano-label" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+            <!-- Gráfico de receita mensal -->
+            <div class="table-wrap" style="padding:24px;grid-column:span 2">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">
+                Receita Total por Mês
+              </div>
+              <canvas id="grafico-analytics-mensal" height="80"></canvas>
+            </div>
+
+            <!-- Top 5 clientes -->
+            <div class="table-wrap" style="padding:24px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:18px">
+                Top 5 Clientes por Valor Pago
+              </div>
+              <div id="analytics-top5"></div>
+            </div>
+
+            <!-- Resumo rápido de analytics -->
+            <div class="table-wrap" style="padding:24px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:18px">
+                Resumo do Período
+              </div>
+              <div id="analytics-resumo" style="display:flex;flex-direction:column;gap:14px"></div>
+            </div>
+
+            <!-- Ranking de clientes com ticket médio -->
+            <div class="table-wrap" style="grid-column:span 2">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;padding:20px 20px 12px">
+                Ranking de Clientes — Ticket Médio por Cliente
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Cliente</th>
+                    <th>Qtd Recibos</th>
+                    <th>Total Pago</th>
+                    <th>Ticket Médio</th>
+                  </tr>
+                </thead>
+                <tbody id="analytics-ticket-tbody"></tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── PROJEÇÃO ─────────────────────────────────── -->
+        <div id="admin-projecao" class="admin-panel">
+          <div id="projecao-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
+          <div id="projecao-wrap" style="display:none">
+            <div class="table-wrap" style="padding:24px;margin-bottom:20px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">Parcelas a Receber — Próximos 6 Meses</div>
+              <canvas id="grafico-projecao" height="120"></canvas>
+            </div>
+            <div class="table-wrap">
+              <table><thead><tr><th>Mês</th><th>Valor Previsto</th><th>Qtd Parcelas</th></tr></thead>
+              <tbody id="tabela-projecao"></tbody></table>
+              <div class="table-footer">
+                <span id="projecao-total" style="color:var(--success)">Total: R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── POR ESCRITÓRIO ─────────────────────────── -->
+        <div id="admin-escritorios" class="admin-panel">
+          <div id="escritorios-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
+          <div id="escritorios-wrap" style="display:none">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Escritório</th><th>Receita Total</th><th>Qtd Recibos</th><th>Qtd Clientes</th><th>Ticket Médio</th></tr></thead>
+                <tbody id="tabela-escritorios"></tbody>
+              </table>
+              <div class="table-footer">
+                <span id="escritorios-total" style="color:var(--success)">Total: R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- USUÁRIOS -->

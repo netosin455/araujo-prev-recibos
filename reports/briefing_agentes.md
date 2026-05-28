@@ -216,11 +216,11 @@ SMTP_FROM=Araujo Prev <email@dominio.com>
 | Agente | Status | Última ação |
 |--------|--------|-------------|
 | Agente 1 — Backend | ⏳ Rodada 4 em andamento | Ver seção Rodada 4 abaixo |
-| Agente 2 — Frontend | ⏳ Rodada 4 em andamento | Ver seção Rodada 4 abaixo |
+| Agente 2 — Frontend | ✅ Rodada 4 concluída | skeleton, impressão direta, projeção, backup DB, por escritório |
 | Agente 3 — DevOps | ⏳ Rodada 3 em andamento | Ver seção Rodada 4 abaixo |
 | Agente 4 — QA | ✅ Aguardando rodada 4 | Aprovar deploy após todos terminarem |
-| Agente 5 — Analytics | ⏳ Rodada 1 — ESTREIA | Ver seção Rodada 4 abaixo |
-| Agente 6 — Integrações | ⏳ Rodada 1 — ESTREIA | Ver seção Rodada 4 abaixo |
+| Agente 5 — Analytics | ✅ Rodada 1 concluída | aba Analytics (top 5, ticket médio), bug fix inadimplência |
+| Agente 6 — Integrações | ✅ Rodada 1 concluída | SMTP (email-inadimplência + recibo por email), Gov.br melhorias, WhatsApp docs |
 | **Deploy** | ✅ Em produção | commit `324e5fd` |
 
 ---

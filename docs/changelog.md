@@ -2,6 +2,71 @@
 
 ---
 
+## [2026-05-27] — Backend: Rodada 4 — segurança (SEC-012, SEC-014, SEC-017) + 3 endpoints novos
+
+### Segurança
+- **SEC-014**: Helper `sanitizarLinkParaSheets()` — presigned URLs S3 são convertidas para path relativo `/api/comprovante-s3/...` antes de escrever na coluna K do Sheets (em `registrarNoSheets()` e `atualizarNoSheets()`). URLs Drive e paths internos passam sem alteração
+- **SEC-017**: `'unsafe-inline'` removido de `style-src` no header Content-Security-Policy — estilos dinâmicos via JS devem migrar para classes CSS (ação pendente no Frontend)
+- **SEC-012**: `govbrStates` Map em memória substituído por tabela `govbr_states` no Neon PostgreSQL — migração automática em `initDb()` com limpeza de states expirados no startup; `GET /api/govbr/iniciar` usa `INSERT` Neon; `GET /api/govbr/callback` usa `DELETE … RETURNING` atômico para evitar race condition em múltiplos workers
+
+### Adicionado
+- **`GET /api/relatorios/projecao`** (`financeiroOnly`): agrupa parcelas `pendente`/`atrasado` por mês de vencimento e retorna array `[{ mes, valor }]` dos próximos 6 meses — alimenta gráfico de projeção de receita no Frontend
+- **`GET /api/relatorios/por-escritorio`** (`financeiroOnly`): agrega recibos e clientes por `escritorio` — retorna receita total, contagem de recibos, clientes distintos e ticket médio; ordenado por receita desc
+- **`GET /api/admin/backup-db`** (`adminOnly`): gera ZIP com `recibos.db` + `clientes.db` via `archiver` (nível 9) e faz stream como download — filename `backup_db_YYYY-MM-DD-HH-MM-SS.zip`
+
+---
+
+## [2026-05-27] — Agente 5 (Analytics): Complemento Rodada 1 — gráfico mensal e filtro de ano no tab Analytics
+
+### Adicionado
+- **Gráfico de receita mensal no tab Analytics**: `<canvas id="grafico-analytics-mensal">` com Chart.js — mesmo estilo do Dashboard mas independente, usando a variável `graficoAnalyticsMensal`
+- **Filtro de ano no tab Analytics**: `<select id="analytics-ano">` auto-populado com todos os anos presentes em `historicoRecibos` (padrão: ano corrente). Ao trocar, re-renderiza gráfico, top 5 e ranking em tempo real sem recarregar
+- **Label de contagem** (`analytics-ano-label`): exibe quantos recibos existem no período filtrado
+- **Refatoração de `carregarAnalytics()`**: extraída função interna `_renderAnalytics()` que recebe o filtro de ano — `carregarAnalytics()` preenche o seletor e chama `_renderAnalytics()`, que também é chamada diretamente no evento `change` do seletor
+
+---
+
+## [2026-05-27] — Frontend: Rodada 4 — 5 features (skeleton, impressão, projeção, backup, por escritório)
+
+### Adicionado
+- **Skeleton loading**: `mostrarSkeleton()` exibe divs animadas em `#historico-grid` e `#clientes-grid` durante carregamento — elimina tela em branco
+- **Impressão direta de recibo**: botão "Imprimir" no modal de detalhe — gera PDF via jsPDF com `doc.autoPrint()`, abre diálogo de impressão automaticamente
+- **Aba "Projeção" no painel admin**: gráfico de barras + tabela com parcelas a receber nos próximos 6 meses (`GET /api/relatorios/projecao`); mostra "Em breve" se 404
+- **Botão "Baixar backup do banco"**: aba Relatórios do painel admin — chama `GET /api/admin/backup-db` e faz download do ZIP; mostra "Em breve" se 404
+- **Aba "Por Escritório" no painel admin**: tabela com receita, recibos, clientes e ticket médio por escritório (`GET /api/relatorios/por-escritorio`); mostra "Em breve" se 404
+
+---
+
+## [2026-05-27] — Agente 6 (Integrações): Rodada 1 — SMTP, Gov.br, WhatsApp docs
+
+### Adicionado
+- **Dependência `nodemailer ^8.0.9`** em `web/package.json` para envio de e-mails via SMTP
+- **Bloco SMTP em `server.js`**: funções `smtpConfigurado()`, `criarTransporter()` e `enviarEmail()` — transporter configurado via variáveis de ambiente (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`)
+- **`POST /api/notificacoes/email-inadimplencia`** (role: financeiro/admin): consulta NeDB, monta tabela de clientes inadimplentes com valor em aberto e dias de atraso, envia e-mail HTML formatado ao admin (`SMTP_ADMIN`). Retorna `{ ok, inadimplentes, destinatario }`
+- **`POST /api/notificacoes/enviar-recibo-email`** (role: financeiro/admin): aceita dados do recibo + `email_cliente`, gera PDF em memória (mesma lógica de `/api/gerar-recibo`) e envia como anexo ao cliente. Valida e-mail antes de processar
+- **Log de tentativas Gov.br**: callback `/api/govbr/callback` agora registra timestamp, state, usuário do sistema e recibo em cada etapa (início, sucesso, erro)
+- **Mensagens de erro Gov.br detalhadas**: `error_description` do provedor é repassado ao frontend; erros de sessão expirada têm mensagem clara em pt-BR; erros de comunicação com o provedor não expõem stack trace ao usuário
+
+### Documentado em `docs/architecture.md`
+- **Seção SMTP**: variáveis de ambiente, estratégia de App Password Gmail, fluxo de envio
+- **Seção WhatsApp Business API**: análise comparativa de provedores (Twilio, Z-API, WPPConnect, Evolution API) com recomendação e critérios de escolha
+
+---
+
+## [2026-05-27] — Agente 5 (Analytics): Rodada 1 — aba Analytics, bug fix inadimplência
+
+### Adicionado
+- **Aba "Analytics"** no painel admin: nova seção com top 5 clientes por valor pago (com barra de progresso proporcional), resumo rápido (clientes distintos, receita total, ticket médio global, maior cliente) e ranking completo dos 30 maiores clientes com ticket médio por cliente
+- **`carregarAnalytics()`** em `app.js`: computa ranking e ticket médio a partir de `historicoRecibos` (sem nova chamada de API)
+- **Hook em `abrirAdminTab()`**: aba "analytics" dispara `carregarAnalytics()` ao ser ativada
+
+### Corrigido
+- **Bug `valor_aberto` → `valor_em_aberto`** em `carregarInadimplencia()`: o campo retornado pelo endpoint `GET /api/relatorios/inadimplencia` é `valor_em_aberto`, mas o frontend lia `valor_aberto` — causava R$ 0,00 em toda coluna "Valor em Aberto" e total zerado
+- **Parsing da resposta de inadimplência**: a API retorna `{ total_inadimplentes, relatorio[] }` mas o frontend esperava array direto — adicionado fallback `Array.isArray(body) ? body : body.relatorio`
+- **Dias de atraso na tabela de inadimplência**: corrigido para ler `c.parcelas?.reduce(max(dias_atraso))` em vez de campo inexistente `c.dias_atraso`
+
+---
+
 ## [2026-05-27] — DevOps: Rodada 3 — SMTP, NeDB monitoring, nodemailer
 
 ### Verificado
