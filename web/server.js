@@ -680,7 +680,15 @@ function adminOnly(req, res, next) {
   next();
 }
 
+// Bloqueia recepcao E precatorios — usado em operações de escrita (criar/editar/deletar)
 function financeiroOnly(req, res, next) {
+  if (req.user.role === "recepcao" || req.user.role === "precatorios")
+    return res.status(403).json({ erro: "Sem permissão para esta ação." });
+  next();
+}
+
+// Bloqueia apenas recepcao — relatórios e leituras que precatorios pode acessar
+function semRecepcao(req, res, next) {
   if (req.user.role === "recepcao") return res.status(403).json({ erro: "Sem permissão para esta ação." });
   next();
 }
@@ -1191,6 +1199,7 @@ app.get("/api/recibos", auth, async (req, res) => {
 });
 
 app.post("/api/recibos", auth, async (req, res) => {
+  if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
   const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp } = req.body;
   const digsCPF = (cpf || "").replace(/\D/g, "");
   if (digsCPF.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
@@ -1258,7 +1267,7 @@ app.get("/api/proximo-num", auth, async (req, res) => {
 });
 
 // ── RELATÓRIO DE INADIMPLÊNCIA ─────────────────────────────
-app.get("/api/relatorios/inadimplencia", auth, financeiroOnly, async (req, res) => {
+app.get("/api/relatorios/inadimplencia", auth, semRecepcao, async (req, res) => {
   try {
     const clientes = await find(dbClientes, NAO_DELETADO);
     const hoje = new Date().toISOString().slice(0, 10);
@@ -1370,7 +1379,7 @@ app.post("/api/recibos/exportar-zip", auth, financeiroOnly, async (req, res) => 
 });
 
 // ── RELATÓRIO: PROJEÇÃO DE RECEBIMENTOS (6 MESES) ──────────
-app.get("/api/relatorios/projecao", auth, financeiroOnly, async (req, res) => {
+app.get("/api/relatorios/projecao", auth, semRecepcao, async (req, res) => {
   try {
     const clientes = await find(dbClientes, NAO_DELETADO);
     const hoje = new Date();
@@ -1405,7 +1414,7 @@ app.get("/api/relatorios/projecao", auth, financeiroOnly, async (req, res) => {
 });
 
 // ── RELATÓRIO: RECEITA POR ESCRITÓRIO ──────────────────────
-app.get("/api/relatorios/por-escritorio", auth, financeiroOnly, async (req, res) => {
+app.get("/api/relatorios/por-escritorio", auth, semRecepcao, async (req, res) => {
   try {
     const recibos  = await find(dbRecibos,  NAO_DELETADO);
     const clientes = await find(dbClientes, NAO_DELETADO);
@@ -1483,7 +1492,7 @@ app.get("/api/relatorios/resumo-mes", auth, async (req, res) => {
 });
 
 // ── RECEITA POR RESPONSÁVEL ──────────────────────────────────
-app.get("/api/relatorios/por-responsavel", auth, financeiroOnly, async (req, res) => {
+app.get("/api/relatorios/por-responsavel", auth, semRecepcao, async (req, res) => {
   try {
     const recibos = await find(dbRecibos, NAO_DELETADO);
     const filtrados = req.query.mes
@@ -1513,7 +1522,7 @@ app.get("/api/relatorios/por-responsavel", auth, financeiroOnly, async (req, res
 });
 
 // ── RECEITA POR FORMA DE PAGAMENTO ──────────────────────────
-app.get("/api/relatorios/formas-pagamento", auth, financeiroOnly, async (req, res) => {
+app.get("/api/relatorios/formas-pagamento", auth, semRecepcao, async (req, res) => {
   try {
     const recibos = await find(dbRecibos, NAO_DELETADO);
     const filtrados = req.query.mes
@@ -1726,7 +1735,7 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
 app.post("/api/users", auth, adminOnly, async (req, res) => {
   const { username, password, role, escritorio } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
-  const ROLES_VALIDOS = ["admin", "financeiro", "recepcao"];
+  const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
   if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
   // Recepção sem escritório vinculado não filtra nada — força informar
   if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
@@ -1747,7 +1756,7 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
 app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
   const { username, password, role, escritorio } = req.body;
   if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
-  const ROLES_VALIDOS = ["admin", "financeiro", "recepcao"];
+  const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
   if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
   if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
   if (password) {

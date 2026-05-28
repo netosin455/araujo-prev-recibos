@@ -98,7 +98,8 @@ function mostrarSkeleton(containerId, rows = 4) {
 // ── INICIAR ────────────────────────────────────────────────
 async function iniciarApp(){
   document.getElementById("nome-usuario").textContent = usuarioLogado;
-  document.getElementById("perfil-usuario").textContent = roleLogado === "recepcao" ? "Recepção" : "Financeiro";
+  const labelPerfil = { recepcao: "Recepção", precatorios: "Precatórios" };
+  document.getElementById("perfil-usuario").textContent = labelPerfil[roleLogado] || "Financeiro";
   aplicarTema(localStorage.getItem("tema")||"light");
   mostrarSkeleton("historico-grid");
   mostrarSkeleton("clientes-grid");
@@ -114,6 +115,13 @@ async function iniciarApp(){
     document.getElementById("nav-admin").style.display = "none";
     document.getElementById("bn-admin").style.display = "none";
   }
+  // Precatórios: só vê o painel administrativo (sem gerar recibo, histórico, clientes)
+  if(roleLogado === "precatorios"){
+    ["nav-gerar","nav-historico","nav-clientes","bn-gerar","bn-historico","bn-clientes"].forEach(id => {
+      const el = document.getElementById(id); if(el) el.style.display = "none";
+    });
+    document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
+  }
   await Promise.all([carregarRecibos(), carregarClientes()]);
   await atualizarNumRecibo();
   await carregarReferenciaPadrao();
@@ -123,6 +131,7 @@ async function iniciarApp(){
   verificarClientesInativos();
   atualizarBadgeClientes();
   verificarParcelasVencendo();
+  if(roleLogado === "precatorios") navegarPara("admin");
 }
 
 async function carregarReferenciaPadrao() {
@@ -2335,6 +2344,7 @@ async function renderUsuarios(){
   el.innerHTML=users.map(u=>{
     const perfilLabel = u.role==="recepcao"
       ? `Recepção · Escritório: ${esc(u.escritorio||"não definido")}`
+      : u.role==="precatorios" ? "Precatórios (somente admin)"
       : "Financeiro";
     return `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
