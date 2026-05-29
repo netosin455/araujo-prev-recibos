@@ -2965,8 +2965,8 @@ function atualizarSugestoesNomes(){
   const dl=document.getElementById("nome-sugestoes");
   if(!dl) return;
   const nomes=[...new Set([
-    ...historicoRecibos.map(r=>r.nome),
-    ...listaClientes.map(c=>c.nome)
+    ...historicoRecibos.map(r=>(r.nome||"").trim().toUpperCase()),
+    ...listaClientes.map(c=>(c.nome||"").trim().toUpperCase())
   ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
   dl.innerHTML=nomes.map(n=>`<option value="${esc(n)}">`).join("");
 }
