@@ -329,14 +329,19 @@ async function atualizarNumRecibo(){
 document.getElementById("nome").addEventListener("change",function(){
   const nome=this.value.toUpperCase();
   const match=historicoRecibos.find(r=>r.nome===nome);
+  const cadastro=listaClientes.find(c=>c.nome===nome);
   if(match){
     if(!document.getElementById("cpf").value) document.getElementById("cpf").value=match.cpf||"";
     if(!document.getElementById("municipio_uf").value) document.getElementById("municipio_uf").value=match.municipio_uf||"";
     if(!document.getElementById("emitido_por").value) document.getElementById("emitido_por").value=match.emitido_por||"";
     if(!document.getElementById("referencia").value) document.getElementById("referencia").value=match.referencia||"";
+  } else if(cadastro){
+    // fallback: preenche do cadastro quando não há recibos anteriores com esse nome
+    if(!document.getElementById("cpf").value) document.getElementById("cpf").value=cadastro.cpf||"";
+    if(!document.getElementById("municipio_uf").value) document.getElementById("municipio_uf").value=cadastro.municipio_uf||"";
+    if(!document.getElementById("referencia").value) document.getElementById("referencia").value=cadastro.referencia||"";
   }
   // Preenche valor da parcela do cadastro (editável pela recepção)
-  const cadastro=listaClientes.find(c=>c.nome===nome);
   if(cadastro&&(cadastro.valor_parcela||0)>0&&!document.getElementById("valor").value){
     const vf=cadastro.valor_parcela.toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
     document.getElementById("valor").value=vf;
