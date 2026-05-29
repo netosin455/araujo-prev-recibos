@@ -393,6 +393,27 @@
       .dre-grid .table-wrap[style*="grid-column:span 2"]{grid-column:span 1 !important}
       #grafico-dre{min-height:220px}
 
+      /* Admin grids (Relatórios, Analytics, Projeção, Escritórios, Responsáveis) — coluna única */
+      #admin-relatorios>div[style*="grid-template-columns"],
+      #admin-analytics>div[style*="grid-template-columns"],
+      #admin-projecao>div[style*="grid-template-columns"],
+      #admin-escritorios>div[style*="grid-template-columns"],
+      #admin-responsaveis>div[style*="grid-template-columns"]{grid-template-columns:1fr !important}
+      #admin-relatorios [style*="grid-column:span 2"],
+      #admin-analytics [style*="grid-column:span 2"],
+      #admin-projecao [style*="grid-column:span 2"],
+      #admin-escritorios [style*="grid-column:span 2"],
+      #admin-responsaveis [style*="grid-column:span 2"]{grid-column:span 1 !important}
+
+      /* Filtros avançados — inputs de valor deixam de ter largura fixa */
+      #filtro-avancado-min,#filtro-avancado-max{width:100% !important}
+
+      /* Calendário — células menores e mais tácteis */
+      .cal-day{min-height:44px;padding:4px 3px}
+      .cal-header{font-size:10px;padding:4px 0}
+      .cal-day-num{font-size:11px}
+      .cal-grid{gap:3px}
+
       /* Clientes */
       .cliente-header{padding:12px 14px;gap:8px}
       .cliente-nome{font-size:15px}

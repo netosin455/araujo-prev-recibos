@@ -2,6 +2,11 @@
 
 ## 2026-05-29
 
+### fix(mobile): correções visuais nas seções admin e calendário
+- **Grids admin em coluna única:** Seções Relatórios, Analytics, Projeção, Por Escritório e Por Responsável tinham grids `1fr 1fr` sem breakpoint mobile. Agora viram coluna única (`1fr`) em ≤768px. Elementos com `grid-column:span 2` também resetados.
+- **Filtros avançados:** Inputs "Valor mínimo/máximo" com `width:100px` fixo agora ocupam `width:100%` em mobile.
+- **Calendário:** Células com `min-height:60px` espremiam em mobile. Reduzido para `44px` (adequado para toque), padding menor, gap menor (`3px`). Fonte do cabeçalho reduzida para `10px`.
+
 ### fix(clientes): campo de busca persistia entre navegações
 - **Causa:** `busca-clientes` não era limpo ao navegar para a tela de clientes. Se o usuário tivesse digitado "alyne" e navegado para outra tela, ao voltar o filtro permanecia ativo e mostrava "Nenhum cliente encontrado."
 - **Fix 1:** `navegarPara("clientes")` agora limpa o campo antes de chamar `renderClientes()`.
