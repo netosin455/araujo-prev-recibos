@@ -2970,10 +2970,12 @@ function aplicarFiltros(){
 function atualizarSugestoesNomes(){
   const dl=document.getElementById("nome-sugestoes");
   if(!dl) return;
-  const nomes=[...new Set([
-    ...historicoRecibos.map(r=>(r.nome||"").trim().toUpperCase()),
-    ...listaClientes.map(c=>(c.nome||"").trim().toUpperCase())
-  ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  const norm=s=>(s||"").normalize("NFC").trim().replace(/\s+/g," ").toUpperCase();
+  const seen=new Set();
+  const nomes=[];
+  [...historicoRecibos.map(r=>r.nome),...listaClientes.map(c=>c.nome)]
+    .forEach(n=>{ const k=norm(n); if(k&&!seen.has(k)){seen.add(k);nomes.push(k);} });
+  nomes.sort((a,b)=>a.localeCompare(b,"pt-BR"));
   dl.innerHTML=nomes.map(n=>`<option value="${esc(n)}">`).join("");
 }
 
