@@ -812,9 +812,11 @@ function renderBuscaGlobal(termo) {
         if (r) setTimeout(() => abrirDetalhe(r), 100);
       } else {
         navegarPara("clientes");
-        const inp = document.getElementById("busca-clientes");
-        const c = listaClientes.find(x => (x.id||x._id) === item.dataset.id);
-        if (inp && c) { inp.value = c.nome; renderClientes(); }
+        setTimeout(() => {
+          const inp = document.getElementById("busca-clientes");
+          const c = listaClientes.find(x => (x.id||x._id) === item.dataset.id);
+          if (inp && c) { inp.value = c.nome; renderClientes(); }
+        }, 50);
       }
     });
   });
@@ -1526,13 +1528,17 @@ async function renderClientes() {
     const key = c.cpf || c.nome;
     if (!mapa[key]) mapa[key] = { nome: c.nome, cpf: c.cpf || "", municipio_uf: c.municipio_uf || "", recibos: [], total: 0 };
   });
-  // Depois: popula com os recibos
+  // Depois: popula com os recibos — casa por CPF primeiro, depois por nome (evita duplicatas)
   historicoRecibos.forEach(r => {
     if (!r.nome) return;
-    const key = r.cpf || r.nome;
-    if (!mapa[key]) mapa[key] = { nome: r.nome, cpf: r.cpf || "", municipio_uf: r.municipio_uf || "", recibos: [], total: 0 };
-    mapa[key].recibos.push(r);
-    mapa[key].total += valorParaNumero(r.valor);
+    const entry = (r.cpf && mapa[r.cpf]) || mapa[r.nome];
+    if (entry) {
+      entry.recibos.push(r);
+      entry.total += valorParaNumero(r.valor);
+    } else {
+      const key = r.cpf || r.nome;
+      mapa[key] = { nome: r.nome, cpf: r.cpf || "", municipio_uf: r.municipio_uf || "", recibos: [r], total: valorParaNumero(r.valor) };
+    }
   });
 
   let clientes = Object.values(mapa).filter(c =>
@@ -1657,12 +1663,15 @@ async function renderClientes() {
 function novoReciboParaCliente(c, cadastro) {
   _clienteContexto = cadastro || null;
   navegarPara("gerar");
+  limparCampos();
   setTimeout(() => {
     document.getElementById("cpf").value          = c.cpf || "";
     document.getElementById("nome").value         = c.nome || "";
     document.getElementById("municipio_uf").value = cadastro ? cadastro.municipio_uf : (c.municipio_uf || "");
     document.getElementById("referencia").value   = cadastro ? (cadastro.referencia || referenciaPadrao || "") : ((c.recibos||[])[0]?.referencia || referenciaPadrao || "");
     document.getElementById("escritorio").value   = (cadastro?.firma || (c.recibos||[])[0]?.escritorio || "").toUpperCase();
+    const emEl = document.getElementById("emitido_por");
+    if (emEl && !emEl.value) emEl.value = usuarioLogado || "";
     const btn = document.getElementById("btn-ref-padrao-recibo");
     if (btn) btn.style.display = "none";
     if (cadastro && (cadastro.valor_parcela || 0) > 0) {
@@ -1930,9 +1939,8 @@ async function salvarCliente() {
   mostrarToast(id ? "Cliente atualizado!" : "Cliente cadastrado!");
   const buscaInp = document.getElementById("busca-clientes");
   if(buscaInp) buscaInp.value = "";
-  await carregarClientes();
+  await renderClientes();
   atualizarSugestoesNomes();
-  renderClientes();
 }
 
 async function excluirReciboById(id){
@@ -3722,6 +3730,14 @@ function bindStaticHandlers() {
   if (buscaModal) {
     buscaModal.addEventListener("click", e => { if (e.target === buscaModal) fecharModalBuscaGlobal(); });
   }
+
+  // Fechar qualquer modal ao clicar no backdrop
+  ["modal-editar-usuario","modal-cliente","modal-pagamento-parcela",
+   "modal-detalhe","modal-govbr","modal-upload-comprovante","modal-comprovante"
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", e => { if (e.target === el) fecharModal(id); });
+  });
 
   // Busca global (sidebar) — mantida para compatibilidade
   const buscaGlobal = document.getElementById("busca-global");

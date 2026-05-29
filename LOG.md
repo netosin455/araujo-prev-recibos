@@ -16,6 +16,14 @@
 - **Filtros avançados:** Inputs "Valor mínimo/máximo" com `width:100px` fixo agora ocupam `width:100%` em mobile.
 - **Calendário:** Células com `min-height:60px` espremiam em mobile. Reduzido para `44px` (adequado para toque), padding menor, gap menor (`3px`). Fonte do cabeçalho reduzida para `10px`.
 
+### fix: correção sistêmica — 5 bugs de integração
+
+- **Clientes duplicados no mapa:** Recibos antigos sem CPF (campo vazio) criavam entrada separada mesmo quando o cliente já estava em listaClientes com CPF. O loop de historicoRecibos agora casa por CPF primeiro, depois por nome.
+- **Race condition busca global → clientes:** navegarPara("clientes") limpava a busca e chamava renderClientes() ao mesmo tempo que o código seguinte definia o filtro. Corrigido com setTimeout(50ms) igual ao padrão já usado no modal.
+- **carregarClientes() duplo em salvarCliente():** Chamava carregarClientes() explicitamente e depois renderClientes() que também chama. Removida a chamada explícita; atualizarSugestoesNomes() agora vem após renderClientes() (dados já atualizados).
+- **+ Recibo não limpava formulário anterior:** novoReciboParaCliente() navegava para "gerar" sem limparCampos(). Dados do recibo anterior (forma_pagamento, data, etc.) vazavam. Adicionado limparCampos() + restauração de emitido_por do usuário logado.
+- **Modais não fechavam ao clicar no fundo:** Com display:flex sempre ativo (animação), o backdrop estava presente mas sem listener. Adicionado listener em todos os 7 modais para fechar ao clicar fora do modal-content.
+
 ### fix(clientes): campo de busca persistia entre navegações
 - **Causa:** `busca-clientes` não era limpo ao navegar para a tela de clientes. Se o usuário tivesse digitado "alyne" e navegado para outra tela, ao voltar o filtro permanecia ativo e mostrava "Nenhum cliente encontrado."
 - **Fix 1:** `navegarPara("clientes")` agora limpa o campo antes de chamar `renderClientes()`.
