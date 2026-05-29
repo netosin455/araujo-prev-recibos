@@ -1529,24 +1529,25 @@ async function renderClientes() {
   const buscaDigitos = busca.replace(/\D/g, "");
   const grid         = document.getElementById("clientes-grid");
 
+  // Chave = dígitos do CPF (se tiver) ou nome normalizado — evita duplicatas por formatação diferente
+  const _cpfKey = cpf => cpf ? cpf.replace(/\D/g,"") : "";
+  const _nomeKey = nome => "__n__" + (nome||"").normalize("NFC").trim().replace(/\s+/g," ").toUpperCase();
+  const _mapaKey = (cpf, nome) => _cpfKey(cpf) || _nomeKey(nome);
+
   const mapa = {};
-  // Primeiro: inclui clientes cadastrados (mesmo sem recibo)
+  // Primeiro: clientes cadastrados — são a fonte de nome canônico
   listaClientes.forEach(c => {
     if (!c.nome) return;
-    const key = c.cpf || c.nome;
+    const key = _mapaKey(c.cpf, c.nome);
     if (!mapa[key]) mapa[key] = { nome: c.nome, cpf: c.cpf || "", municipio_uf: c.municipio_uf || "", recibos: [], total: 0 };
   });
-  // Depois: popula com os recibos — casa por CPF primeiro, depois por nome (evita duplicatas)
+  // Depois: recibos — casa por CPF (dígitos), cria entrada só se não existe ainda
   historicoRecibos.forEach(r => {
     if (!r.nome) return;
-    const entry = (r.cpf && mapa[r.cpf]) || mapa[r.nome];
-    if (entry) {
-      entry.recibos.push(r);
-      entry.total += valorParaNumero(r.valor);
-    } else {
-      const key = r.cpf || r.nome;
-      mapa[key] = { nome: r.nome, cpf: r.cpf || "", municipio_uf: r.municipio_uf || "", recibos: [r], total: valorParaNumero(r.valor) };
-    }
+    const key = _mapaKey(r.cpf, r.nome);
+    if (!mapa[key]) mapa[key] = { nome: r.nome, cpf: r.cpf || "", municipio_uf: r.municipio_uf || "", recibos: [], total: 0 };
+    mapa[key].recibos.push(r);
+    mapa[key].total += valorParaNumero(r.valor);
   });
 
   let clientes = Object.values(mapa).filter(c =>
@@ -2970,11 +2971,26 @@ function aplicarFiltros(){
 function atualizarSugestoesNomes(){
   const dl=document.getElementById("nome-sugestoes");
   if(!dl) return;
-  const norm=s=>(s||"").normalize("NFC").trim().replace(/\s+/g," ").toUpperCase();
-  const seen=new Set();
-  const nomes=[];
-  [...historicoRecibos.map(r=>r.nome),...listaClientes.map(c=>c.nome)]
-    .forEach(n=>{ const k=norm(n); if(k&&!seen.has(k)){seen.add(k);nomes.push(k);} });
+  const cpfKey=cpf=>cpf?cpf.replace(/\D/g,""):"";
+  const nomeNorm=s=>(s||"").normalize("NFC").trim().replace(/\s+/g," ").toUpperCase();
+  // Um nome por CPF único (cadastro tem prioridade); sem CPF deduplica por nome
+  const porCpf={};  // cpf_digits → nome canônico
+  const semCpf=new Set(); // nomes normalizados sem CPF
+  // Prioridade 1: cadastro (nome canônico oficial)
+  listaClientes.forEach(c=>{
+    if(!c.nome) return;
+    const k=cpfKey(c.cpf);
+    if(k) porCpf[k]=nomeNorm(c.nome);
+    else semCpf.add(nomeNorm(c.nome));
+  });
+  // Prioridade 2: recibos (só adiciona se CPF ainda não visto)
+  historicoRecibos.forEach(r=>{
+    if(!r.nome) return;
+    const k=cpfKey(r.cpf);
+    if(k){ if(!porCpf[k]) porCpf[k]=nomeNorm(r.nome); }
+    else semCpf.add(nomeNorm(r.nome));
+  });
+  const nomes=[...Object.values(porCpf),...semCpf].filter(Boolean);
   nomes.sort((a,b)=>a.localeCompare(b,"pt-BR"));
   dl.innerHTML=nomes.map(n=>`<option value="${esc(n)}">`).join("");
 }
