@@ -281,7 +281,7 @@ function marcarInvalido(...ids){
 const telas=["gerar","historico","clientes","admin","usuarios"];
 const titulos={gerar:"Gerar Recibo",historico:"Histórico de Recibos",clientes:"Clientes",admin:"Administrativo",usuarios:"Usuários"};
 
-function navegarPara(tela){
+async function navegarPara(tela){
   telas.forEach(t=>document.getElementById("screen-"+t)?.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
   document.getElementById("screen-"+tela)?.classList.add("active");
@@ -292,13 +292,17 @@ function navegarPara(tela){
   const bn=document.getElementById("bn-"+tela);
   if(bn) bn.classList.add("active");
   document.getElementById("topbar-title").textContent=titulos[tela]||tela;
-  if(tela==="historico") renderHistorico();
+  if(tela==="historico"){
+    await carregarRecibos();
+    renderHistorico();
+  }
   if(tela==="clientes"){
     const buscaCli = document.getElementById("busca-clientes");
     if(buscaCli) buscaCli.value = "";
     renderClientes();
   }
   if(tela==="admin"){
+    await carregarRecibos();
     atualizarDashboard();
     if(document.getElementById("admin-financeiro")?.classList.contains("active")){preencherFiltrosAnos();aplicarFiltros();}
     if(document.getElementById("admin-inadimplencia")?.classList.contains("active")) carregarInadimplencia();
@@ -1515,8 +1519,7 @@ function _buildTabelasParcelamento(cadastro) {
 
 async function renderClientes() {
   mostrarSkeleton("clientes-grid");
-  await carregarClientes();
-  if (!historicoRecibos.length) await carregarRecibos();
+  await Promise.all([carregarClientes(), carregarRecibos()]);
   const busca        = (document.getElementById("busca-clientes").value || "").toLowerCase();
   const buscaDigitos = busca.replace(/\D/g, "");
   const grid         = document.getElementById("clientes-grid");

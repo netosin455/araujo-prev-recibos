@@ -16,6 +16,12 @@
 - **Filtros avançados:** Inputs "Valor mínimo/máximo" com `width:100px` fixo agora ocupam `width:100%` em mobile.
 - **Calendário:** Células com `min-height:60px` espremiam em mobile. Reduzido para `44px` (adequado para toque), padding menor, gap menor (`3px`). Fonte do cabeçalho reduzida para `10px`.
 
+### fix(sync): sincronização multi-usuário — histórico, dashboard e clientes
+- **Problema raiz:** historicoRecibos era carregado só no login e ficava em cache. Se a recepcao gerasse um recibo, o financeiro navegando para Histórico ou Dashboard não via — dados antigos.
+- **navegarPara("historico"):** agora faz `await carregarRecibos()` antes de renderizar — garante que todos os recibos de todos os usuários estão presentes.
+- **navegarPara("admin"):** mesmo fix — dashboard e painéis analíticos sempre com dados frescos.
+- **renderClientes():** antes recarregava recibos só se array vazio. Agora usa `Promise.all([carregarClientes(), carregarRecibos()])` — clientes e recibos sempre frescos em paralelo.
+
 ### fix(recepcao): escritório e filtro histórico corrigidos para role recepcao
 - **+ Recibo sobrescrevia escritório:** `novoReciboParaCliente()` reescrevia o campo "escritório" depois de `limparCampos()` com `cadastro.firma` (nome do escritório de advocacia, não o valor do select). Para clientes sem cadastro/recibos anteriores, o campo ficava vazio e disabled — recepcao não conseguia gerar. Corrigido: recepcao não tem o escritório sobrescrito.
 - **Histórico sem filtro automático:** Recepcao via recibos de todos os escritórios. Agora o filtro de escritório é automaticamente aplicado com o `escritorioLogado` da recepcionista, sem precisar filtrar manualmente.
