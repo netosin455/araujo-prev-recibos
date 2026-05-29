@@ -1346,8 +1346,8 @@ function _buildTimeline(cadastro, recibos) {
     eventos.push({ tipo:"recibo", data: r.timestamp || dataParaISO(r.data) || "", label: `Recibo ${esc(r.num)} gerado — R$ ${esc(r.valor)}`, icon:"bi-receipt", cor:"var(--gold)" });
   });
   if (cadastro) {
-    (cadastro.parcelas||[]).filter(p=>p.status==="pago"&&p.data_pagamento).forEach(p => {
-      eventos.push({ tipo:"pagamento", data: p.data_pagamento, label: `Parcela ${p.num} paga — R$ ${formatarValor(p.valor||0)}`, icon:"bi-check-circle-fill", cor:"var(--success)" });
+    (cadastro.parcelas||[]).filter(p=>p.status==="pago"&&p.data_recebimento).forEach(p => {
+      eventos.push({ tipo:"pagamento", data: dataParaISO(p.data_recebimento)||p.data_recebimento||"", label: `Parcela ${p.num} paga — R$ ${formatarValor(p.valor||0)}`, icon:"bi-check-circle-fill", cor:"var(--success)" });
     });
     (cadastro.observacoes||[]).forEach(o => {
       eventos.push({ tipo:"obs", data: o.criado_em||o.data||"", label: `Observação: ${esc(o.texto||"")}`, icon:"bi-chat-text", cor:"var(--muted)" });
