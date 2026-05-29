@@ -2,6 +2,11 @@
 
 ## 2026-05-29
 
+### feat(gerar-recibo): preencher valor da parcela automaticamente pelo nome
+- Ao selecionar o nome do cliente no formulário, o campo "Valor Recebido" é preenchido automaticamente com `valor_parcela` do cadastro (se existir e o campo estiver vazio).
+- Campo continua editável — recepção pode alterar livremente.
+- Comportamento já existia via CPF (`preencherDadosCliente`) e pelo botão `+ Recibo` dos cards; agora também funciona via digitação do nome.
+
 ### fix(clientes): clientes cadastrados sem recibo não apareciam na lista
 - **Causa raiz:** `renderClientes()` construía o mapa apenas de `historicoRecibos`. Clientes cadastrados via modal (com CPF, contrato, parcelas) mas ainda sem nenhum recibo emitido ficavam invisíveis na tela.
 - **Fix:** `listaClientes` é processado primeiro para garantir que todo cliente cadastrado entra no mapa com `recibos:[]`. Em seguida `historicoRecibos` popula os recibos de quem já os tem. Clientes sem recibo aparecem com "0 recibos" e R$ 0,00.

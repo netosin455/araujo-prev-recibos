@@ -330,8 +330,14 @@ document.getElementById("nome").addEventListener("change",function(){
     if(!document.getElementById("municipio_uf").value) document.getElementById("municipio_uf").value=match.municipio_uf||"";
     if(!document.getElementById("emitido_por").value) document.getElementById("emitido_por").value=match.emitido_por||"";
     if(!document.getElementById("referencia").value) document.getElementById("referencia").value=match.referencia||"";
-    document.getElementById("valor").focus();
   }
+  // Preenche valor da parcela do cadastro (editável pela recepção)
+  const cadastro=listaClientes.find(c=>c.nome===nome);
+  if(cadastro&&(cadastro.valor_parcela||0)>0&&!document.getElementById("valor").value){
+    const vf=cadastro.valor_parcela.toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
+    document.getElementById("valor").value=vf;
+  }
+  document.getElementById("valor").focus();
 });
 
 document.getElementById("cpf").addEventListener("input",function(){
