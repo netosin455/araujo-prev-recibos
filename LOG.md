@@ -16,6 +16,10 @@
 - **Filtros avançados:** Inputs "Valor mínimo/máximo" com `width:100px` fixo agora ocupam `width:100%` em mobile.
 - **Calendário:** Células com `min-height:60px` espremiam em mobile. Reduzido para `44px` (adequado para toque), padding menor, gap menor (`3px`). Fonte do cabeçalho reduzida para `10px`.
 
+### fix(recepcao): escritório e filtro histórico corrigidos para role recepcao
+- **+ Recibo sobrescrevia escritório:** `novoReciboParaCliente()` reescrevia o campo "escritório" depois de `limparCampos()` com `cadastro.firma` (nome do escritório de advocacia, não o valor do select). Para clientes sem cadastro/recibos anteriores, o campo ficava vazio e disabled — recepcao não conseguia gerar. Corrigido: recepcao não tem o escritório sobrescrito.
+- **Histórico sem filtro automático:** Recepcao via recibos de todos os escritórios. Agora o filtro de escritório é automaticamente aplicado com o `escritorioLogado` da recepcionista, sem precisar filtrar manualmente.
+
 ### fix: correção sistêmica — 5 bugs de integração
 
 - **Clientes duplicados no mapa:** Recibos antigos sem CPF (campo vazio) criavam entrada separada mesmo quando o cliente já estava em listaClientes com CPF. O loop de historicoRecibos agora casa por CPF primeiro, depois por nome.

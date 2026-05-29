@@ -828,7 +828,7 @@ function renderHistorico(maisItens=false){
   const dataIni=document.getElementById("filtro-data-ini")?.value||"";
   const dataFim=document.getElementById("filtro-data-fim")?.value||"";
   const buscaDigitos=busca.replace(/\D/g,"");
-  const escritorioFiltro=(document.getElementById("filtro-avancado-escritorio")?.value||"");
+  const escritorioFiltro=(document.getElementById("filtro-avancado-escritorio")?.value||"") || (roleLogado==="recepcao" ? escritorioLogado : "");
   const formaFiltro=(document.getElementById("filtro-avancado-forma")?.value||"");
   const responsavelFiltro=(document.getElementById("filtro-avancado-responsavel")?.value||"");
   const minFiltroRaw=(document.getElementById("filtro-avancado-min")?.value||"").trim();
@@ -1669,7 +1669,10 @@ function novoReciboParaCliente(c, cadastro) {
     document.getElementById("nome").value         = c.nome || "";
     document.getElementById("municipio_uf").value = cadastro ? cadastro.municipio_uf : (c.municipio_uf || "");
     document.getElementById("referencia").value   = cadastro ? (cadastro.referencia || referenciaPadrao || "") : ((c.recibos||[])[0]?.referencia || referenciaPadrao || "");
-    document.getElementById("escritorio").value   = (cadastro?.firma || (c.recibos||[])[0]?.escritorio || "").toUpperCase();
+    // recepcao: escritório já está correto via limparCampos() — não sobrescrever
+    if (roleLogado !== "recepcao") {
+      document.getElementById("escritorio").value = ((c.recibos||[])[0]?.escritorio || "").toUpperCase();
+    }
     const emEl = document.getElementById("emitido_por");
     if (emEl && !emEl.value) emEl.value = usuarioLogado || "";
     const btn = document.getElementById("btn-ref-padrao-recibo");
