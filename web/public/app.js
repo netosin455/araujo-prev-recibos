@@ -1930,6 +1930,8 @@ async function salvarCliente() {
   mostrarToast(id ? "Cliente atualizado!" : "Cliente cadastrado!");
   const buscaInp = document.getElementById("busca-clientes");
   if(buscaInp) buscaInp.value = "";
+  await carregarClientes();
+  atualizarSugestoesNomes();
   renderClientes();
 }
 
@@ -2926,7 +2928,10 @@ function aplicarFiltros(){
 function atualizarSugestoesNomes(){
   const dl=document.getElementById("nome-sugestoes");
   if(!dl) return;
-  const nomes=[...new Set(historicoRecibos.map(r=>r.nome).filter(Boolean))];
+  const nomes=[...new Set([
+    ...historicoRecibos.map(r=>r.nome),
+    ...listaClientes.map(c=>c.nome)
+  ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
   dl.innerHTML=nomes.map(n=>`<option value="${esc(n)}">`).join("");
 }
 
