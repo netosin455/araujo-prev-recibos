@@ -1526,7 +1526,7 @@ async function renderClientes() {
     c.nome.toLowerCase().includes(busca) ||
     (buscaDigitos.length > 0 && c.cpf.replace(/\D/g, "").includes(buscaDigitos))
   );
-  clientes.sort((a, b) => a.nome.localeCompare(b.nome));
+  clientes.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 
   // Resumo contextual
   const resumoEl = document.getElementById("resumo-clientes");
