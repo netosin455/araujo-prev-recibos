@@ -2413,7 +2413,7 @@ app.post("/api/admin/importar-clientes-dos-recibos", auth, financeiroOnly, async
         referencia:      recente.referencia   || "",
         valor_beneficio: 0,
         num_beneficios:  0,
-        valor_contrato:  totalValor > 0 ? totalValor : nRec,
+        valor_contrato:  totalValor > 0 ? totalValor : 1,
         num_parcelas:    nRec,
         valor_parcela:   totalValor > 0 ? totalValor / nRec : 1,
         parcelas:        [],

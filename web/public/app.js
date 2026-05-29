@@ -1480,7 +1480,7 @@ function _buildTabelasParcelamento(cadastro) {
     </table>`;
 
   const pendentes = parcelas.filter(p => p.status !== "pago");
-  const totalAReceber = pendentes.reduce((s, p) => s + p.valor, 0);
+  const totalAReceber = pendentes.reduce((s, p) => s + (p.valor || 0), 0);
   const tabelaAReceber = pendentes.length === 0
     ? `<p style="color:var(--success);font-weight:600;padding:8px 0">✅ Nenhuma parcela pendente — contrato quitado!</p>`
     : `<table style="width:100%">
@@ -1497,7 +1497,7 @@ function _buildTabelasParcelamento(cadastro) {
       <div class="tab-total" style="color:var(--error)">Total a receber: R$ ${formatarValor(totalAReceber)}</div>`;
 
   const pagas = parcelas.filter(p => p.status === "pago");
-  const totalRecebido = pagas.reduce((s, p) => s + p.valor, 0);
+  const totalRecebido = pagas.reduce((s, p) => s + (p.valor || 0), 0);
   const tabelaRecebidos = pagas.length === 0
     ? `<p style="color:var(--muted);padding:8px 0">Nenhuma parcela paga ainda.</p>`
     : `<table style="width:100%">
@@ -1634,10 +1634,10 @@ async function renderClientes() {
       const action = btn.dataset.action;
       if (action === "trocar-aba") trocarAbaCliente(btn, btn.dataset.cardId, btn.dataset.aba);
       else if (action === "pagar-parcela") abrirModalPagamentoParcela(btn.dataset.id, Number(btn.dataset.num), Number(btn.dataset.valor), "");
-      else if (action === "detalhe-recibo") abrirDetalhe(JSON.parse(btn.dataset.recibo));
-      else if (action === "pdf-recibo") abrirPDFRecibo(JSON.parse(btn.dataset.recibo));
-      else if (action === "editar-recibo") editarRecibo(JSON.parse(btn.dataset.recibo));
-      else if (action === "baixar-recibo") reimprimirRecibo(JSON.parse(btn.dataset.recibo));
+      else if (action === "detalhe-recibo") { try { abrirDetalhe(JSON.parse(btn.dataset.recibo)); } catch(e) { mostrarToast("Erro ao abrir recibo.", null, "error"); } }
+      else if (action === "pdf-recibo") { try { abrirPDFRecibo(JSON.parse(btn.dataset.recibo)); } catch(e) { mostrarToast("Erro ao abrir recibo.", null, "error"); } }
+      else if (action === "editar-recibo") { try { editarRecibo(JSON.parse(btn.dataset.recibo)); } catch(e) { mostrarToast("Erro ao abrir recibo.", null, "error"); } }
+      else if (action === "baixar-recibo") { try { reimprimirRecibo(JSON.parse(btn.dataset.recibo)); } catch(e) { mostrarToast("Erro ao baixar recibo.", null, "error"); } }
       else if (action === "upload-comprovante") abrirModalUploadComprovante(btn.dataset.id);
       else if (action === "excluir-recibo") excluirReciboById(btn.dataset.id);
     });
@@ -1938,6 +1938,7 @@ async function salvarCliente() {
   const res  = id
     ? await api("PUT",  `/api/clientes/${id}`, body)
     : await api("POST", "/api/clientes", body);
+  if (!res) return;
   const data = await res.json();
   if (!res.ok) { mostrarToast(data.erro || "Erro ao salvar cliente.", null, "error"); return; }
 
