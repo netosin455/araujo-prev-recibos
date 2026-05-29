@@ -1,5 +1,43 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-05-29
+
+### fix(frontend): Parte 6 — Acessibilidade (a11y)
+- **7 modais com `role="dialog" aria-modal="true" aria-labelledby`:** Leitores de tela agora anunciam o título do modal ao abrir e sabem que o foco está preso dentro do diálogo.
+- **Todos os `.modal-close` com `aria-label="Fechar"`:** Botões com só ícone agora têm nome acessível.
+- **Labels conectados com `for=""` nos formulários principais:** Login (usuário/senha), formulário de recibo (nome, cpf, municipio_uf, valor, motivo_pagamento, forma_pagamento, escritorio, emitido_por). Clicar no label agora foca o campo correto.
+- **`#status` com `role="alert" aria-live="polite"`:** Erros de validação são anunciados automaticamente por leitores de tela sem precisar focar o elemento.
+- **`#toast` com `role="status" aria-live="polite" aria-atomic="true"`:** Notificações toast anunciadas automaticamente quando aparecem.
+- **`#btn-tema` com `aria-label`:** Botão de tema (moon icon) agora tem nome acessível.
+
+### fix(frontend): Parte 5 — Validação visual de formulários
+- **`marcarInvalido(...ids)`:** Nova função helper que adiciona `input-error` (borda vermelha + fundo rosado) a qualquer campo. Remove automaticamente quando o usuário começa a digitar (`input` event com `{once:true}`).
+- **`gerarRecibo()` valida todos os campos de uma vez:** Antes parava no primeiro campo vazio. Agora coleta todos os vazios, destaca todos ao mesmo tempo e mostra mensagem genérica única.
+- **CPF/data inválidos também ficam vermelhos:** Campos específicos são destacados ao falhar validação.
+- **Modal de cliente:** Mesma lógica — campos Nome, CPF, Município, Valor do contrato e Nº parcelas ficam vermelhos individualmente quando inválidos.
+- **Placeholders adicionados:** `nome` ("Nome do(a) cliente..."), `cpf` ("000.000.000-00"), `municipio_uf` ("Ex: Terra Rica - PR"), `valor` ("0,00").
+- **CSS dark mode para `.input-error`:** Fundo `#2a1515` no dark mode em vez do rosado padrão.
+
+### fix(frontend): Parte 4 — Navegação teclado busca global + erros silenciosos
+- **Busca global ↑↓ + Enter:** Adicionada navegação por teclado no dropdown da busca global. ArrowDown/ArrowUp percorrem os itens (com highlight `.focused`), Enter seleciona o item ativo, Escape fecha e limpa. `scrollIntoView` mantém o item visível se o dropdown estiver com scroll.
+- **carregarClientes() silencioso:** Se a API falhar no primeiro carregamento (lista ainda vazia), exibe toast de erro orientando o usuário a recarregar.
+- **carregarReferenciaPadrao() silencioso:** Se `/api/me` falhar, exibe toast de erro — evita que campos `emitido_por` e `referencia` fiquem silenciosamente vazios.
+
+### fix(frontend): Parte 3 — Eliminar todos os alert()
+- **20 chamadas `alert()` substituídas por `mostrarToast(..., "error")`** em todo o app.js.
+- Cobertos: upload de comprovante (fluxo novo e edição), validações de cliente (Nome/CPF/CNPJ/contrato/parcelas), pagamento de parcela, exclusão de cliente, gestão de usuários (criar/editar), restaurar backup, e 7 guards de "nenhum dado" nas exportações.
+- Resultado: nenhuma caixa de diálogo bloqueante restante — todos os erros aparecem como toast não-invasivo, incluindo no mobile onde `alert()` bloqueia o fluxo de forma especialmente ruim.
+
+### fix(frontend): Parte 2 — CSS mobile e visual
+- **Modal com animação:** Modal não pisca mais ao abrir. Usa `opacity` + `pointer-events` + `transition:0.2s` no lugar de `display:none/flex`. No desktop: painel sobe levemente com `translateY(12px) scale(0.98)`. No mobile: desliza de baixo com `translateY(24px)`.
+- **Dark mode btn-secondary:** Texto era `var(--mid)` (#aaaaaa) em fundo #252525 — contraste marginal. Agora é `#d0d0d0` para leitura confortável.
+- **Labels mobile:** `font-size:11px` → `13px` no breakpoint 768px. Mais legível no celular.
+- **Botões .btn-sm mobile:** Adicionado `min-height:38px` e `font-size:12px` no breakpoint 768px — área de toque adequada.
+
+### fix(frontend): Parte 1 — bugs JS críticos
+- **alert() → mostrarToast():** Erros no upload de comprovante usavam `alert()` bloqueante (péssimo em mobile). Substituído por `mostrarToast(..., "error")` nos dois casos (erro de API e erro de rede).
+- **c.recibos undefined:** Acessos a `c.recibos[0]`, `c.recibos.length` e `c.recibos.map()` em cards de clientes e modal de cadastro agora usam `(c.recibos || [])` para evitar `TypeError` quando o campo não existe no objeto.
+
 ## 2026-05-26
 
 ### fix: Recibos da recepção não apareciam no histórico

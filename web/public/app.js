@@ -78,6 +78,7 @@ let graficoFormasPag = null;
 let graficoMultiAno = null;
 let graficoDRE = null;
 let modoEdicao = null;
+let _buscaGlobalIdx = -1;
 const _selecionadosZip = new Set();
 let idEdicao = null;
 let referenciaPadrao = "";
@@ -143,7 +144,7 @@ async function iniciarApp(){
 
 async function carregarReferenciaPadrao() {
   const res = await api("GET", "/api/me");
-  if (!res || !res.ok) return;
+  if (!res || !res.ok) { mostrarToast("Erro ao carregar dados do usuário. Recarregue a página.", null, "error"); return; }
   const me = await res.json();
   referenciaPadrao = me.referencia_padrao || "";
   const el = document.getElementById("referencia");
@@ -266,6 +267,14 @@ function setStatus(msg,tipo){
   const el=document.getElementById("status");
   el.textContent=msg;el.className="status "+tipo;
   if(tipo!=="loading") setTimeout(()=>{el.className="status";},4000);
+}
+function marcarInvalido(...ids){
+  ids.forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.classList.add("input-error");
+    el.addEventListener("input",()=>el.classList.remove("input-error"),{once:true});
+  });
 }
 
 // ── NAVEGAÇÃO ──────────────────────────────────────────────
@@ -546,11 +555,13 @@ function duplicarRecibo(r){
 async function gerarRecibo(){
   const campos=["nome","cpf","municipio_uf","valor","emitido_por","escritorio"];
   const dados={};
+  const vazios=[];
   for(const c of campos){
     const val=document.getElementById(c).value.trim();
-    if(!val) return setStatus(`Preencha o campo: ${c}`,"error");
-    dados[c]=val;
+    if(!val) vazios.push(c);
+    else dados[c]=val;
   }
+  if(vazios.length){ marcarInvalido(...vazios); return setStatus("Preencha todos os campos obrigatórios.","error"); }
   dados.complemento=document.getElementById("complemento").value.trim();
   dados.referencia=document.getElementById("referencia").value.trim().toUpperCase();
   dados.forma_pagamento=document.getElementById("forma_pagamento").value;
@@ -559,17 +570,17 @@ async function gerarRecibo(){
   const dia=document.getElementById("dia").value;
   const mes=document.getElementById("mes").value;
   const ano=document.getElementById("ano").value;
-  if(!dia||!mes||!ano) return setStatus("Preencha a data completa.","error");
+  if(!dia||!mes||!ano){ marcarInvalido(...["dia","mes","ano"].filter(id=>!document.getElementById(id).value)); return setStatus("Preencha a data completa.","error"); }
   const _dataCheck=new Date(parseInt(ano),parseInt(mes)-1,parseInt(dia));
-  if(_dataCheck.getMonth()!==parseInt(mes)-1) return setStatus("Data inválida (ex: 31/02 não existe).","error");
+  if(_dataCheck.getMonth()!==parseInt(mes)-1){ marcarInvalido("dia","mes","ano"); return setStatus("Data inválida (ex: 31/02 não existe).","error"); }
   dados.data=formatarData();
   dados.data_extenso=dataExtenso();
   dados.nome=dados.nome.toUpperCase();
   dados.municipio_uf=dados.municipio_uf.toUpperCase();
   dados.emitido_por=dados.emitido_por.toUpperCase();
   const _cpfDigits=dados.cpf.replace(/\D/g,"");
-  if(_cpfDigits.length===11&&!validarCPF(dados.cpf)) return setStatus("CPF inválido. Verifique os dígitos.","error");
-  if(_cpfDigits.length===14&&!validarCNPJ(dados.cpf)) return setStatus("CNPJ inválido. Verifique os dígitos.","error");
+  if(_cpfDigits.length===11&&!validarCPF(dados.cpf)){ marcarInvalido("cpf"); return setStatus("CPF inválido. Verifique os dígitos.","error"); }
+  if(_cpfDigits.length===14&&!validarCNPJ(dados.cpf)){ marcarInvalido("cpf"); return setStatus("CNPJ inválido. Verifique os dígitos.","error"); }
 
   const btn=document.getElementById("btn-gerar");
   const btnTextoOriginal = btn.innerHTML;
@@ -593,8 +604,8 @@ async function gerarRecibo(){
         const r = await fetch("/api/upload-comprovante", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:fd });
         const j = await r.json();
         if(j.link){ link_comprovante_edicao = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
-        else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; alert(j.erro || "Erro ao enviar comprovante."); }
-      } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; alert("Erro ao enviar comprovante: " + e.message); }
+        else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; mostrarToast(j.erro || "Erro ao enviar comprovante.", null, "error"); }
+      } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; mostrarToast("Erro ao enviar comprovante: " + e.message, null, "error"); }
     }
     const bodyEdicao = {
       nome:dados.nome,cpf:dados.cpf,municipio_uf:dados.municipio_uf,
@@ -661,8 +672,8 @@ async function gerarRecibo(){
       const r = await fetch("/api/upload-comprovante", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:fd });
       const j = await r.json();
       if(j.link){ link_comprovante = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
-      else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; alert(j.erro || "Erro ao enviar comprovante."); }
-    } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; alert("Erro ao enviar comprovante: " + e.message); }
+      else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; mostrarToast(j.erro || "Erro ao enviar comprovante.", null, "error"); }
+    } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; mostrarToast("Erro ao enviar comprovante: " + e.message, null, "error"); }
   }
 
   // Salvar no banco
@@ -758,6 +769,7 @@ function limparFiltroData(){
 }
 
 function renderBuscaGlobal(termo) {
+  _buscaGlobalIdx = -1;
   const dropdown = document.getElementById("busca-global-dropdown");
   if (!termo || termo.length < 2) { dropdown.style.display = "none"; return; }
   const t = termo.toLowerCase();
@@ -1354,7 +1366,10 @@ function atualizarBadgeClientes() {
 
 async function carregarClientes() {
   const res = await api("GET", "/api/clientes");
-  if (!res || !res.ok) return;
+  if (!res || !res.ok) {
+    if (!listaClientes.length) mostrarToast("Erro ao carregar clientes. Recarregue a página.", null, "error");
+    return;
+  }
   listaClientes = await res.json();
 }
 
@@ -1403,7 +1418,7 @@ function _buildTabelaRecibos(c) {
     <table style="width:100%">
       <thead><tr><th>Nº</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th><th>Ações</th></tr></thead>
       <tbody>
-        ${c.recibos.map(r => {
+        ${(c.recibos || []).map(r => {
           const rd  = esc(JSON.stringify(r));
           const rid = esc(r.id || r._id);
           return `<tr>
@@ -1533,7 +1548,7 @@ async function renderClientes() {
   grid.innerHTML = "";
   clientes.forEach(c => {
     const cadastro = c.cpf ? listaClientes.find(l => l.cpf === c.cpf) : null;
-    const ultimo   = c.recibos[0];
+    const ultimo   = (c.recibos || [])[0];
     const cardId   = `card-cli-${(c.cpf||c.nome).replace(/\W/g,"")}-${Math.random().toString(36).slice(2,6)}`;
     const temParcelas = cadastro && Array.isArray(cadastro.parcelas) && cadastro.parcelas.length > 0;
 
@@ -1548,8 +1563,8 @@ async function renderClientes() {
         <div style="flex:1">
           <div class="cliente-nome">${esc(c.nome)}</div>
           <div class="cliente-stats">
-            <span>${c.recibos.length} recibo${c.recibos.length !== 1 ? "s" : ""}</span>
-            <span>·</span><span>Último: ${esc(ultimo.data)}</span>
+            <span>${(c.recibos||[]).length} recibo${(c.recibos||[]).length !== 1 ? "s" : ""}</span>
+            <span>·</span><span>Último: ${esc(ultimo?.data || "-")}</span>
             ${cadastro && cadastro.firma ? `<span>·</span><span style="color:var(--gold);font-weight:600">${esc(cadastro.firma)}</span>` : ""}
             ${cadastro && cadastro.referencia ? `<span>·</span><span>Ref: ${esc(cadastro.referencia)}</span>` : (ultimo.referencia ? `<span>·</span><span>Ref: ${esc(ultimo.referencia)}</span>` : "")}
             ${cadastro && cadastro.telefone ? `<span>·</span><span><a href="https://wa.me/55${cadastro.telefone.replace(/\D/g,'')}" target="_blank" rel="noopener" class="wa-link" style="color:var(--success);text-decoration:none" title="Abrir WhatsApp"><i class="bi bi-whatsapp"></i> ${esc(cadastro.telefone)}</a></span>` : ""}
@@ -1628,8 +1643,8 @@ function novoReciboParaCliente(c, cadastro) {
     document.getElementById("cpf").value          = c.cpf || "";
     document.getElementById("nome").value         = c.nome || "";
     document.getElementById("municipio_uf").value = cadastro ? cadastro.municipio_uf : (c.municipio_uf || "");
-    document.getElementById("referencia").value   = cadastro ? (cadastro.referencia || referenciaPadrao || "") : (c.recibos[0]?.referencia || referenciaPadrao || "");
-    document.getElementById("escritorio").value   = (cadastro?.firma || c.recibos[0]?.escritorio || "").toUpperCase();
+    document.getElementById("referencia").value   = cadastro ? (cadastro.referencia || referenciaPadrao || "") : ((c.recibos||[])[0]?.referencia || referenciaPadrao || "");
+    document.getElementById("escritorio").value   = (cadastro?.firma || (c.recibos||[])[0]?.escritorio || "").toUpperCase();
     const btn = document.getElementById("btn-ref-padrao-recibo");
     if (btn) btn.style.display = "none";
     if (cadastro && (cadastro.valor_parcela || 0) > 0) {
@@ -1684,7 +1699,7 @@ async function confirmarPagamentoParcela() {
   const reciboNum  = (document.getElementById("pag-recibo-num").value || "").trim().toUpperCase();
   const observacao = (document.getElementById("pag-observacao").value || "").trim();
 
-  if (!dataRec || !dataDep) return alert("Preencha as datas de recebimento e depósito.");
+  if (!dataRec || !dataDep) { mostrarToast("Preencha as datas de recebimento e depósito.", null, "error"); return; }
 
   const fmt = d => d ? d.split("-").reverse().join("/") : "";
   const res = await api("PATCH", `/api/clientes/${clienteId}/parcela/${parcelaNum}`, {
@@ -1696,7 +1711,7 @@ async function confirmarPagamentoParcela() {
   });
   if (!res || !res.ok) {
     const data = res ? await res.json().catch(() => ({})) : {};
-    return alert(data.erro || "Erro ao registrar pagamento.");
+    mostrarToast(data.erro || "Erro ao registrar pagamento.", null, "error"); return;
   }
   fecharModal("modal-pagamento-parcela");
   mostrarToast("Parcela marcada como paga!", null, "success");
@@ -1826,7 +1841,7 @@ function abrirModalClientePreenchido(c) {
   document.getElementById("cliente-nome").value      = c.nome || "";
   document.getElementById("cliente-cpf").value       = c.cpf || "";
   document.getElementById("cliente-municipio").value = c.municipio_uf || "";
-  const ref = c.recibos[0]?.referencia || referenciaPadrao || "";
+  const ref = (c.recibos||[])[0]?.referencia || referenciaPadrao || "";
   document.getElementById("cliente-referencia").value = ref;
   document.getElementById("modal-cliente").classList.add("active");
 }
@@ -1871,20 +1886,27 @@ async function salvarCliente() {
   const valor_contrato  = valorParaNumero(document.getElementById("cliente-valor-contrato").value);
   const num_parcelas    = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
 
-  if (!nome || !cpf || !municipio_uf) return alert("Preencha Nome, CPF e Município.");
+  if (!nome || !cpf || !municipio_uf) {
+    const v=[];
+    if(!nome) v.push("cliente-nome");
+    if(!cpf)  v.push("cliente-cpf");
+    if(!municipio_uf) v.push("cliente-municipio");
+    marcarInvalido(...v);
+    mostrarToast("Preencha Nome, CPF e Município.", null, "error"); return;
+  }
   const _cd=cpf.replace(/\D/g,"");
-  if(_cd.length===11&&!validarCPF(cpf)) return alert("CPF inválido. Verifique os dígitos.");
-  if(_cd.length===14&&!validarCNPJ(cpf)) return alert("CNPJ inválido. Verifique os dígitos.");
-  if(_cd.length!==11&&_cd.length!==14) return alert("CPF deve ter 11 dígitos ou CNPJ 14 dígitos.");
-  if (valor_contrato <= 0) return alert("Informe o valor total do contrato.");
-  if (num_parcelas <= 0)   return alert("Informe o número de parcelas.");
+  if(_cd.length===11&&!validarCPF(cpf)) { marcarInvalido("cliente-cpf"); mostrarToast("CPF inválido. Verifique os dígitos.", null, "error"); return; }
+  if(_cd.length===14&&!validarCNPJ(cpf)) { marcarInvalido("cliente-cpf"); mostrarToast("CNPJ inválido. Verifique os dígitos.", null, "error"); return; }
+  if(_cd.length!==11&&_cd.length!==14) { marcarInvalido("cliente-cpf"); mostrarToast("CPF deve ter 11 dígitos ou CNPJ 14 dígitos.", null, "error"); return; }
+  if (valor_contrato <= 0) { marcarInvalido("cliente-valor-contrato"); mostrarToast("Informe o valor total do contrato.", null, "error"); return; }
+  if (num_parcelas <= 0)   { marcarInvalido("cliente-num-parcelas");   mostrarToast("Informe o número de parcelas.", null, "error"); return; }
 
   const body = { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_beneficio, num_beneficios, valor_contrato, num_parcelas };
   const res  = id
     ? await api("PUT",  `/api/clientes/${id}`, body)
     : await api("POST", "/api/clientes", body);
   const data = await res.json();
-  if (!res.ok) return alert(data.erro || "Erro ao salvar cliente.");
+  if (!res.ok) { mostrarToast(data.erro || "Erro ao salvar cliente.", null, "error"); return; }
 
   fecharModal("modal-cliente");
   mostrarToast(id ? "Cliente atualizado!" : "Cliente cadastrado!");
@@ -1909,7 +1931,7 @@ async function excluirCliente(id, cadastro) {
   const res = await api("DELETE", `/api/clientes/${id}`);
   if (!res || !res.ok) {
     const data = res ? await res.json().catch(() => ({})) : {};
-    return alert(data.erro || "Erro ao excluir cliente.");
+    mostrarToast(data.erro || "Erro ao excluir cliente.", null, "error"); return;
   }
   mostrarToast("Cliente excluído.", null, "success");
   await carregarClientes();
@@ -2913,7 +2935,7 @@ function configurarAlertaInativo(){
   const val=prompt("Alertar clientes sem recibo há quantos meses?",atual);
   if(val===null) return;
   const n=parseInt(val);
-  if(isNaN(n)||n<1) return alert("Valor inválido.");
+  if(isNaN(n)||n<1) { mostrarToast("Valor inválido.", null, "error"); return; }
   localStorage.setItem("alertaInativoMeses",String(n));
   verificarClientesInativos();
 }
@@ -2976,12 +2998,12 @@ async function salvarEdicaoUsuario(){
   const password = document.getElementById("edit-user-senha").value;
   const role = document.getElementById("edit-user-role").value;
   const escritorio = document.getElementById("edit-user-escritorio").value.trim();
-  if(!username) return alert("Preencha o nome de usuário.");
+  if(!username) { mostrarToast("Preencha o nome de usuário.", null, "error"); return; }
   const body = { username, role, escritorio };
   if(password) body.password = password;
   const res = await api("PUT", `/api/users/${id}`, body);
   const data = await res.json();
-  if(!res.ok) return alert(data.erro || "Erro ao editar usuário.");
+  if(!res.ok) { mostrarToast(data.erro || "Erro ao editar usuário.", null, "error"); return; }
   fecharModal("modal-editar-usuario");
   mostrarToast("Usuário atualizado!");
   renderUsuarios();
@@ -2992,10 +3014,10 @@ async function adicionarUsuario(){
   const password=document.getElementById("nova-senha").value;
   const role=document.getElementById("novo-role").value;
   const escritorio=document.getElementById("novo-escritorio").value.trim();
-  if(!username||!password) return alert("Preencha usuário e senha.");
+  if(!username||!password) { mostrarToast("Preencha usuário e senha.", null, "error"); return; }
   const res=await api("POST","/api/users",{username,password,role,escritorio});
   const data=await res.json();
-  if(!res.ok) return alert(data.erro||"Erro ao criar usuário.");
+  if(!res.ok) { mostrarToast(data.erro||"Erro ao criar usuário.", null, "error"); return; }
   document.getElementById("novo-usuario").value="";
   document.getElementById("nova-senha").value="";
   document.getElementById("novo-role").value="financeiro";
@@ -3031,7 +3053,7 @@ async function restaurarBackup(input){
   try{
     const dados=JSON.parse(text);
     const recibos=dados.historicoRecibos||dados;
-    if(!Array.isArray(recibos)) return alert("Arquivo inválido.");
+    if(!Array.isArray(recibos)) { mostrarToast("Arquivo inválido.", null, "error"); return; }
     if(!confirm(`Importar ${recibos.length} recibos? Os recibos existentes não serão apagados.`)) return;
     let importados=0;
     for(const r of recibos){
@@ -3049,7 +3071,7 @@ async function restaurarBackup(input){
     preencherFiltrosAnos();
     mostrarToast(`${importados} recibos importados com sucesso!`);
   }catch{
-    alert("Erro ao ler o arquivo de backup.");
+    mostrarToast("Erro ao ler o arquivo de backup.", null, "error");
   }
   input.value="";
 }
@@ -3091,7 +3113,7 @@ function filtrarRelatorio(){
 async function exportarExcel(){
   await garantirXLSX();
   const lista=filtrarRelatorio();
-  if(!lista.length) return alert("Nenhum dado para exportar.");
+  if(!lista.length) { mostrarToast("Nenhum dado para exportar.", null, "error"); return; }
   const ws=XLSX.utils.json_to_sheet(lista.map(r=>({
     "Nº Recibo":r.num,"Cliente":r.nome,"CPF/CNPJ":r.cpf,"Município":r.municipio_uf,
     "Valor":"R$ "+r.valor,"Data":r.data,"Responsável":r.emitido_por||"","Referência":r.referencia||""
@@ -3105,7 +3127,7 @@ async function exportarExcelClientes(){
   await garantirXLSX();
   const ano=document.getElementById("rel-cliente-ano").value;
   const lista=historicoRecibos.filter(r=>!ano||r.data?.split("/")[2]===ano);
-  if(!lista.length) return alert("Nenhum dado.");
+  if(!lista.length) { mostrarToast("Nenhum dado para exportar.", null, "error"); return; }
   const mapa={};
   lista.forEach(r=>{
     if(!mapa[r.nome]) mapa[r.nome]={nome:r.nome,cpf:r.cpf,qtd:0,total:0};
@@ -3123,7 +3145,7 @@ async function exportarExcelClientes(){
 async function exportarPDF(){
   await garantirJSPDF();
   const lista=filtrarRelatorio();
-  if(!lista.length) return alert("Nenhum dado.");
+  if(!lista.length) { mostrarToast("Nenhum dado para exportar.", null, "error"); return; }
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:"landscape"});
   const W=doc.internal.pageSize.getWidth();
@@ -3149,7 +3171,7 @@ async function exportarPDFClientes(){
   await garantirJSPDF();
   const ano=document.getElementById("rel-cliente-ano").value;
   const lista=historicoRecibos.filter(r=>!ano||r.data?.split("/")[2]===ano);
-  if(!lista.length) return alert("Nenhum dado.");
+  if(!lista.length) { mostrarToast("Nenhum dado para exportar.", null, "error"); return; }
   const mapa={};
   lista.forEach(r=>{
     if(!mapa[r.nome]) mapa[r.nome]={nome:r.nome,cpf:r.cpf,qtd:0,total:0};
@@ -3182,7 +3204,7 @@ async function exportarExcelResponsaveis(){
     if(ano&&p[2]!==ano)return false;
     return true;
   });
-  if(!lista.length)return alert("Nenhum dado para exportar.");
+  if(!lista.length){ mostrarToast("Nenhum dado para exportar.", null, "error"); return; }
   const mapa={};
   lista.forEach(r=>{
     const resp=r.emitido_por||"Sem responsável";
@@ -3208,7 +3230,7 @@ async function exportarPDFResponsaveis(){
     if(ano&&p[2]!==ano)return false;
     return true;
   });
-  if(!lista.length)return alert("Nenhum dado.");
+  if(!lista.length){ mostrarToast("Nenhum dado para exportar.", null, "error"); return; }
   const mapa={};
   lista.forEach(r=>{
     const resp=r.emitido_por||"Sem responsável";
@@ -3238,7 +3260,7 @@ async function exportarPDFExecutivo(){
   await garantirJSPDF();
   const ano=document.getElementById("rel-exec-ano").value;
   const lista=historicoRecibos.filter(r=>!ano||r.data?.split("/")[2]===ano);
-  if(!lista.length)return alert("Nenhum dado.");
+  if(!lista.length){ mostrarToast("Nenhum dado para exportar.", null, "error"); return; }
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF();
   const W=doc.internal.pageSize.getWidth();
@@ -3681,7 +3703,24 @@ function bindStaticHandlers() {
   const dropdown = document.getElementById("busca-global-dropdown");
   if (buscaGlobal) {
     buscaGlobal.addEventListener("input", () => renderBuscaGlobal(buscaGlobal.value.trim()));
-    buscaGlobal.addEventListener("keydown", e => { if (e.key === "Escape") { dropdown.style.display = "none"; buscaGlobal.blur(); } });
+    buscaGlobal.addEventListener("keydown", e => {
+      if (e.key === "Escape") { dropdown.style.display = "none"; buscaGlobal.blur(); _buscaGlobalIdx = -1; return; }
+      const itens = dropdown.querySelectorAll(".global-dropdown-item");
+      if (!itens.length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        _buscaGlobalIdx = Math.min(_buscaGlobalIdx + 1, itens.length - 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        _buscaGlobalIdx = Math.max(_buscaGlobalIdx - 1, 0);
+      } else if (e.key === "Enter" && _buscaGlobalIdx >= 0) {
+        e.preventDefault();
+        itens[_buscaGlobalIdx].click();
+        return;
+      } else { return; }
+      itens.forEach((el, i) => el.classList.toggle("focused", i === _buscaGlobalIdx));
+      itens[_buscaGlobalIdx].scrollIntoView({ block: "nearest" });
+    });
     document.addEventListener("click", e => { if (!buscaGlobal.contains(e.target) && !dropdown.contains(e.target)) dropdown.style.display = "none"; });
   }
 
