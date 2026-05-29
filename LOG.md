@@ -2,6 +2,10 @@
 
 ## 2026-05-29
 
+### fix(clientes): clientes cadastrados sem recibo não apareciam na lista
+- **Causa raiz:** `renderClientes()` construía o mapa apenas de `historicoRecibos`. Clientes cadastrados via modal (com CPF, contrato, parcelas) mas ainda sem nenhum recibo emitido ficavam invisíveis na tela.
+- **Fix:** `listaClientes` é processado primeiro para garantir que todo cliente cadastrado entra no mapa com `recibos:[]`. Em seguida `historicoRecibos` popula os recibos de quem já os tem. Clientes sem recibo aparecem com "0 recibos" e R$ 0,00.
+
 ### fix(mobile): correções visuais nas seções admin e calendário
 - **Grids admin em coluna única:** Seções Relatórios, Analytics, Projeção, Por Escritório e Por Responsável tinham grids `1fr 1fr` sem breakpoint mobile. Agora viram coluna única (`1fr`) em ≤768px. Elementos com `grid-column:span 2` também resetados.
 - **Filtros avançados:** Inputs "Valor mínimo/máximo" com `width:100px` fixo agora ocupam `width:100%` em mobile.

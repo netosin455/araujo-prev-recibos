@@ -1514,6 +1514,13 @@ async function renderClientes() {
   const grid         = document.getElementById("clientes-grid");
 
   const mapa = {};
+  // Primeiro: inclui clientes cadastrados (mesmo sem recibo)
+  listaClientes.forEach(c => {
+    if (!c.nome) return;
+    const key = c.cpf || c.nome;
+    if (!mapa[key]) mapa[key] = { nome: c.nome, cpf: c.cpf || "", municipio_uf: c.municipio_uf || "", recibos: [], total: 0 };
+  });
+  // Depois: popula com os recibos
   historicoRecibos.forEach(r => {
     if (!r.nome) return;
     const key = r.cpf || r.nome;
