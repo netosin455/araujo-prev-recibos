@@ -1504,6 +1504,7 @@ function _buildTabelasParcelamento(cadastro) {
 async function renderClientes() {
   mostrarSkeleton("clientes-grid");
   await carregarClientes();
+  if (!historicoRecibos.length) await carregarRecibos();
   const busca        = (document.getElementById("busca-clientes").value || "").toLowerCase();
   const buscaDigitos = busca.replace(/\D/g, "");
   const grid         = document.getElementById("clientes-grid");

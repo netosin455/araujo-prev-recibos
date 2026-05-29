@@ -2,6 +2,10 @@
 
 ## 2026-05-29
 
+### fix(frontend): clientes não apareciam na primeira abertura da tela
+- **Causa:** `renderClientes()` constrói a grade a partir de `historicoRecibos`, mas só aguardava `carregarClientes()`. Se os recibos não estivessem carregados (rede lenta, timeout no init), `historicoRecibos` ficava vazio e a grade mostrava estado vazio.
+- **Fix:** Adicionado `if (!historicoRecibos.length) await carregarRecibos()` no início de `renderClientes()`. Isso garante que os dados existem antes de renderizar, sem impacto de performance nas chamadas normais (o `if` só dispara quando o array está vazio).
+
 ### fix(frontend): abas admin e gráfico DRE no mobile
 - **Abas admin:** `flex-wrap:wrap` substituído por `overflow-x:auto; flex-wrap:nowrap`. As 10 abas agora ficam em uma linha com scroll horizontal invisível (scrollbar oculta). `flex:0 0 auto; white-space:nowrap` evita que qualquer aba quebre.
 - **Grid DRE mobile:** Adicionada classe `dre-grid` ao container. No breakpoint 768px, força `grid-template-columns:1fr` — gráfico e resumo ficam empilhados em coluna única.
