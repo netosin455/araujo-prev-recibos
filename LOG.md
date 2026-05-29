@@ -2,6 +2,11 @@
 
 ## 2026-05-29
 
+### fix(frontend): abas admin e gráfico DRE no mobile
+- **Abas admin:** `flex-wrap:wrap` substituído por `overflow-x:auto; flex-wrap:nowrap`. As 10 abas agora ficam em uma linha com scroll horizontal invisível (scrollbar oculta). `flex:0 0 auto; white-space:nowrap` evita que qualquer aba quebre.
+- **Grid DRE mobile:** Adicionada classe `dre-grid` ao container. No breakpoint 768px, força `grid-template-columns:1fr` — gráfico e resumo ficam empilhados em coluna única.
+- **Canvas DRE:** `min-height:220px` no mobile + `maintainAspectRatio:false` no Chart.js — gráfico ocupa a altura definida pelo CSS em vez da proporção padrão.
+
 ### fix(frontend): Parte 6 — Acessibilidade (a11y)
 - **7 modais com `role="dialog" aria-modal="true" aria-labelledby`:** Leitores de tela agora anunciam o título do modal ao abrir e sabem que o foco está preso dentro do diálogo.
 - **Todos os `.modal-close` com `aria-label="Fechar"`:** Botões com só ícone agora têm nome acessível.

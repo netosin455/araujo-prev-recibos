@@ -380,12 +380,18 @@
       /* Login */
       .login-box{width:92%;padding:28px 20px}
 
-      /* Abas admin */
-      .admin-tabs{flex-wrap:wrap;width:100%}
-      .admin-tab{flex:1;text-align:center;padding:10px 8px;min-height:44px}
+      /* Abas admin — scroll horizontal, sem quebrar linha */
+      .admin-tabs{overflow-x:auto;flex-wrap:nowrap;width:100%;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+      .admin-tabs::-webkit-scrollbar{display:none}
+      .admin-tab{flex:0 0 auto;white-space:nowrap;text-align:center;padding:10px 16px;min-height:44px}
 
       /* Toast acima da bottom nav */
       #toast{bottom:70px;right:12px;left:12px;max-width:unset}
+
+      /* DRE — coluna única + canvas maior */
+      .dre-grid{grid-template-columns:1fr !important}
+      .dre-grid .table-wrap[style*="grid-column:span 2"]{grid-column:span 1 !important}
+      #grafico-dre{min-height:220px}
 
       /* Clientes */
       .cliente-header{padding:12px 14px;gap:8px}
@@ -400,8 +406,7 @@
     @media(max-width:480px){
       .cards-grid{grid-template-columns:1fr}
       .topbar-badge{display:none}
-      .admin-tabs{gap:2px}
-      .admin-tab{font-size:11px;padding:8px 6px}
+      .admin-tab{font-size:11px;padding:10px 12px}
       .content{padding:10px}
       .card{padding:14px 12px}
     }
@@ -978,7 +983,7 @@
               <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
             </button>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="dre-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div class="table-wrap" style="padding:24px;grid-column:span 2">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px">
                 Demonstração do Resultado do Exercício — <span id="dre-titulo-ano"></span>
