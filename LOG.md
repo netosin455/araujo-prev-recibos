@@ -16,6 +16,10 @@
 - **Filtros avançados:** Inputs "Valor mínimo/máximo" com `width:100px` fixo agora ocupam `width:100%` em mobile.
 - **Calendário:** Células com `min-height:60px` espremiam em mobile. Reduzido para `44px` (adequado para toque), padding menor, gap menor (`3px`). Fonte do cabeçalho reduzida para `10px`.
 
+### feat: cadastrar clientes automaticamente a partir dos recibos
+- **Backend:** Novo endpoint `POST /api/admin/importar-clientes-dos-recibos` (permissão: financeiro). Agrupa recibos por CPF (ou nome se sem CPF), cria cadastro para quem ainda não tem. Dados preenchidos: nome, cpf, municipio_uf, referencia, firma (escritório), valor_contrato (soma dos recibos), num_parcelas (qtd de recibos), marcados como todos pagos. Ignora CPFs já cadastrados e CPFs inválidos.
+- **Frontend:** Botão "Cadastrar Clientes dos Recibos" no painel Admin → aba Sistema. Mostra progress + resultado (X cadastrados, Y já existiam). Atualiza listaClientes e sugestões de nome após importação.
+
 ### fix(sync): sincronização multi-usuário — histórico, dashboard e clientes
 - **Problema raiz:** historicoRecibos era carregado só no login e ficava em cache. Se a recepcao gerasse um recibo, o financeiro navegando para Histórico ou Dashboard não via — dados antigos.
 - **navegarPara("historico"):** agora faz `await carregarRecibos()` antes de renderizar — garante que todos os recibos de todos os usuários estão presentes.

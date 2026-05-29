@@ -2870,6 +2870,28 @@ async function normalizarEscritorios() {
   }
 }
 
+async function importarClientesDosRecibos() {
+  const btn = document.getElementById("btn-importar-clientes-recibos");
+  const statusEl = document.getElementById("importar-clientes-status");
+  if (!confirm("Isso vai cadastrar automaticamente todos os clientes que aparecem nos recibos mas ainda não têm cadastro. Continuar?")) return;
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Cadastrando...';
+  statusEl.textContent = "";
+  try {
+    const res = await api("POST", "/api/admin/importar-clientes-dos-recibos");
+    if (!res || !res.ok) { statusEl.textContent = "Erro ao importar."; return; }
+    const data = await res.json();
+    statusEl.textContent = `✅ ${data.importados} cliente(s) cadastrado(s). ${data.ignorados} já existiam.`;
+    mostrarToast(`${data.importados} cliente(s) cadastrado(s)!`, null, "success");
+    await carregarClientes();
+    atualizarSugestoesNomes();
+  } catch(e) {
+    statusEl.textContent = "Erro: " + e.message;
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+}
+
 async function baixarBackupDB() {
   const btn = document.getElementById("btn-backup-db");
   const statusEl = document.getElementById("backup-db-status");
@@ -3644,6 +3666,7 @@ function bindStaticHandlers() {
   document.getElementById("btn-reescrever-planilha").addEventListener("click", reescreverPlanilha);
   document.getElementById("btn-backup-db").addEventListener("click", baixarBackupDB);
   document.getElementById("btn-normalizar-escritorios").addEventListener("click", normalizarEscritorios);
+  document.getElementById("btn-importar-clientes-recibos").addEventListener("click", importarClientesDosRecibos);
 
   // Usuários
   document.getElementById("novo-role").addEventListener("change", function() { toggleEscritorioNovo(this.value); });

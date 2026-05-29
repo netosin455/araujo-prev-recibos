@@ -2368,6 +2368,74 @@ app.post("/api/admin/normalizar-escritorios", auth, adminOnly, async (req, res) 
   }
 });
 
+// ── IMPORTAR CLIENTES DOS RECIBOS ─────────────────────────
+app.post("/api/admin/importar-clientes-dos-recibos", auth, financeiroOnly, async (req, res) => {
+  try {
+    const todosRecibos   = await find(dbRecibos, NAO_DELETADO);
+    const clientesExist  = await find(dbClientes, NAO_DELETADO);
+    const cpfsExistentes = new Set(clientesExist.map(c => (c.cpf || "").replace(/\D/g, "")));
+    const nomesExist     = new Set(clientesExist.map(c => (c.nome || "").toUpperCase()));
+
+    // Agrupa recibos por CPF (ou por nome se CPF vazio)
+    const mapa = {};
+    for (const r of todosRecibos) {
+      if (!r.nome) continue;
+      const key = r.cpf ? r.cpf.replace(/\D/g, "") : ("__nome__" + r.nome.toUpperCase());
+      if (!mapa[key]) mapa[key] = { nome: r.nome, cpf: r.cpf || "", municipio_uf: r.municipio_uf || "", referencia: r.referencia || "", recibos: [] };
+      mapa[key].recibos.push(r);
+    }
+
+    let importados = 0, ignorados = 0;
+    for (const key of Object.keys(mapa)) {
+      const g = mapa[key];
+      const cpfDigits = g.cpf.replace(/\D/g, "");
+
+      // Pula se já existe (por CPF ou por nome quando sem CPF)
+      if (cpfDigits && cpfsExistentes.has(cpfDigits)) { ignorados++; continue; }
+      if (!cpfDigits && nomesExist.has(g.nome.toUpperCase())) { ignorados++; continue; }
+
+      // Valida CPF/CNPJ se preenchido — pula inválido
+      if (cpfDigits && cpfDigits.length === 11 && !validarCPF(g.cpf)) { ignorados++; continue; }
+      if (cpfDigits && cpfDigits.length === 14 && !validarCNPJ(g.cpf)) { ignorados++; continue; }
+
+      // Usa o recibo mais recente para dados de referência
+      const recente = g.recibos.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+      const totalValor = g.recibos.reduce((s, r) => s + (parseFloat((r.valor || "0").toString().replace(/\./g, "").replace(",", ".")) || 0), 0);
+      const nRec = g.recibos.length;
+
+      const doc = {
+        nome:            recente.nome.toUpperCase(),
+        cpf:             g.cpf || "",
+        telefone:        "",
+        endereco:        "",
+        municipio_uf:    recente.municipio_uf || "",
+        firma:           recente.escritorio   || "",
+        referencia:      recente.referencia   || "",
+        valor_beneficio: 0,
+        num_beneficios:  0,
+        valor_contrato:  totalValor > 0 ? totalValor : nRec,
+        num_parcelas:    nRec,
+        valor_parcela:   totalValor > 0 ? totalValor / nRec : 1,
+        parcelas:        [],
+        parcelas_pagas:  nRec,
+        parcelas_restantes: 0,
+        valor_pago:      totalValor,
+        valor_restante:  0,
+        created_at:      new Date().toISOString(),
+      };
+
+      await insert(dbClientes, doc);
+      importados++;
+    }
+
+    console.log(`[${new Date().toISOString()}] ✅ Importar clientes dos recibos: ${importados} importados, ${ignorados} já existiam`);
+    res.json({ ok: true, importados, ignorados });
+  } catch (e) {
+    console.error("❌ Erro ao importar clientes dos recibos:", e.message);
+    res.status(500).json({ erro: "Erro ao importar clientes.", detalhe: e.message });
+  }
+});
+
 // ── CORRIGIR DATAS NA PLANILHA ────────────────────────────
 app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();
