@@ -293,7 +293,11 @@ function navegarPara(tela){
   if(bn) bn.classList.add("active");
   document.getElementById("topbar-title").textContent=titulos[tela]||tela;
   if(tela==="historico") renderHistorico();
-  if(tela==="clientes") renderClientes();
+  if(tela==="clientes"){
+    const buscaCli = document.getElementById("busca-clientes");
+    if(buscaCli) buscaCli.value = "";
+    renderClientes();
+  }
   if(tela==="admin"){
     atualizarDashboard();
     if(document.getElementById("admin-financeiro")?.classList.contains("active")){preencherFiltrosAnos();aplicarFiltros();}
@@ -1911,6 +1915,8 @@ async function salvarCliente() {
 
   fecharModal("modal-cliente");
   mostrarToast(id ? "Cliente atualizado!" : "Cliente cadastrado!");
+  const buscaInp = document.getElementById("busca-clientes");
+  if(buscaInp) buscaInp.value = "";
   renderClientes();
 }
 

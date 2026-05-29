@@ -2,6 +2,11 @@
 
 ## 2026-05-29
 
+### fix(clientes): campo de busca persistia entre navegações
+- **Causa:** `busca-clientes` não era limpo ao navegar para a tela de clientes. Se o usuário tivesse digitado "alyne" e navegado para outra tela, ao voltar o filtro permanecia ativo e mostrava "Nenhum cliente encontrado."
+- **Fix 1:** `navegarPara("clientes")` agora limpa o campo antes de chamar `renderClientes()`.
+- **Fix 2:** `salvarCliente()` também limpa o campo antes de `renderClientes()` — garante que o cliente recém-cadastrado aparece na lista sem ser filtrado por busca anterior.
+
 ### fix(frontend): clientes não apareciam na primeira abertura da tela
 - **Causa:** `renderClientes()` constrói a grade a partir de `historicoRecibos`, mas só aguardava `carregarClientes()`. Se os recibos não estivessem carregados (rede lenta, timeout no init), `historicoRecibos` ficava vazio e a grade mostrava estado vazio.
 - **Fix:** Adicionado `if (!historicoRecibos.length) await carregarRecibos()` no início de `renderClientes()`. Isso garante que os dados existem antes de renderizar, sem impacto de performance nas chamadas normais (o `if` só dispara quando o array está vazio).
