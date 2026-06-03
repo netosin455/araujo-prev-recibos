@@ -1580,7 +1580,8 @@ async function renderClientes() {
 
   grid.innerHTML = "";
   clientes.forEach(c => {
-    const cadastro = c.cpf ? listaClientes.find(l => l.cpf === c.cpf) : null;
+    const _cpfDigsC = (c.cpf || "").replace(/\D/g, "");
+    const cadastro = _cpfDigsC ? listaClientes.find(l => (l.cpf || "").replace(/\D/g, "") === _cpfDigsC) : null;
     const ultimo   = (c.recibos || [])[0];
     const cardId   = `card-cli-${(c.cpf||c.nome).replace(/\W/g,"")}-${Math.random().toString(36).slice(2,6)}`;
     const temParcelas = cadastro && Array.isArray(cadastro.parcelas) && cadastro.parcelas.length > 0;
@@ -1948,8 +1949,9 @@ async function salvarCliente() {
 
   fecharModal("modal-cliente");
   mostrarToast(id ? "Cliente atualizado!" : "Cliente cadastrado!");
+  // Busca pelo nome recém-salvo para o usuário vê-lo imediatamente
   const buscaInp = document.getElementById("busca-clientes");
-  if(buscaInp) buscaInp.value = "";
+  if(buscaInp) buscaInp.value = nome;
   await renderClientes();
   atualizarSugestoesNomes();
 }
