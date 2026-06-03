@@ -326,30 +326,42 @@ async function atualizarNumRecibo(){
 }
 
 // ── MÁSCARAS ───────────────────────────────────────────────
-document.getElementById("nome").addEventListener("change",function(){
-  const norm = s => (s||"").normalize("NFC").trim().replace(/\s+/g," ").toUpperCase();
-  const nome = norm(this.value);
-  const set  = (id, val) => { const el=document.getElementById(id); if(el&&!el.value&&val) el.value=val; };
-  const match   = historicoRecibos.find(r => norm(r.nome) === nome);
-  const cadastro = listaClientes.find(c => norm(c.nome) === nome);
+function _normNome(s){ return (s||"").normalize("NFC").trim().replace(/\s+/g," ").toUpperCase(); }
+function _normEsc(raw){
+  const v=(raw||"").trim().toUpperCase().replace(/[-/,]+/g," ").replace(/\s+/g," ");
+  if(v.includes("TERRA RICA"))   return "Terra Rica - PR";
+  if(v.includes("TEODORO"))      return "Teodoro Sampaio - SP";
+  if(v.includes("PRESIDENTE VENCESLAU")||v.includes("PRES VENCESLAU")) return "Presidente Venceslau - SP";
+  if(v.includes("PRIMAVERA"))    return "Primavera - SP";
+  if(v.includes("IVINHEMA"))     return "Ivinhema - MS";
+  return raw;
+}
+
+document.getElementById("nome").addEventListener("input",function(){
+  const nome = _normNome(this.value);
+  if(!nome) return;
+  const match    = historicoRecibos.find(r => _normNome(r.nome) === nome);
+  const cadastro = listaClientes.find(c => _normNome(c.nome) === nome);
+  if(!match && !cadastro) return; // nome ainda incompleto
+  const set = (id, val) => { const el=document.getElementById(id); if(el&&!el.value&&val) el.value=val; };
   if(match){
-    set("cpf",          match.cpf);
-    set("municipio_uf", match.municipio_uf);
-    set("emitido_por",  match.emitido_por);
-    set("referencia",   match.referencia);
+    set("cpf",              match.cpf);
+    set("municipio_uf",     match.municipio_uf);
+    set("emitido_por",      match.emitido_por);
+    set("referencia",       match.referencia);
     set("forma_pagamento",  match.forma_pagamento);
     set("motivo_pagamento", match.motivo_pagamento);
-    if(roleLogado !== "recepcao") set("escritorio", match.escritorio);
+    if(roleLogado !== "recepcao") set("escritorio", _normEsc(match.escritorio));
   } else if(cadastro){
     set("cpf",          cadastro.cpf);
     set("municipio_uf", cadastro.municipio_uf);
     set("referencia",   cadastro.referencia);
+    if(roleLogado !== "recepcao") set("escritorio", _normEsc(cadastro.escritorio||""));
   }
   if(cadastro&&(cadastro.valor_parcela||0)>0&&!document.getElementById("valor").value){
     const vf=Number(cadastro.valor_parcela).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
     document.getElementById("valor").value=vf;
   }
-  document.getElementById("valor").focus();
 });
 
 document.getElementById("cpf").addEventListener("input",function(){
