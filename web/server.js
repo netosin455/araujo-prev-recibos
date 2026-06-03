@@ -19,7 +19,7 @@ const express = require("express");
 const { Pool } = require("pg");
 const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-const Datastore = require("@seald-io/nedb");
+const { randomUUID } = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const path = require("path");
@@ -285,9 +285,10 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-const dbRecibos   = new Datastore({ filename: path.join(dbDir, "recibos.db"),   autoload: true });
-const dbClientes  = new Datastore({ filename: path.join(dbDir, "clientes.db"),  autoload: true });
-const dbAuditoria = new Datastore({ filename: path.join(dbDir, "auditoria.db"), autoload: true });
+// Neon (PostgreSQL) — dados principais
+const dbRecibos   = "recibos";
+const dbClientes  = "clientes";
+const dbAuditoria = "auditoria";
 
 // Admin padrão via variáveis de ambiente
 const ADMIN_USER = process.env.ADMIN_USER;
@@ -449,6 +450,78 @@ async function initDb() {
       console.error("❌ Erro ao processar USERS_JSON:", e.message);
     }
   }
+
+  // Tabelas principais — recibos, clientes e auditoria
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS recibos (
+      id                TEXT        PRIMARY KEY,
+      num               TEXT        NOT NULL DEFAULT '',
+      nome              TEXT        NOT NULL DEFAULT '',
+      cpf               TEXT        NOT NULL DEFAULT '',
+      municipio_uf      TEXT        NOT NULL DEFAULT '',
+      valor             TEXT        NOT NULL DEFAULT '',
+      data              TEXT        NOT NULL DEFAULT '',
+      emitido_por       TEXT        NOT NULL DEFAULT '',
+      complemento       TEXT        NOT NULL DEFAULT '',
+      referencia        TEXT        NOT NULL DEFAULT '',
+      forma_pagamento   TEXT        NOT NULL DEFAULT '',
+      escritorio        TEXT        NOT NULL DEFAULT '',
+      motivo_pagamento  TEXT        NOT NULL DEFAULT '',
+      link_comprovante  TEXT        NOT NULL DEFAULT '',
+      timestamp         BIGINT      NOT NULL DEFAULT 0,
+      assinatura_govbr  JSONB,
+      historico_edicoes JSONB       NOT NULL DEFAULT '[]',
+      deletado_em       TEXT,
+      deletado_por      TEXT
+    )
+  `);
+  await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_cpf       ON recibos (cpf)`);
+  await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_num       ON recibos (num)`);
+  await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_timestamp ON recibos (timestamp DESC)`);
+
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS clientes (
+      id                  TEXT          PRIMARY KEY,
+      nome                TEXT          NOT NULL DEFAULT '',
+      cpf                 TEXT          NOT NULL DEFAULT '',
+      telefone            TEXT          NOT NULL DEFAULT '',
+      endereco            TEXT          NOT NULL DEFAULT '',
+      municipio_uf        TEXT          NOT NULL DEFAULT '',
+      firma               TEXT          NOT NULL DEFAULT '',
+      referencia          TEXT          NOT NULL DEFAULT '',
+      valor_beneficio     NUMERIC(12,2) NOT NULL DEFAULT 0,
+      num_beneficios      INTEGER       NOT NULL DEFAULT 0,
+      valor_contrato      NUMERIC(12,2) NOT NULL DEFAULT 0,
+      num_parcelas        INTEGER       NOT NULL DEFAULT 0,
+      valor_parcela       NUMERIC(12,2) NOT NULL DEFAULT 0,
+      parcelas            JSONB         NOT NULL DEFAULT '[]',
+      parcelas_pagas      INTEGER       NOT NULL DEFAULT 0,
+      parcelas_restantes  INTEGER       NOT NULL DEFAULT 0,
+      valor_pago          NUMERIC(12,2) NOT NULL DEFAULT 0,
+      valor_restante      NUMERIC(12,2) NOT NULL DEFAULT 0,
+      observacoes         JSONB         NOT NULL DEFAULT '[]',
+      updated_at          TEXT,
+      created_at          TEXT,
+      deletado_em         TEXT,
+      deletado_por        TEXT
+    )
+  `);
+  await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_clientes_cpf  ON clientes (cpf)`);
+  await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_clientes_nome ON clientes (nome)`);
+
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS auditoria (
+      id          TEXT  PRIMARY KEY,
+      ts          TEXT  NOT NULL DEFAULT '',
+      usuario     TEXT  NOT NULL DEFAULT '',
+      role        TEXT  NOT NULL DEFAULT '',
+      acao        TEXT  NOT NULL DEFAULT '',
+      entidade_id TEXT  NOT NULL DEFAULT '',
+      dados       JSONB NOT NULL DEFAULT '{}'
+    )
+  `);
+  await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_auditoria_ts ON auditoria (ts DESC)`);
+  console.log("✅ Tabelas recibos, clientes e auditoria prontas.");
 
   // Se o banco tem só o admin (reset detectado), tenta restaurar do Sheets
   const { rows: countRows } = await pgPool.query(
@@ -701,37 +774,123 @@ function semPrecatorios(req, res, next) {
   next();
 }
 
-// Promisify nedb
-function find(db, query, sort) {
-  return new Promise((res, rej) => {
-    let cursor = db.find(query);
-    if (sort) cursor = cursor.sort(sort);
-    cursor.exec((err, docs) => err ? rej(err) : res(docs));
-  });
-}
-function findOne(db, query) {
-  return new Promise((res, rej) => db.findOne(query, (err, doc) => err ? rej(err) : res(doc)));
-}
-function insert(db, doc) {
-  return new Promise((res, rej) => db.insert(doc, (err, d) => err ? rej(err) : res(d)));
-}
-function update(db, query, upd) {
-  return new Promise((res, rej) => db.update(query, { $set: upd }, {}, (err) => err ? rej(err) : res()));
-}
-function remove(db, query) {
-  return new Promise((res, rej) => db.remove(query, {}, (err) => err ? rej(err) : res()));
-}
-function count(db, query) {
-  return new Promise((res, rej) => db.count(query, (err, n) => err ? rej(err) : res(n)));
+// ── PostgreSQL helpers (substitutos dos helpers NeDB) ───────
+// Campos JSONB por tabela — o driver pg já parseia automaticamente,
+// mas precisamos fazer JSON.stringify ao escrever via $set
+const _PG_JSON = {
+  recibos:   new Set(["assinatura_govbr", "historico_edicoes"]),
+  clientes:  new Set(["parcelas", "observacoes"]),
+  auditoria: new Set(["dados"]),
+};
+
+// Converte row do PostgreSQL para o formato esperado pelo app (adiciona _id)
+function _rowToDoc(row) {
+  if (!row) return null;
+  return { ...row, _id: row.id };
 }
 
-function findLimited(db, query, sort, limitN) {
-  return new Promise((res, rej) => {
-    let cursor = db.find(query);
-    if (sort) cursor = cursor.sort(sort);
-    if (limitN) cursor = cursor.limit(limitN);
-    cursor.exec((err, docs) => err ? rej(err) : res(docs));
-  });
+// Traduz query estilo NeDB para cláusula WHERE parametrizada
+function _buildWhere(query) {
+  const entries = Object.entries(query || {});
+  if (!entries.length) return { clause: "", params: [] };
+  const parts = [], params = [];
+  for (const [key, val] of entries) {
+    const col = key === "_id" ? "id" : key;
+    if (val && typeof val === "object" && "$exists" in val) {
+      parts.push(val.$exists ? `${col} IS NOT NULL` : `${col} IS NULL`);
+    } else if (val && typeof val === "object") {
+      if ("$lt"  in val) { params.push(val.$lt);  parts.push(`${col} < $${params.length}`); }
+      if ("$lte" in val) { params.push(val.$lte); parts.push(`${col} <= $${params.length}`); }
+      if ("$gte" in val) { params.push(val.$gte); parts.push(`${col} >= $${params.length}`); }
+      if ("$gt"  in val) { params.push(val.$gt);  parts.push(`${col} > $${params.length}`); }
+    } else {
+      params.push(val);
+      parts.push(`${col} = $${params.length}`);
+    }
+  }
+  return { clause: " WHERE " + parts.join(" AND "), params };
+}
+
+// Traduz sort estilo NeDB para ORDER BY
+function _buildOrder(sort) {
+  if (!sort || !Object.keys(sort).length) return "";
+  return " ORDER BY " + Object.entries(sort)
+    .map(([k, v]) => `${k === "_id" ? "id" : k} ${v === -1 ? "DESC" : "ASC"}`)
+    .join(", ");
+}
+
+// Serializa campos JSONB para inserção/update
+function _serializeDoc(table, doc) {
+  const jsonFields = _PG_JSON[table] || new Set();
+  const out = {};
+  for (const [k, v] of Object.entries(doc)) {
+    out[k] = (v !== null && v !== undefined && typeof v === "object" && jsonFields.has(k))
+      ? JSON.stringify(v)
+      : v;
+  }
+  return out;
+}
+
+async function find(table, query = {}, sort = null) {
+  const { clause, params } = _buildWhere(query);
+  const order = _buildOrder(sort);
+  const { rows } = await pgPool.query(`SELECT * FROM ${table}${clause}${order}`, params);
+  return rows.map(_rowToDoc);
+}
+
+async function findOne(table, query = {}) {
+  const { clause, params } = _buildWhere(query);
+  const { rows } = await pgPool.query(`SELECT * FROM ${table}${clause} LIMIT 1`, params);
+  return rows[0] ? _rowToDoc(rows[0]) : null;
+}
+
+async function insert(table, doc) {
+  const id  = doc._id || randomUUID();
+  const raw = _serializeDoc(table, doc);
+  const fields = Object.keys(raw).filter(k => k !== "_id" && k !== "id");
+  const cols   = ["id", ...fields];
+  const vals   = [id, ...fields.map(f => raw[f] ?? null)];
+  const ph     = cols.map((_, i) => `$${i + 1}`).join(", ");
+  const { rows } = await pgPool.query(
+    `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${ph}) RETURNING *`,
+    vals
+  );
+  return _rowToDoc(rows[0]);
+}
+
+async function update(table, query, upd) {
+  if (!upd || !Object.keys(upd).length) return;
+  const { clause, params } = _buildWhere(query);
+  const raw   = _serializeDoc(table, upd);
+  const fields = Object.keys(raw).filter(k => k !== "_id" && k !== "id");
+  if (!fields.length) return;
+  const setParts = fields.map((f, i) => `${f} = $${params.length + i + 1}`);
+  const setVals  = fields.map(f => raw[f] ?? null);
+  await pgPool.query(
+    `UPDATE ${table} SET ${setParts.join(", ")}${clause}`,
+    [...params, ...setVals]
+  );
+}
+
+async function remove(table, query) {
+  const { clause, params } = _buildWhere(query);
+  await pgPool.query(`DELETE FROM ${table}${clause}`, params);
+}
+
+async function count(table, query = {}) {
+  const { clause, params } = _buildWhere(query);
+  const { rows } = await pgPool.query(`SELECT COUNT(*) FROM ${table}${clause}`, params);
+  return parseInt(rows[0].count, 10);
+}
+
+async function findLimited(table, query = {}, sort = null, limitN = 50) {
+  const { clause, params } = _buildWhere(query);
+  const order = _buildOrder(sort);
+  const { rows } = await pgPool.query(
+    `SELECT * FROM ${table}${clause}${order} LIMIT ${parseInt(limitN)}`,
+    params
+  );
+  return rows.map(_rowToDoc);
 }
 
 function maskCPF(cpf) {
