@@ -290,6 +290,9 @@ const dbRecibos   = "recibos";
 const dbClientes  = "clientes";
 const dbAuditoria = "auditoria";
 
+// Registros não-deletados (soft delete)
+const NAO_DELETADO = { deletado_em: { $exists: false } };
+
 // Admin padrão via variáveis de ambiente
 const ADMIN_USER = process.env.ADMIN_USER;
 const ADMIN_PASS = process.env.ADMIN_PASS;
@@ -1157,8 +1160,7 @@ function recalcularResumo(parcelas) {
   };
 }
 
-// Registros não-deletados (soft delete) — usar em todas as queries de listagem
-const NAO_DELETADO = { deletado_em: { $exists: false } };
+// (NAO_DELETADO declarado perto do topo — ver início do arquivo)
 
 function validarCPF(cpf) {
   const d = cpf.replace(/\D/g, "");
