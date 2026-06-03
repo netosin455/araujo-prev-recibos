@@ -327,23 +327,26 @@ async function atualizarNumRecibo(){
 
 // ── MÁSCARAS ───────────────────────────────────────────────
 document.getElementById("nome").addEventListener("change",function(){
-  const nome=this.value.toUpperCase();
-  const match=historicoRecibos.find(r=>r.nome===nome);
-  const cadastro=listaClientes.find(c=>c.nome===nome);
+  const norm = s => (s||"").normalize("NFC").trim().replace(/\s+/g," ").toUpperCase();
+  const nome = norm(this.value);
+  const set  = (id, val) => { const el=document.getElementById(id); if(el&&!el.value&&val) el.value=val; };
+  const match   = historicoRecibos.find(r => norm(r.nome) === nome);
+  const cadastro = listaClientes.find(c => norm(c.nome) === nome);
   if(match){
-    if(!document.getElementById("cpf").value) document.getElementById("cpf").value=match.cpf||"";
-    if(!document.getElementById("municipio_uf").value) document.getElementById("municipio_uf").value=match.municipio_uf||"";
-    if(!document.getElementById("emitido_por").value) document.getElementById("emitido_por").value=match.emitido_por||"";
-    if(!document.getElementById("referencia").value) document.getElementById("referencia").value=match.referencia||"";
+    set("cpf",          match.cpf);
+    set("municipio_uf", match.municipio_uf);
+    set("emitido_por",  match.emitido_por);
+    set("referencia",   match.referencia);
+    set("forma_pagamento",  match.forma_pagamento);
+    set("motivo_pagamento", match.motivo_pagamento);
+    if(roleLogado !== "recepcao") set("escritorio", match.escritorio);
   } else if(cadastro){
-    // fallback: preenche do cadastro quando não há recibos anteriores com esse nome
-    if(!document.getElementById("cpf").value) document.getElementById("cpf").value=cadastro.cpf||"";
-    if(!document.getElementById("municipio_uf").value) document.getElementById("municipio_uf").value=cadastro.municipio_uf||"";
-    if(!document.getElementById("referencia").value) document.getElementById("referencia").value=cadastro.referencia||"";
+    set("cpf",          cadastro.cpf);
+    set("municipio_uf", cadastro.municipio_uf);
+    set("referencia",   cadastro.referencia);
   }
-  // Preenche valor da parcela do cadastro (editável pela recepção)
   if(cadastro&&(cadastro.valor_parcela||0)>0&&!document.getElementById("valor").value){
-    const vf=cadastro.valor_parcela.toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
+    const vf=Number(cadastro.valor_parcela).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
     document.getElementById("valor").value=vf;
   }
   document.getElementById("valor").focus();
