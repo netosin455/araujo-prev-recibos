@@ -2512,6 +2512,74 @@ function normalizarFormaPagamento(raw) {
   return raw;
 }
 
+// ── MIGRAÇÃO NEDB → NEON (endpoint único, seguro rodar N vezes) ──────────────
+app.post("/api/admin/migrar-nedb", auth, adminOnly, async (req, res) => {
+  const result = { recibos: { ok: 0, skip: 0 }, clientes: { ok: 0, skip: 0 }, auditoria: { ok: 0, skip: 0 }, erros: [] };
+  function lerDb(nome) {
+    const p = path.join(dbDir, `${nome}.db`);
+    if (!fs.existsSync(p)) return [];
+    return fs.readFileSync(p, "utf8").split("\n")
+      .map(l => l.trim()).filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean);
+  }
+
+  // Recibos
+  for (const r of lerDb("recibos")) {
+    try {
+      await pgPool.query(`
+        INSERT INTO recibos (id,num,nome,cpf,municipio_uf,valor,data,emitido_por,complemento,
+          referencia,forma_pagamento,escritorio,motivo_pagamento,link_comprovante,timestamp,
+          assinatura_govbr,historico_edicoes,deletado_em,deletado_por)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        ON CONFLICT (id) DO NOTHING`,
+        [ r._id, r.num||"", r.nome||"", r.cpf||"", r.municipio_uf||"", r.valor||"",
+          r.data||"", r.emitido_por||"", r.complemento||"", r.referencia||"",
+          r.forma_pagamento||"", r.escritorio||"", r.motivo_pagamento||"",
+          r.link_comprovante||"", r.timestamp||0,
+          r.assinatura_govbr ? JSON.stringify(r.assinatura_govbr) : null,
+          JSON.stringify(r.historico_edicoes||[]),
+          r.deletado_em||null, r.deletado_por||null ]);
+      result.recibos.ok++;
+    } catch(e) { result.recibos.skip++; result.erros.push(`recibo ${r._id}: ${e.message}`); }
+  }
+
+  // Clientes
+  for (const c of lerDb("clientes")) {
+    try {
+      await pgPool.query(`
+        INSERT INTO clientes (id,nome,cpf,telefone,endereco,municipio_uf,firma,referencia,
+          valor_beneficio,num_beneficios,valor_contrato,num_parcelas,valor_parcela,parcelas,
+          parcelas_pagas,parcelas_restantes,valor_pago,valor_restante,observacoes,
+          updated_at,created_at,deletado_em,deletado_por)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+        ON CONFLICT (id) DO NOTHING`,
+        [ c._id, c.nome||"", c.cpf||"", c.telefone||"", c.endereco||"", c.municipio_uf||"",
+          c.firma||"", c.referencia||"", Number(c.valor_beneficio)||0, Number(c.num_beneficios)||0,
+          Number(c.valor_contrato)||0, Number(c.num_parcelas)||0, Number(c.valor_parcela)||0,
+          JSON.stringify(c.parcelas||[]), Number(c.parcelas_pagas)||0,
+          Number(c.parcelas_restantes)||0, Number(c.valor_pago)||0, Number(c.valor_restante)||0,
+          JSON.stringify(c.observacoes||[]), c.updated_at||null, c.created_at||null,
+          c.deletado_em||null, c.deletado_por||null ]);
+      result.clientes.ok++;
+    } catch(e) { result.clientes.skip++; result.erros.push(`cliente ${c._id}: ${e.message}`); }
+  }
+
+  // Auditoria
+  for (const a of lerDb("auditoria")) {
+    try {
+      await pgPool.query(`
+        INSERT INTO auditoria (id,ts,usuario,role,acao,entidade_id,dados)
+        VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING`,
+        [ a._id, a.ts||"", a.usuario||"", a.role||"", a.acao||"",
+          a.entidade_id||"", JSON.stringify(a.dados||{}) ]);
+      result.auditoria.ok++;
+    } catch(e) { result.auditoria.skip++; result.erros.push(`audit ${a._id}: ${e.message}`); }
+  }
+
+  res.json({ ok: true, resultado: result });
+});
+
 app.post("/api/admin/normalizar-escritorios", auth, adminOnly, async (req, res) => {
   try {
     const todos = await find(dbRecibos, {});
