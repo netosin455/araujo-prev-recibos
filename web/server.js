@@ -695,6 +695,12 @@ function semRecepcao(req, res, next) {
   next();
 }
 
+// Bloqueia apenas precatorios — permite recepcao criar/editar (mas não excluir) clientes
+function semPrecatorios(req, res, next) {
+  if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
+  next();
+}
+
 // Promisify nedb
 function find(db, query, sort) {
   return new Promise((res, rej) => {
@@ -1004,7 +1010,7 @@ app.get("/api/clientes/:id", auth, async (req, res) => {
   res.json(await enriquecerCliente(cliente));
 });
 
-app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
+app.post("/api/clientes", auth, semPrecatorios, async (req, res) => {
   const {
     nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
     valor_beneficio, num_beneficios, valor_contrato, num_parcelas,
@@ -1047,7 +1053,7 @@ app.post("/api/clientes", auth, financeiroOnly, async (req, res) => {
   res.json(await enriquecerCliente(doc));
 });
 
-app.put("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
+app.put("/api/clientes/:id", auth, semPrecatorios, async (req, res) => {
   const {
     nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
     valor_beneficio, num_beneficios, valor_contrato, num_parcelas, parcelas,

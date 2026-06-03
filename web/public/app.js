@@ -1609,7 +1609,7 @@ async function renderClientes() {
             <div class="cliente-total">R$ ${formatarValor(c.total)}</div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px">total pago</div>
           </div>
-          ${roleLogado !== "recepcao" ? `<button class="btn-sm btn-secondary cadastro-btn">${cadastro ? "Editar cadastro" : "Cadastrar"}</button>` : ""}
+          <button class="btn-sm btn-secondary cadastro-btn">${cadastro ? "Editar cadastro" : "Cadastrar"}</button>
           ${roleLogado !== "recepcao" && cadastro ? `<button class="btn-danger btn-sm excluir-cliente-btn" title="Excluir cliente">🗑</button>` : ""}
           <button class="btn-gold btn-sm novo-recibo-btn">+ Recibo</button>
         </div>
@@ -1652,12 +1652,10 @@ async function renderClientes() {
       e.stopPropagation();
       novoReciboParaCliente(c, cadastro);
     });
-    if (roleLogado !== "recepcao") {
-      card.querySelector(".cadastro-btn").addEventListener("click", e => {
-        e.stopPropagation();
-        cadastro ? editarCliente(cadastro.id) : abrirModalClientePreenchido(c);
-      });
-    }
+    card.querySelector(".cadastro-btn").addEventListener("click", e => {
+      e.stopPropagation();
+      cadastro ? editarCliente(cadastro.id) : abrirModalClientePreenchido(c);
+    });
     if (roleLogado !== "recepcao" && cadastro) {
       const btnExcluirCli = card.querySelector(".excluir-cliente-btn");
       if (btnExcluirCli) btnExcluirCli.addEventListener("click", e => {
