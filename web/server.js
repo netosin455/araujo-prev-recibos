@@ -1311,8 +1311,11 @@ app.put("/api/clientes/:id", auth, semPrecatorios, async (req, res) => {
   const vContrato   = Number(valor_contrato) || (vBeneficio * nBeneficios) || 0;
   if (vContrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
 
-  const outro = await findOne(dbClientes, { cpf });
-  if (outro && outro._id !== req.params.id) return res.status(400).json({ erro: "CPF já cadastrado em outro cliente." });
+  const { rows: dupl } = await pgPool.query(
+    "SELECT id FROM clientes WHERE cpf = $1 AND id != $2 AND deletado_em IS NULL LIMIT 1",
+    [cpf, req.params.id]
+  );
+  if (dupl.length > 0) return res.status(400).json({ erro: "CPF já cadastrado em outro cliente." });
 
   const nParcelas = Number(num_parcelas);
   const atual     = await findOne(dbClientes, { _id: req.params.id });
