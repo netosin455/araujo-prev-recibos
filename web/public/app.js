@@ -342,26 +342,11 @@ document.getElementById("nome").addEventListener("input",function(){
   if(!nome) return;
   const match    = historicoRecibos.find(r => _normNome(r.nome) === nome);
   const cadastro = listaClientes.find(c => _normNome(c.nome) === nome);
-  if(!match && !cadastro) return; // nome ainda incompleto
-  const set = (id, val) => { const el=document.getElementById(id); if(el&&!el.value&&val) el.value=val; };
-  if(match){
-    set("cpf",              match.cpf);
-    set("municipio_uf",     match.municipio_uf);
-    set("emitido_por",      match.emitido_por);
-    set("referencia",       match.referencia);
-    set("forma_pagamento",  match.forma_pagamento);
-    set("motivo_pagamento", match.motivo_pagamento);
-    if(roleLogado !== "recepcao") set("escritorio", _normEsc(match.escritorio));
-  } else if(cadastro){
-    set("cpf",          cadastro.cpf);
-    set("municipio_uf", cadastro.municipio_uf);
-    set("referencia",   cadastro.referencia);
-    if(roleLogado !== "recepcao") set("escritorio", _normEsc(cadastro.escritorio||""));
-  }
-  if(cadastro&&(cadastro.valor_parcela||0)>0&&!document.getElementById("valor").value){
-    const vf=Number(cadastro.valor_parcela).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
-    document.getElementById("valor").value=vf;
-  }
+  if(!match && !cadastro) return;
+  const cpf = cadastro?.cpf || match?.cpf || "";
+  if(!document.getElementById("cpf").value && cpf)
+    document.getElementById("cpf").value = cpf;
+  if(cpf) preencherDadosCliente(cpf);
 });
 
 document.getElementById("cpf").addEventListener("input",function(){
@@ -376,34 +361,39 @@ document.getElementById("cpf").addEventListener("input",function(){
 });
 
 async function preencherDadosCliente(cpf){
-  // Dados do cadastro formal (API)
-  const res = await api("GET", `/api/clientes/cpf/${encodeURIComponent(cpf)}`);
-  const cadastro = (res && res.ok) ? await res.json() : null;
+  const set = (id, val) => { const el=document.getElementById(id); if(el&&!el.value&&val) el.value=val; };
+  const digs = (cpf||"").replace(/\D/g,"");
+  if(!digs) return;
 
-  // Último recibo do mesmo CPF (já em memória — sem chamada extra)
-  const digs = cpf.replace(/\D/g,"");
-  const ult = historicoRecibos.find(r => (r.cpf||"").replace(/\D/g,"") === digs);
+  // Todos os recibos desse CPF, do mais novo ao mais antigo
+  const porCpf = historicoRecibos
+    .filter(r => (r.cpf||"").replace(/\D/g,"") === digs)
+    .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
 
-  const set = (id, val) => { const el = document.getElementById(id); if(el && !el.value && val) el.value = val; };
+  // Para cada campo, usa o primeiro valor não-vazio encontrado
+  const primeiro = campo => (porCpf.find(r => r[campo]) || {})[campo] || "";
 
-  if(cadastro){
-    set("nome",        cadastro.nome);
-    set("municipio_uf",cadastro.municipio_uf);
-    set("referencia",  cadastro.referencia);
-    if((cadastro.valor_parcela||0) > 0 && !document.getElementById("valor").value){
-      const vf = cadastro.valor_parcela.toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
-      document.getElementById("valor").value = vf;
-    }
+  if(porCpf.length){
+    set("nome",            porCpf[0].nome);
+    set("municipio_uf",    primeiro("municipio_uf"));
+    set("referencia",      primeiro("referencia"));
+    set("emitido_por",     primeiro("emitido_por"));
+    set("forma_pagamento", primeiro("forma_pagamento"));
+    set("motivo_pagamento",primeiro("motivo_pagamento"));
+    if(roleLogado !== "recepcao") set("escritorio", _normEsc(primeiro("escritorio")));
   }
 
-  if(ult){
-    set("nome",            ult.nome);
-    set("municipio_uf",    ult.municipio_uf);
-    set("referencia",      ult.referencia);
-    set("emitido_por",     ult.emitido_por);
-    set("forma_pagamento", ult.forma_pagamento);
-    set("motivo_pagamento",ult.motivo_pagamento);
-    if(roleLogado !== "recepcao") set("escritorio", ult.escritorio);
+  // Cadastro formal via API — sobrescreve com dados mais completos
+  const res = await api("GET", `/api/clientes/cpf/${encodeURIComponent(cpf)}`);
+  if(res && res.ok){
+    const c = await res.json();
+    set("nome",         c.nome);
+    set("municipio_uf", c.municipio_uf);
+    set("referencia",   c.referencia);
+    if((c.valor_parcela||0) > 0 && !document.getElementById("valor").value){
+      const vf = Number(c.valor_parcela).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
+      document.getElementById("valor").value = vf;
+    }
   }
 }
 
