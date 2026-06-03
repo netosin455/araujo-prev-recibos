@@ -361,15 +361,34 @@ document.getElementById("cpf").addEventListener("input",function(){
 });
 
 async function preencherDadosCliente(cpf){
+  // Dados do cadastro formal (API)
   const res = await api("GET", `/api/clientes/cpf/${encodeURIComponent(cpf)}`);
-  if(!res || !res.ok) return; // sem cadastro, mantém comportamento atual
-  const c = await res.json();
-  if(!document.getElementById("nome").value)         document.getElementById("nome").value = c.nome || "";
-  if(!document.getElementById("municipio_uf").value) document.getElementById("municipio_uf").value = c.municipio_uf || "";
-  if(!document.getElementById("referencia").value)   document.getElementById("referencia").value = c.referencia || "";
-  if(c.valor_parcela > 0 && !document.getElementById("valor").value){
-    const vf = c.valor_parcela.toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
-    document.getElementById("valor").value = vf;
+  const cadastro = (res && res.ok) ? await res.json() : null;
+
+  // Último recibo do mesmo CPF (já em memória — sem chamada extra)
+  const digs = cpf.replace(/\D/g,"");
+  const ult = historicoRecibos.find(r => (r.cpf||"").replace(/\D/g,"") === digs);
+
+  const set = (id, val) => { const el = document.getElementById(id); if(el && !el.value && val) el.value = val; };
+
+  if(cadastro){
+    set("nome",        cadastro.nome);
+    set("municipio_uf",cadastro.municipio_uf);
+    set("referencia",  cadastro.referencia);
+    if((cadastro.valor_parcela||0) > 0 && !document.getElementById("valor").value){
+      const vf = cadastro.valor_parcela.toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
+      document.getElementById("valor").value = vf;
+    }
+  }
+
+  if(ult){
+    set("nome",            ult.nome);
+    set("municipio_uf",    ult.municipio_uf);
+    set("referencia",      ult.referencia);
+    set("emitido_por",     ult.emitido_por);
+    set("forma_pagamento", ult.forma_pagamento);
+    set("motivo_pagamento",ult.motivo_pagamento);
+    if(roleLogado !== "recepcao") set("escritorio", ult.escritorio);
   }
 }
 
@@ -1688,6 +1707,15 @@ function novoReciboParaCliente(c, cadastro) {
     if (cadastro && (cadastro.valor_parcela || 0) > 0) {
       const vf = cadastro.valor_parcela.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
       document.getElementById("valor").value = vf;
+    }
+    // Preenche forma/motivo do último recibo do cliente
+    const digs = (c.cpf||"").replace(/\D/g,"");
+    const ult = historicoRecibos.find(r => (r.cpf||"").replace(/\D/g,"") === digs);
+    if(ult){
+      const set = (id, val) => { const el = document.getElementById(id); if(el && !el.value && val) el.value = val; };
+      set("forma_pagamento",  ult.forma_pagamento);
+      set("motivo_pagamento", ult.motivo_pagamento);
+      set("emitido_por",      ult.emitido_por);
     }
     document.getElementById("valor").focus();
   }, 100);

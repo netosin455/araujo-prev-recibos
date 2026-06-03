@@ -16,7 +16,9 @@
 // =============================================================
 require("dotenv").config();
 const express = require("express");
-const { Pool } = require("pg");
+const { Pool, types } = require("pg");
+// NUMERIC (OID 1700) vem como string por padrão — força conversão para float
+types.setTypeParser(1700, (val) => val === null ? null : parseFloat(val));
 const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const { randomUUID } = require("crypto");
