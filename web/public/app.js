@@ -728,13 +728,20 @@ async function gerarRecibo(){
     complemento:dados.complemento,referencia:dados.referencia,
     forma_pagamento:dados.forma_pagamento,escritorio:dados.escritorio,
     motivo_pagamento:dados.motivo_pagamento,link_comprovante,
-    timestamp:new Date().toISOString()
+    timestamp:Date.now()
   });
   if (salvarRes) {
-    const salvarJson = await salvarRes.json();
-    if (salvarJson.sheets_ok === false) {
-      mostrarToast("Recibo salvo! Aviso: Google Sheets fora de sincronia. Execute 'Reescrever planilha' no painel admin.", null, "error");
+    try {
+      const salvarJson = await salvarRes.json();
+      if (salvarJson.sheets_ok === false) {
+        mostrarToast("Recibo salvo! Aviso: Google Sheets fora de sincronia. Execute 'Reescrever planilha' no painel admin.", null, "error");
+      }
+    } catch (e) {
+      mostrarToast("Erro ao processar resposta do servidor: " + e.message + ". Recarregue a página.", null, "error");
+      console.error("Erro parse resposta /api/recibos:", e);
     }
+  } else {
+    mostrarToast("Falha ao salvar recibo no banco. Verifique o console.", null, "error");
   }
 
   await carregarRecibos();
@@ -3227,7 +3234,7 @@ async function restaurarBackup(input){
         num:r.num,nome:r.nome,cpf:r.cpf||"",municipio_uf:r.municipio_uf||"",
         valor:r.valor||"",data:r.data||"",emitido_por:r.emitido_por||"",
         complemento:r.complemento||"",referencia:r.referencia||"",
-        timestamp:r.timestamp||new Date().toISOString()
+        timestamp:typeof r.timestamp==="number"?r.timestamp:Date.now()
       });
       importados++;
     }
