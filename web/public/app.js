@@ -139,6 +139,7 @@ async function iniciarApp(){
   verificarClientesInativos();
   atualizarBadgeClientes();
   verificarParcelasVencendo();
+  initNotifPolling();
   if(roleLogado === "precatorios") navegarPara("admin");
 }
 
@@ -900,7 +901,7 @@ function renderHistorico(maisItens=false){
     return;
   }
   _selecionadosZip.clear();
-  document.getElementById("btn-exportar-zip").style.display = "none";
+  document.getElementById("batch-actions").style.display = "none";
   grid.innerHTML="";
   const listaVis = lista.slice(0, _historicoVisiveis);
   listaVis.forEach(recibo=>{
@@ -949,8 +950,7 @@ function renderHistorico(maisItens=false){
     if (chk) chk.addEventListener("change", () => {
       if (chk.checked) _selecionadosZip.add(chk.dataset.id);
       else _selecionadosZip.delete(chk.dataset.id);
-      const btnZip = document.getElementById("btn-exportar-zip");
-      if (btnZip) btnZip.style.display = _selecionadosZip.size > 0 ? "" : "none";
+      atualizarBarraBatch();
     });
     grid.appendChild(item);
   });
@@ -961,6 +961,50 @@ function renderHistorico(maisItens=false){
     btnWrap.querySelector("button").addEventListener("click", () => { _historicoVisiveis += 50; renderHistorico(true); });
     grid.appendChild(btnWrap);
   }
+}
+
+function atualizarBarraBatch() {
+  const batchDiv = document.getElementById("batch-actions");
+  const label = document.getElementById("batch-count-label");
+  const count = _selecionadosZip.size;
+  if (count > 0) {
+    batchDiv.style.display = "flex";
+    if (label) label.textContent = count + " selecionado(s)";
+  } else {
+    batchDiv.style.display = "none";
+  }
+}
+
+function selecionarTodosRecibos() {
+  const chks = document.querySelectorAll(".recibo-check");
+  const someUnchecked = Array.from(chks).some(c => !c.checked);
+  chks.forEach(c => { c.checked = someUnchecked; });
+  _selecionadosZip.clear();
+  if (someUnchecked) {
+    chks.forEach(c => _selecionadosZip.add(c.dataset.id));
+  }
+  atualizarBarraBatch();
+}
+
+async function excluirSelecionados() {
+  if (_selecionadosZip.size === 0) return;
+  if (!confirm("Excluir " + _selecionadosZip.size + " recibo(s) permanentemente?")) return;
+  for (const id of _selecionadosZip) {
+    await api("DELETE", "/api/recibos/" + id);
+  }
+  _selecionadosZip.clear();
+  await carregarRecibos();
+  renderHistorico();
+  mostrarToast(_selecionadosZip.size + " recibo(s) excluídos.", null, "success");
+}
+
+async function batchEnviarEmail() {
+  if (_selecionadosZip.size === 0) return;
+  const ids = [..._selecionadosZip];
+  const res = await api("POST", "/api/recibos/batch-email", { ids });
+  if (!res || !res.ok) { mostrarToast("Erro ao enviar e-mails.", null, "error"); return; }
+  const data = await res.json();
+  mostrarToast(data.mensagem || "E-mails enviados.", null, "success");
 }
 
 async function exportarZipSelecionados() {
@@ -1315,6 +1359,9 @@ function renderBuscaModal(termo) {
     </div>`).join("");
   }
   res.innerHTML = html;
+  // First item gets focused by default for keyboard nav
+  const firstItem = res.querySelector(".busca-resultado-item");
+  if (firstItem) firstItem.classList.add("focused");
   res.querySelectorAll(".busca-resultado-item").forEach(item => {
     item.addEventListener("click", () => {
       fecharModalBuscaGlobal();
@@ -3626,6 +3673,161 @@ async function limparDuplicatas(){
 // Chamado uma vez ao carregar o módulo (script defer). Substitui todos os
 // onclick/oninput/onchange inline que foram removidos do HTML para permitir
 // um CSP script-src sem 'unsafe-inline'.
+/* ── Central de Notificações ── */
+let _notifList = [];
+let _notifUnreadCount = 0;
+let _notifPoller = null;
+
+function carregarNotificacoes() {
+  if (!token) return;
+  // Tenta buscar do servidor; se falhar, gera localmente
+  fetch("/api/notificacoes", { headers: { Authorization: "Bearer " + token } })
+    .then(r => { if (!r.ok) throw new Error("server"); return r.json(); })
+    .then(data => {
+      _notifList = data.notificacoes || [];
+      _notifUnreadCount = data.naoLidas ?? 0;
+      renderNotificacoes();
+    })
+    .catch(() => gerarNotificacoesLocais());
+}
+
+function gerarNotificacoesLocais() {
+  // Gera notificações a partir das parcelas vencendo nos próximos 7 dias
+  const notifs = [];
+  const clientes = _clientes || [];
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  clientes.forEach(c => {
+    if (!c.parcelas || !Array.isArray(c.parcelas)) return;
+    c.parcelas.forEach((p, idx) => {
+      if (p.pago) return;
+      if (!p.data_vencimento) return;
+      const venc = new Date(p.data_vencimento + "T00:00:00");
+      if (isNaN(venc.getTime())) return;
+      const diff = Math.floor((venc - hoje) / 86400000);
+      if (diff < 0 && diff > -365) {
+        notifs.push({
+          id: "loc-" + c.id + "-" + idx,
+          tipo: "vencimento",
+          titulo: "Parcela vencida",
+          texto: c.nome + " — Parcela " + (idx+1) + " venceu há " + Math.abs(diff) + " dia(s)",
+          lido: false,
+          gravidade: "danger",
+          data: venc.toISOString(),
+          ref: { clienteId: c.id, parcelaIdx: idx }
+        });
+      } else if (diff >= 0 && diff <= 7) {
+        notifs.push({
+          id: "loc-" + c.id + "-" + idx,
+          tipo: "vencimento",
+          titulo: "Parcela próxima do vencimento",
+          texto: c.nome + " — Parcela " + (idx+1) + " vence em " + diff + " dia(s)",
+          lido: false,
+          gravidade: diff <= 2 ? "warning" : "info",
+          data: venc.toISOString(),
+          ref: { clienteId: c.id, parcelaIdx: idx }
+        });
+      }
+    });
+  });
+
+  // Ordenar por data (mais urgente primeiro)
+  notifs.sort((a, b) => new Date(a.data) - new Date(b.data));
+  _notifList = notifs.slice(0, 50);
+  _notifUnreadCount = notifs.filter(n => !n.lido).length;
+  renderNotificacoes();
+}
+
+function renderNotificacoes() {
+  const lista = document.getElementById("notif-lista");
+  const badge = document.getElementById("notif-badge");
+  const countText = document.getElementById("notif-count-text");
+  const empty = document.getElementById("notif-empty");
+  if (!lista) return;
+
+  // Atualiza badge
+  if (_notifUnreadCount > 0) {
+    badge.textContent = _notifUnreadCount > 99 ? "99+" : String(_notifUnreadCount);
+    badge.classList.add("has-count");
+    document.getElementById("btn-notificacoes")?.classList.add("shake");
+  } else {
+    badge.classList.remove("has-count");
+    document.getElementById("btn-notificacoes")?.classList.remove("shake");
+  }
+  if (countText) countText.textContent = _notifUnreadCount + " pendente(s)";
+
+  // Remove itens antigos (mantém o empty)
+  lista.querySelectorAll(".notif-item").forEach(el => el.remove());
+
+  if (!_notifList.length) {
+    empty.style.display = "";
+    return;
+  }
+  empty.style.display = "none";
+
+  _notifList.forEach(n => {
+    const item = document.createElement("div");
+    item.className = "notif-item notif-" + (n.gravidade || "info");
+    const icones = { danger: "exclamation-triangle-fill", warning: "clock-fill", success: "check-circle-fill", info: "info-circle-fill" };
+    const icon = icones[n.gravidade] || "bell-fill";
+    const dias = n.texto.match(/(\d+)\s*dia/);
+    const displayData = dias ? "Vence em " + dias[1] + " dia(s)" : (n.data ? new Date(n.data).toLocaleDateString("pt-BR") : "");
+    item.innerHTML =
+      '<div class="notif-icon"><i class="bi bi-' + icon + '"></i></div>' +
+      '<div class="notif-body">' +
+        '<div class="notif-title">' + esc(n.titulo) + '</div>' +
+        '<div class="notif-text">' + esc(n.texto) + '</div>' +
+        '<div class="notif-time">' + esc(displayData) + '</div>' +
+      '</div>';
+    item.addEventListener("click", () => {
+      if (n.ref && n.ref.clienteId) {
+        fecharNotifDropdown();
+        navegarPara("clientes");
+        setTimeout(() => abrirModalCliente(n.ref.clienteId), 200);
+      }
+    });
+    lista.appendChild(item);
+  });
+}
+
+function toggleNotifDropdown() {
+  const dd = document.getElementById("notif-dropdown");
+  if (!dd) return;
+  const open = dd.classList.toggle("open");
+  if (open) carregarNotificacoes();
+}
+
+function fecharNotifDropdown() {
+  const dd = document.getElementById("notif-dropdown");
+  if (dd) dd.classList.remove("open");
+}
+
+function marcarNotificacoesLidas() {
+  _notifList.forEach(n => n.lido = true);
+  _notifUnreadCount = 0;
+  renderNotificacoes();
+  fetch("/api/notificacoes/marcar-lidas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }
+  }).catch(() => {});
+}
+
+function initNotifPolling() {
+  if (_notifPoller) clearInterval(_notifPoller);
+  carregarNotificacoes();
+  _notifPoller = setInterval(carregarNotificacoes, 60000);
+}
+
+// Fechar dropdown ao clicar fora
+document.addEventListener("click", function(e) {
+  const dd = document.getElementById("notif-dropdown");
+  const btn = document.getElementById("btn-notificacoes");
+  if (dd && dd.classList.contains("open") && !dd.contains(e.target) && !btn?.contains(e.target)) {
+    fecharNotifDropdown();
+  }
+});
+
 function bindStaticHandlers() {
   // Login
   document.getElementById("btn-login").addEventListener("click", fazerLogin);
@@ -3647,6 +3849,10 @@ function bindStaticHandlers() {
   document.getElementById("bn-clientes").addEventListener("click", () => navegarPara("clientes"));
   document.getElementById("bn-admin").addEventListener("click", () => navegarPara("admin"));
   document.getElementById("bn-usuarios").addEventListener("click", () => navegarPara("usuarios"));
+
+  // Central de Notificações
+  document.getElementById("btn-notificacoes").addEventListener("click", toggleNotifDropdown);
+  document.getElementById("btn-marcar-lidas").addEventListener("click", marcarNotificacoesLidas);
 
   // Tema
   document.getElementById("btn-tema").addEventListener("click", alternarTema);
@@ -3671,6 +3877,9 @@ function bindStaticHandlers() {
   document.getElementById("filtro-data-fim").addEventListener("input", renderHistorico);
   document.getElementById("btn-limpar-data").addEventListener("click", limparFiltroData);
   document.getElementById("btn-exportar-zip").addEventListener("click", exportarZipSelecionados);
+  document.getElementById("btn-select-all").addEventListener("click", selecionarTodosRecibos);
+  document.getElementById("btn-batch-delete").addEventListener("click", excluirSelecionados);
+  document.getElementById("btn-batch-email").addEventListener("click", batchEnviarEmail);
 
   // Filtros avançados
   document.getElementById("btn-toggle-filtros-avancados")?.addEventListener("click", toggleFiltrosAvancados);
@@ -3811,10 +4020,33 @@ function bindStaticHandlers() {
       clearTimeout(_buscaModalTimer);
       _buscaModalTimer = setTimeout(() => renderBuscaModal(buscaModalInp.value.trim()), 200);
     });
-    buscaModalInp.addEventListener("keydown", e => { if (e.key === "Escape") fecharModalBuscaGlobal(); });
+    buscaModalInp.addEventListener("keydown", e => {
+      const resultados = document.getElementById("busca-modal-resultados");
+      const itens = resultados?.querySelectorAll(".busca-resultado-item") || [];
+      if (e.key === "Escape") fecharModalBuscaGlobal();
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const idx = Array.from(itens).findIndex(el => el.classList.contains("focused"));
+        const next = Math.min(idx + 1, itens.length - 1);
+        itens.forEach((el, i) => el.classList.toggle("focused", i === next));
+        if (itens[next]) itens[next].scrollIntoView({ block: "nearest" });
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const idx = Array.from(itens).findIndex(el => el.classList.contains("focused"));
+        const prev = Math.max(idx - 1, 0);
+        itens.forEach((el, i) => el.classList.toggle("focused", i === prev));
+        if (itens[prev]) itens[prev].scrollIntoView({ block: "nearest" });
+      }
+      if (e.key === "Enter") {
+        const focused = Array.from(itens).find(el => el.classList.contains("focused"));
+        if (focused) { e.preventDefault(); focused.click(); }
+      }
+    });
   }
   if (buscaModal) {
     buscaModal.addEventListener("click", e => { if (e.target === buscaModal) fecharModalBuscaGlobal(); });
+    buscaModal.addEventListener("keydown", e => { if (e.key === "Escape") fecharModalBuscaGlobal(); });
   }
 
   // Fechar qualquer modal ao clicar no backdrop
@@ -3854,8 +4086,30 @@ function bindStaticHandlers() {
   // Atalhos de teclado
   document.addEventListener("keydown", e => {
     if (!token) return;
-    if (e.ctrlKey && e.key === "n") { e.preventDefault(); navegarPara("gerar"); setTimeout(() => document.getElementById("nome")?.focus(), 50); }
-    if (e.ctrlKey && e.key === "h") { e.preventDefault(); navegarPara("historico"); }
-    if (e.ctrlKey && e.key === "k") { e.preventDefault(); abrirModalBuscaGlobal(); }
+    const activeTag = document.activeElement?.tagName;
+    const isInput = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
+    if (e.key === "Escape" && document.querySelector(".modal.active")) {
+      const modals = document.querySelectorAll(".modal.active");
+      const last = modals[modals.length - 1];
+      if (last && last.id !== "modal-busca-global") { fecharModal(last.id); e.preventDefault(); return; }
+    }
+    if (e.ctrlKey && !e.shiftKey) {
+      if (e.key === "n") { e.preventDefault(); navegarPara("gerar"); setTimeout(() => document.getElementById("nome")?.focus(), 50); }
+      if (e.key === "h") { e.preventDefault(); navegarPara("historico"); }
+      if (e.key === "k") { e.preventDefault(); abrirModalBuscaGlobal(); }
+      if (e.key === "c" && roleLogado !== "precatorios") { e.preventDefault(); navegarPara("clientes"); }
+      if (e.key === "a" && roleLogado !== "recepcao") { e.preventDefault(); navegarPara("admin"); }
+      if (e.key === "l") { e.preventDefault(); limparCampos(); }
+    }
+    if (e.ctrlKey && e.shiftKey && e.key === "T") { e.preventDefault(); alternarTema(); }
+    if (e.key === "F5") { e.preventDefault(); e.stopImmediatePropagation(true); return false; }
+  }, true);
+  // Ctrl+S para salvar recibo de qualquer lugar
+  document.addEventListener("keydown", e => {
+    if (!token) return;
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      const screen = document.querySelector(".screen.active");
+      if (screen && screen.id === "screen-gerar") { e.preventDefault(); gerarRecibo(); }
+    }
   });
 }

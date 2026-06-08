@@ -35,6 +35,21 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
+    /* ── SCREEN TRANSITIONS ── */
+    .screen{display:none;animation:fadeSlideIn 0.25s ease}
+    .screen.active{display:block}
+    @keyframes fadeSlideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+    /* ── TOOLTIP ── */
+    [data-tooltip]{position:relative;cursor:pointer}
+    [data-tooltip]:hover:after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:10px;font-weight:500;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:1000;animation:fadeIn 0.15s ease;pointer-events:none}
+    [data-tooltip]:hover:before{content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);border:4px solid transparent;border-top-color:#333;pointer-events:none;z-index:1000}
+    .pulse{animation:pulse 1.2s ease-in-out infinite}
+    /* ── SKELETON ── */
+    .skeleton-box{background:linear-gradient(90deg,var(--border) 25%,var(--gold-pale) 50%,var(--border) 75%);background-size:200% 100%;animation:pulse 1.4s ease infinite;border-radius:6px;height:14px;margin-bottom:8px}
+    .skeleton-box.w60{width:60%}.skeleton-box.w40{width:40%}.skeleton-box.w80{width:80%}
     :root{
       --gold:#b8973a;--gold-light:#d4af5a;--gold-pale:#f5edd6;
       --dark:#1a1a1a;--dark2:#2c2c2c;--mid:#5a5a5a;--muted:#9a9a9a;
@@ -102,8 +117,6 @@
     .content{flex:1;padding:32px;overflow-y:auto}
 
     /* ── TELAS ── */
-    .screen{display:none}
-    .screen.active{display:block}
 
     /* ── CARD ── */
     .card{background:var(--card);border-radius:var(--radius);padding:28px 32px;box-shadow:var(--shadow);border:1px solid var(--border);max-width:640px}
@@ -300,8 +313,37 @@
     .meta-bar-track{background:var(--border);border-radius:4px;height:6px;overflow:hidden;margin:4px 0}
     .meta-bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
     #alerta-inativos{background:#fff8e6;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:8px;padding:12px 18px;margin-bottom:20px;font-size:12px;display:none;justify-content:space-between;align-items:flex-start;gap:12px}
-    #btn-tema{background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--mid);transition:all 0.2s}
-    #btn-tema:hover{background:var(--gold-pale);border-color:var(--gold)}
+    #btn-tema,#btn-notificacoes{background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--mid);transition:all 0.2s;position:relative}
+    #btn-tema:hover,#btn-notificacoes:hover{background:var(--gold-pale);border-color:var(--gold)}
+    .batch-actions{transition:all 0.2s ease}
+    .batch-actions.show{display:flex!important}
+    #btn-select-all,#btn-batch-email,#btn-batch-delete{font-size:11px;white-space:nowrap}
+    #notif-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;background:var(--error,#dc2626);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;border:2px solid var(--card);display:none}
+    #notif-badge.has-count{display:flex}
+    @keyframes notif-bell-shake{0%,100%{transform:rotate(0)}20%{transform:rotate(12deg)}40%{transform:rotate(-12deg)}60%{transform:rotate(6deg)}80%{transform:rotate(-6deg)}}
+    #btn-notificacoes.shake .bi{animation:notif-bell-shake 0.5s ease}
+    #notif-dropdown{position:fixed;top:58px;right:16px;width:360px;max-height:440px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,0.14),0 0 0 1px rgba(0,0,0,0.04);z-index:900;display:none;overflow:hidden;flex-direction:column;animation:slideDown 0.18s ease}
+    #notif-dropdown.open{display:flex}
+    #notif-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--border)}
+    #notif-header h3{font-size:13px;font-weight:600;color:var(--dark);margin:0}
+    #notif-header .notif-count{font-size:11px;color:var(--muted)}
+    #notif-lista{flex:1;overflow-y:auto;padding:8px 0}
+    .notif-item{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;cursor:pointer;transition:background 0.15s;border-left:3px solid transparent}
+    .notif-item:hover{background:var(--gold-pale)}
+    .notif-item .notif-icon{font-size:16px;color:var(--gold);flex-shrink:0;margin-top:1px}
+    .notif-item .notif-body{flex:1;min-width:0}
+    .notif-item .notif-body .notif-title{font-size:12px;font-weight:600;color:var(--dark);margin-bottom:2px}
+    .notif-item .notif-body .notif-text{font-size:11px;color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .notif-item .notif-body .notif-time{font-size:10px;color:var(--muted);margin-top:3px;opacity:0.7}
+    .notif-item.notif-warning{border-left-color:var(--gold)}
+    .notif-item.notif-danger{border-left-color:var(--error,#dc2626)}
+    .notif-item.notif-success{border-left-color:var(--success)}
+    .notif-item.notif-info{border-left-color:#3b82f6}
+    #notif-empty{padding:32px 16px;text-align:center;color:var(--muted);font-size:13px}
+    #notif-empty i{font-size:28px;display:block;margin-bottom:8px;opacity:0.4}
+    #notif-footer{padding:8px 16px;border-top:1px solid var(--border);text-align:center;font-size:11px}
+    #notif-footer button{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 8px;font-size:11px;transition:color 0.2s}
+    #notif-footer button:hover{color:var(--gold)}
 
     /* ── MOBILE ── */
     /* Bottom Nav */
@@ -466,11 +508,11 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Documentos</div>
-      <div class="nav-item active" id="nav-gerar"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
-      <div class="nav-item" id="nav-historico"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
+      <div class="nav-item active" id="nav-gerar" data-tooltip="Ctrl+N"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
+      <div class="nav-item" id="nav-historico" data-tooltip="Ctrl+H"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
       <div class="nav-section">Gestão</div>
-      <div class="nav-item" id="nav-clientes"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes<span id="badge-clientes-atraso" class="nav-badge" style="display:none"></span></div>
-      <div class="nav-item" id="nav-admin"><span class="icon"><i class="bi bi-bar-chart-fill"></i></span> Administrativo</div>
+      <div class="nav-item" id="nav-clientes" data-tooltip="Ctrl+C"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes<span id="badge-clientes-atraso" class="nav-badge" style="display:none"></span></div>
+      <div class="nav-item" id="nav-admin" data-tooltip="Ctrl+A"><span class="icon"><i class="bi bi-bar-chart-fill"></i></span> Administrativo</div>
       <div class="nav-section">Sistema</div>
       <div class="nav-item" id="nav-usuarios" style="display:none"><span class="icon"><i class="bi bi-person-gear"></i></span> Usuários</div>
       <div class="nav-item" id="nav-backup"><span class="icon"><i class="bi bi-download"></i></span> Backup</div>
@@ -515,7 +557,25 @@
       <div class="topbar-title" id="topbar-title">Gerar Recibo</div>
       <div style="display:flex;align-items:center;gap:10px">
         <div class="topbar-badge" id="num-recibo">Nº 0001/2026</div>
-        <button id="btn-tema" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="bi bi-moon-stars" id="icon-tema"></i></button>
+        <button id="btn-notificacoes" data-tooltip="Notificações">
+          <i class="bi bi-bell-fill"></i>
+          <span id="notif-badge">0</span>
+        </button>
+        <button id="btn-tema" data-tooltip="Alternar tema (Ctrl+Shift+T)"><i class="bi bi-moon-stars" id="icon-tema"></i></button>
+      </div>
+    </div>
+
+    <!-- Notification Center Dropdown -->
+    <div id="notif-dropdown">
+      <div id="notif-header">
+        <div><h3>Notificações</h3></div>
+        <span class="notif-count" id="notif-count-text">0 pendentes</span>
+      </div>
+      <div id="notif-lista">
+        <div id="notif-empty"><i class="bi bi-bell-slash-fill"></i>Nenhuma notificação</div>
+      </div>
+      <div id="notif-footer">
+        <button id="btn-marcar-lidas" title="Marcar tudo como lido"><i class="bi bi-check2-all"></i> Marcar tudo como lido</button>
       </div>
     </div>
 
@@ -680,7 +740,13 @@
             <button class="btn-secondary btn-sm" id="btn-limpar-data"><i class="bi bi-x-lg"></i></button>
           </div>
           <span id="historico-count" style="color:var(--muted);font-size:12px;white-space:nowrap"></span>
-          <button class="btn-secondary btn-sm" id="btn-exportar-zip" style="display:none"><i class="bi bi-file-zip"></i> Exportar ZIP</button>
+          <div id="batch-actions" style="display:none;align-items:center;gap:6px" class="batch-actions">
+            <label style="font-size:11px;color:var(--muted);white-space:nowrap" id="batch-count-label">0 selecionados</label>
+            <button class="btn-secondary btn-sm" id="btn-select-all"><i class="bi bi-check2-square"></i> Todos</button>
+            <button class="btn-secondary btn-sm" id="btn-exportar-zip"><i class="bi bi-file-zip"></i> ZIP</button>
+            <button class="btn-secondary btn-sm" id="btn-batch-email"><i class="bi bi-envelope"></i> Email</button>
+            <button class="btn-danger btn-sm" id="btn-batch-delete"><i class="bi bi-trash3"></i> Excluir</button>
+          </div>
         </div>
         <div id="filtros-avancados-wrap" style="margin-bottom:12px">
           <button class="btn-secondary btn-sm" id="btn-toggle-filtros-avancados" style="font-size:11px"><i class="bi bi-sliders"></i> Filtros avançados <i class="bi bi-chevron-down" id="icon-filtros-avancados"></i></button>
@@ -1402,7 +1468,7 @@
       <div class="busca-global-input-wrap">
         <i class="bi bi-search" style="color:var(--muted);font-size:16px"></i>
         <input id="busca-modal-input" type="text" placeholder="Buscar cliente ou recibo..." autocomplete="off" />
-        <kbd style="font-size:10px;color:var(--muted);background:var(--border);border-radius:4px;padding:2px 6px;flex-shrink:0">Esc</kbd>
+        <kbd style="font-size:10px;color:var(--muted);background:var(--border);border-radius:4px;padding:2px 6px;flex-shrink:0">↑↓ ↵ Esc</kbd>
       </div>
       <div id="busca-modal-resultados" class="busca-global-resultados">
         <div style="padding:20px 18px;color:var(--muted);font-size:12px;text-align:center">Digite para buscar clientes e recibos...</div>

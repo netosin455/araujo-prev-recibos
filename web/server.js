@@ -2890,6 +2890,70 @@ function carregarTemplate(nome, variaveis = {}) {
   }
 }
 
+// GET /api/notificacoes
+// Retorna notificações para a central de notificações (parcelas vencendo/vencidas)
+app.get("/api/notificacoes", auth, async (req, res) => {
+  try {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const notificacoes = [];
+    const clientes = await find(dbClientes, NAO_DELETADO);
+
+    for (const c of clientes) {
+      const parcelas = c.parcelas || [];
+      parcelas.forEach((p, idx) => {
+        if (p.status === "pago" || p.pago) return;
+        if (!p.data_vencimento) return;
+        const partes = p.data_vencimento.split("/");
+        if (partes.length !== 3) return;
+        const venc = new Date(parseInt(partes[2], 10), parseInt(partes[1], 10) - 1, parseInt(partes[0], 10));
+        if (isNaN(venc.getTime())) return;
+        const diff = Math.floor((venc - hoje) / 86400000);
+
+        let gravidade = "info";
+        let titulo = "";
+        if (diff < 0) {
+          gravidade = "danger";
+          titulo = "Parcela vencida";
+        } else if (diff <= 2) {
+          gravidade = "warning";
+          titulo = "Parcela próxima do vencimento";
+        } else if (diff <= 7) {
+          gravidade = "info";
+          titulo = "Parcela a vencer";
+        } else {
+          return;
+        }
+
+        notificacoes.push({
+          id: c._id + "-" + idx,
+          tipo: "vencimento",
+          titulo,
+          texto: (c.nome || "Cliente") + " — Parcela " + (idx + 1) + (diff < 0 ? " venceu há " + Math.abs(diff) + " dia(s)" : " vence em " + diff + " dia(s)"),
+          lido: false,
+          gravidade,
+          data: venc.toISOString(),
+          ref: { clienteId: c._id, parcelaIdx: idx }
+        });
+      });
+    }
+
+    notificacoes.sort((a, b) => new Date(a.data) - new Date(b.data));
+    const naoLidas = notificacoes.filter(n => !n.lido).length;
+    res.json({ notificacoes: notificacoes.slice(0, 50), naoLidas });
+  } catch (err) {
+    console.error("Erro ao buscar notificações:", err);
+    res.status(500).json({ erro: "Erro ao buscar notificações" });
+  }
+});
+
+// POST /api/notificacoes/marcar-lidas
+app.post("/api/notificacoes/marcar-lidas", auth, (req, res) => {
+  // As notificações são voláteis (calculadas sob demanda), então "marcar como lido"
+  // é apenas no front-end, mas aceitamos a requisição para compatibilidade.
+  res.json({ ok: true });
+});
+
 // POST /api/notificacoes/email-inadimplencia
 // Envia e-mail ao admin com lista de clientes inadimplentes.
 // Requer role admin ou financeiro.
@@ -2985,6 +3049,121 @@ app.post("/api/notificacoes/email-inadimplencia", auth, financeiroOnly, async (r
     res.status(500).json({ erro: "Erro interno ao processar relatório." });
   }
 });
+
+// POST /api/recibos/batch-email
+// Envia e-mail com PDF anexado para múltiplos recibos.
+app.post("/api/recibos/batch-email", auth, async (req, res) => {
+  if (!smtpConfigurado()) {
+    return res.status(503).json({ erro: "Integração de e-mail não configurada." });
+  }
+  const { ids } = req.body;
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ erro: "Nenhum recibo selecionado." });
+  }
+  try {
+    let enviados = 0;
+    for (const id of ids) {
+      const recibo = await findOne(dbRecibos, { _id: id });
+      if (!recibo || !recibo.email_cliente || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recibo.email_cliente)) continue;
+      // Busca dados complementares
+      const cliente = await findOne(dbClientes, { nome: recibo.nome, ...NAO_DELETADO });
+      const cpfCliente = recibo.cpf || (cliente ? cliente.cpf : "");
+      const munUf = recibo.municipio_uf || (cliente ? (cliente.municipio + "/" + cliente.uf) : "");
+      await enviarReciboEmail({
+        email_cliente: recibo.email_cliente,
+        nome: recibo.nome,
+        cpf: cpfCliente,
+        valor: recibo.valor,
+        num_recibo: recibo.num,
+        data: recibo.data,
+        emitido_por: recibo.emitido_por || "",
+        complemento: recibo.complemento || "",
+        referencia: recibo.referencia || "",
+        municipio_uf: munUf,
+        data_extenso: recibo.data_extenso || "",
+      });
+      enviados++;
+    }
+    res.json({ mensagem: enviados + " e-mail(s) enviado(s) com sucesso." });
+  } catch (err) {
+    console.error("Erro no batch email:", err);
+    res.status(500).json({ erro: "Erro ao enviar e-mails em lote." });
+  }
+});
+
+async function enviarReciboEmail(params) {
+  // Extrai parâmetros
+  const { email_cliente, nome, cpf, valor, num_recibo, data, emitido_por, complemento, referencia, municipio_uf, data_extenso } = params;
+  const digits = (cpf || "").replace(/\D/g, "");
+  const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
+  const textoComplemento = complemento ? ` - ${complemento}` : "";
+  const logoPath = path.join(__dirname, "public", "logo.png");
+  const logoExists = fs.existsSync(logoPath);
+
+  const textoCorpo = `Recebemos do (a) senhor (a) ${nome}${municipio_uf ? `, residente e domiciliado(a) no Município de ${municipio_uf}` : ""}, a importância de R$ ${valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${textoComplemento}.`;
+
+  const chunks = [];
+  const pdf = new PDFDocument({ margin: 60, size: "A4" });
+  pdf.on("data", c => chunks.push(c));
+  await new Promise((resolve, reject) => {
+    pdf.on("end", resolve);
+    pdf.on("error", reject);
+
+    if (logoExists) pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
+    pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
+      .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
+    pdf.fontSize(12).fillColor("#000000").text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
+
+    const lx = pdf.page.margins.left;
+    const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
+    pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
+
+    pdf.fontSize(12).fillColor("#000000").font("Helvetica")
+      .text(`Recibo de Honorários Advocatícios nº ${num_recibo}`, { align: "center" }).moveDown(0.2)
+      .fontSize(10).text(`Data: ${data}${data_extenso ? ` (${data_extenso})` : ""}`, { align: "center" }).moveDown(0.3);
+
+    pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.5);
+
+    const textWidth = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
+    const textX = pdf.page.margins.left;
+    let y = pdf.y;
+
+    const drawLine = (label, value) => {
+      const line = `${label}: ${value}`;
+      pdf.fontSize(10).fillColor("#000000").text(line, textX, y, { width: textWidth, align: "justify" });
+      y = pdf.y + 8;
+    };
+
+    drawLine(labelDoc, cpf || "NÃO INFORMADO");
+    drawLine("Cliente", nome);
+    drawLine("Valor", `R$ ${valor}`);
+    drawLine("Referência", referencia || "NÃO INFORMADO");
+    drawLine("Emitido por", emitido_por || "NÃO INFORMADO");
+
+    pdf.moveTo(lx, y + 4).lineTo(lx + lw, y + 4).stroke();
+    y = pdf.y + 12;
+
+    pdf.fontSize(9).fillColor("#333333").text(textoCorpo, textX, y, { width: textWidth, align: "justify" });
+    y = pdf.y + 10;
+
+    if (complemento) {
+      pdf.fontSize(9).fillColor("#333333").text(`Complemento: ${complemento}`, textX, y, { width: textWidth, align: "justify" });
+    }
+    pdf.end();
+  });
+
+  const pdfBuffer = Buffer.concat(chunks);
+
+  const mailOptions = {
+    from: `"Araujo Prev" <${process.env.SMTP_USER}>`,
+    to: email_cliente,
+    subject: `Recibo de Honorários nº ${num_recibo} - Araujo Prev`,
+    text: `Prezado(a) ${nome},\n\nSegue em anexo o Recibo de Honorários Advocatícios nº ${num_recibo}.\n\nAtenciosamente,\nAraujo Prev`,
+    attachments: [{ filename: `Recibo_${num_recibo}.pdf`, content: pdfBuffer }],
+  };
+
+  await transporter.sendMail(mailOptions);
+}
 
 // POST /api/notificacoes/enviar-recibo-email
 // Gera PDF do recibo em memória e envia como anexo para o e-mail do cliente.

@@ -2,8 +2,40 @@
   "appId": "com.araujoprev.app",
   "appName": "Araujo Prev",
   "webDir": "www",
+  "bundledWebRuntime": false,
   "server": {
     "url": "http://araujo-prev-env.eba-cfsqbcw7.us-east-1.elasticbeanstalk.com/",
-    "cleartext": true
+    "cleartext": true,
+    "allowNavigation": ["araujo-prev-env.eba-cfsqbcw7.us-east-1.elasticbeanstalk.com"]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#1a1a1a",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "fitCenter",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "Camera": {
+      "permissionType": "gallery"
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_default",
+      "iconColor": "#b8973a",
+      "sound": "beep.wav"
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "dark",
+      "resizeOnFullScreen": true
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#1a1a1a",
+      "overlaysWebView": false
+    }
   }
 }
