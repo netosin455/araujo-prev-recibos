@@ -2675,7 +2675,7 @@ function _renderDRE() {
         labels: linhas.map(l => l.abrev),
         datasets: [{ label: "Receita", data: linhas.map(l => l.receita), backgroundColor: "rgba(184,151,58,0.7)", borderColor: "#b8973a", borderWidth: 1, borderRadius: 4 }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => "R$ " + formatarValor(v) } } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => "R$ " + formatarValor(v) } } } }
     });
   }
 }
