@@ -21,13 +21,12 @@ function valorParaNumero(v){ return parseFloat((v||"0").replace(/\./g,"").replac
 function formatarValor(n){ return n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 // ── AUTH ───────────────────────────────────────────────────
-let token = localStorage.getItem("token") || "";
 let usuarioLogado = localStorage.getItem("usuarioLogado") || "";
 let roleLogado = localStorage.getItem("roleLogado") || "financeiro";
 let escritorioLogado = localStorage.getItem("escritorioLogado") || "";
 
 async function api(method, path, body){
-  const opts = { method, headers: { "Content-Type":"application/json", "Authorization":"Bearer "+token } };
+  const opts = { method, headers: { "Content-Type":"application/json" }, credentials: "include" };
   if(body) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
   if(res.status===401){ fazerLogout(); return null; }
@@ -40,14 +39,12 @@ async function fazerLogin(){
   const erroEl = document.getElementById("login-erro");
   erroEl.style.display="none";
   if(!username||!password){ erroEl.textContent="Preencha usuário e senha."; erroEl.style.display="block"; return; }
-  const res = await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});
+  const res = await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({username,password})});
   const data = await res.json();
   if(!res.ok){ erroEl.textContent=data.erro||"Erro ao entrar."; erroEl.style.display="block"; return; }
-  token = data.token;
   usuarioLogado = data.username;
   roleLogado = data.role || "financeiro";
   escritorioLogado = data.escritorio || "";
-  localStorage.setItem("token", token);
   localStorage.setItem("usuarioLogado", usuarioLogado);
   localStorage.setItem("roleLogado", roleLogado);
   localStorage.setItem("escritorioLogado", escritorioLogado);
@@ -57,11 +54,11 @@ async function fazerLogin(){
 }
 
 function fazerLogout(){
-  localStorage.removeItem("token");
+  fetch("/api/logout",{method:"POST",credentials:"include"});
   localStorage.removeItem("usuarioLogado");
   localStorage.removeItem("roleLogado");
   localStorage.removeItem("escritorioLogado");
-  token=""; usuarioLogado=""; roleLogado="financeiro"; escritorioLogado="";
+  usuarioLogado=""; roleLogado="financeiro"; escritorioLogado="";
   location.reload();
 }
 
@@ -507,7 +504,7 @@ function abrirComprovante(link) {
   // Links autenticados (S3 proxy ou arquivo local) → fetch com JWT → blob
   const isLocal = link.startsWith("/api/comprovante");
   if (isLocal) {
-    fetch(link, { headers: { Authorization: "Bearer " + localStorage.getItem("token") } })
+    fetch(link, { credentials: "include" })
       .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
       .then(blob => {
         const url = URL.createObjectURL(blob);
@@ -643,9 +640,8 @@ async function gerarRecibo(){
       if(compStatus) compStatus.textContent = "Enviando comprovante...";
       const fd = new FormData();
       fd.append("comprovante", compInputEdicao.files[0]);
-      const token = localStorage.getItem("token");
       try {
-        const r = await fetch("/api/upload-comprovante", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:fd });
+        const r = await fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd });
         const j = await r.json();
         if(j.link){ link_comprovante_edicao = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
         else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; mostrarToast(j.erro || "Erro ao enviar comprovante.", null, "error"); }
@@ -711,9 +707,8 @@ async function gerarRecibo(){
     if(compStatus) compStatus.textContent = "Enviando comprovante...";
     const fd = new FormData();
     fd.append("comprovante", compInput.files[0]);
-    const token = localStorage.getItem("token");
     try {
-      const r = await fetch("/api/upload-comprovante", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:fd });
+      const r = await fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd });
       const j = await r.json();
       if(j.link){ link_comprovante = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
       else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; mostrarToast(j.erro || "Erro ao enviar comprovante.", null, "error"); }
@@ -3501,13 +3496,14 @@ async function enviarUploadComprovante() {
   try {
     const fd = new FormData();
     fd.append("comprovante", input.files[0]);
-    const r1 = await fetch("/api/upload-comprovante", { method: "POST", headers: { "Authorization": "Bearer " + token }, body: fd });
+    const r1 = await fetch("/api/upload-comprovante", { method: "POST", credentials: "include", body: fd });
     const j1 = await r1.json();
     if (!j1.link) { status.textContent = j1.erro || "Erro ao enviar arquivo."; btn.disabled = false; return; }
     status.textContent = "Vinculando ao recibo...";
     const r2 = await fetch(`/api/recibos/${_uploadCompReciboId}/comprovante`, {
       method: "PATCH",
-      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ link_comprovante: j1.link })
     });
     const j2 = await r2.json();
@@ -3686,9 +3682,8 @@ let _notifUnreadCount = 0;
 let _notifPoller = null;
 
 function carregarNotificacoes() {
-  if (!token) return;
   // Tenta buscar do servidor; se falhar, gera localmente
-  fetch("/api/notificacoes", { headers: { Authorization: "Bearer " + token } })
+  fetch("/api/notificacoes", { credentials: "include" })
     .then(r => { if (!r.ok) throw new Error("server"); return r.json(); })
     .then(data => {
       _notifList = data.notificacoes || [];
@@ -3816,7 +3811,8 @@ function marcarNotificacoesLidas() {
   renderNotificacoes();
   fetch("/api/notificacoes/marcar-lidas", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }
+    headers: { "Content-Type": "application/json" },
+    credentials: "include"
   }).catch(() => {});
 }
 

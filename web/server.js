@@ -32,192 +32,13 @@ const { google } = require("googleapis");
 const multer = require("multer");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
+const cookieParser = require("cookie-parser");
 const archiver = require("archiver");
 const nodemailer = require("nodemailer");
 const cron = require("node-cron");
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
-const SHEET_ID = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
-const SHEET_NAME = "Respostas ao formulário 1";
-const MESES = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
-
-function getSheetsClient() {
-  const credsB64 = process.env.GOOGLE_CREDENTIALS;
-  if (!credsB64) {
-    console.warn("⚠️  GOOGLE_CREDENTIALS não configurado — integração com Sheets desativada.");
-    return null;
-  }
-  try {
-    const creds = JSON.parse(Buffer.from(credsB64, "base64").toString("utf8"));
-    const auth = new google.auth.GoogleAuth({
-      credentials: creds,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-    return google.sheets({ version: "v4", auth });
-  } catch (e) {
-    console.error("❌ Erro ao inicializar Google Sheets:", e.message);
-    return null;
-  }
-}
-
-// Testa a conexão com o Sheets no startup para detectar problemas cedo
-async function testarConexaoSheets() {
-  const sheets = getSheetsClient();
-  if (!sheets) return;
-  try {
-    await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "spreadsheetId" });
-    console.log("✅ Conexão com Google Sheets OK.");
-  } catch (e) {
-    console.error(`❌ FALHA na conexão com Google Sheets: ${e.message}`);
-    console.error("   → Recibos NÃO serão salvos na planilha enquanto isso persistir.");
-    console.error(`   → Planilha ID: ${SHEET_ID}`);
-  }
-}
-
-const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1BUAPGfIIyehGWkmYlas0SYER3kriQK_H";
-
-async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
-  const credsB64 = process.env.GOOGLE_CREDENTIALS;
-  if (!credsB64) return null;
-  try {
-    const creds = JSON.parse(Buffer.from(credsB64, "base64").toString("utf8"));
-    const auth = new google.auth.GoogleAuth({
-      credentials: creds,
-      scopes: ["https://www.googleapis.com/auth/drive.file"],
-    });
-    const drive = google.drive({ version: "v3", auth });
-    const { Readable } = require("stream");
-    const stream = new Readable();
-    stream.push(buffer);
-    stream.push(null);
-    const meta = { name: nomeArquivo };
-    if (DRIVE_FOLDER_ID) meta.parents = [DRIVE_FOLDER_ID];
-    const res = await drive.files.create({
-      requestBody: meta,
-      media: { mimeType, body: stream },
-      fields: "id",
-      supportsAllDrives: true,
-    });
-    const fileId = res.data.id;
-    await drive.permissions.create({
-      fileId,
-      requestBody: { role: "reader", type: "anyone" },
-      supportsAllDrives: true,
-    });
-    return `https://drive.google.com/file/d/${fileId}/view`;
-  } catch (e) {
-    console.error("❌ Erro ao fazer upload pro Drive:", e.message);
-    throw e;
-  }
-}
-
-// Converte presigned URL S3 para path relativo — nunca expõe URL temporária na planilha (SEC-014)
-function sanitizarLinkParaSheets(link) {
-  if (!link) return "";
-  // Presigned URL: https://bucket.s3.region.amazonaws.com/KEY?X-Amz-...
-  const s3Match = link.match(/amazonaws\.com\/(.+?)(?:\?|$)/);
-  if (s3Match) return `/api/comprovante-s3/${s3Match[1]}`;
-  return link;
-}
-
-async function registrarNoSheets(dados) {
-  const sheets = getSheetsClient();
-  if (!sheets) return false;
-  try {
-    const agora = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const horaFormatada = agora.toLocaleTimeString("pt-BR");
-    const carimbo = `${agora.toLocaleDateString("pt-BR")} ${horaFormatada}`;
-
-    // Usa a data do pagamento informada; cai para hoje se ausente
-    const dataPagamento = dados.data || agora.toLocaleDateString("pt-BR");
-    const [dp, mp] = dataPagamento.split("/");
-    const mesPagamento = (dp && mp && mp.length <= 2)
-      ? MESES[parseInt(mp, 10) - 1] || MESES[agora.getMonth()]
-      : MESES[agora.getMonth()];
-
-    const linha = [
-      carimbo,                                          // A: Carimbo de data/hora
-      dados.nome || "",                                 // B: Nome completo do cliente
-      dados.cpf || "",                                  // C: CPF do cliente
-      dados.valor ? `R$ ${dados.valor}` : "",            // D: Valor pago
-      dataPagamento,                                    // E: Data do pagamento
-      dataPagamento,                                    // F: Data do depósito
-      dados.forma_pagamento || "",                      // G: Forma de pagamento
-      dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios", // H: Motivo de pagamento
-      dados.escritorio || "",                           // I: Escritório
-      "",                                               // J: Alguma observação (não usado)
-      sanitizarLinkParaSheets(dados.link_comprovante),   // K: Anexo comprovante (path relativo — SEC-014)
-      mesPagamento,                                     // L: Mês
-      dados.num_recibo || "",                           // M: Número do recibo
-      dados.emitido_por || "",                          // N: Responsável (emitido por)
-      dados.referencia || "",                           // O: Referência (gaveta)
-    ];
-
-    // Determina a próxima linha vazia lendo a coluna A inteira — evita table-detection
-    // do values.append que pode inserir no meio dos dados quando há linhas em branco.
-    const colA = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A:A`,
-    });
-    const nextRow = (colA.data.values || []).length + 1;
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A${nextRow}:O${nextRow}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [linha] },
-    });
-    console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets (linha ${nextRow})`);
-    return true;
-  } catch (e) {
-    console.error("❌ Erro ao registrar no Google Sheets:", e.message);
-    return e.message;
-  }
-}
-
-async function atualizarNoSheets(num, dados) {
-  const sheets = getSheetsClient();
-  if (!sheets) return;
-  try {
-    // Busca a linha pelo número do recibo na coluna M
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!M4:M`,
-    });
-    const rows = res.data.values || [];
-    const idx = rows.findIndex(r => r[0] === num);
-    if (idx === -1) return; // recibo não encontrado na planilha
-    const rowNum = 4 + idx;
-    const mes = MESES[new Date().getMonth()];
-    const linha = [
-      undefined,                                           // A: carimbo (não atualiza)
-      dados.nome || "",                                    // B: Nome
-      dados.cpf || "",                                     // C: CPF
-      dados.valor ? `R$ ${dados.valor}` : "",              // D: Valor
-      dados.data || "",                                    // E: Data pagamento
-      dados.data || "",                                    // F: Data depósito
-      dados.forma_pagamento || "",                         // G: Forma pagamento
-      dados.motivo_pagamento || dados.complemento || "",   // H: Motivo
-      dados.escritorio || "",                              // I: Escritório
-      "",                                                  // J: Observação
-      sanitizarLinkParaSheets(dados.link_comprovante),      // K: Comprovante (path relativo — SEC-014)
-      mes,                                                 // L: Mês
-      num,                                                 // M: Número recibo
-      dados.emitido_por || "",                             // N: Responsável
-      dados.referencia || "",                              // O: Referência
-    ];
-    // Atualiza apenas colunas B-O (não mexe no carimbo)
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!B${rowNum}:O${rowNum}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [linha.slice(1)] },
-    });
-    console.log(`✅ Recibo ${num} atualizado no Google Sheets`);
-  } catch (e) {
-    console.error("❌ Erro ao atualizar no Google Sheets:", e.message);
-  }
-}
+const { getSheetsClient, testarConexaoSheets, uploadParaDrive, sanitizarLinkParaSheets, registrarNoSheets, atualizarNoSheets, linkParaSheets, renovarPresignedUrlsSheets, SHEET_ID, SHEET_NAME, MESES } = require("./services/google-sheets");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -235,7 +56,9 @@ if (!DATABASE_URL) {
 }
 const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
-
+// Módulos
+const db = require("./services/database")(pgPool);
+const { find, findOne, insert, update, remove, count, findLimited } = db;
 
 // ── BANCO DE DADOS ─────────────────────────────────────────
 const dbDir = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -259,28 +82,6 @@ const s3SignerClient = (process.env.S3_SIGNER_KEY_ID && process.env.S3_SIGNER_SE
       },
     })
   : s3Client; // fallback para instance profile se env vars não estiverem definidas
-
-// Gera URL pré-assinada do S3 para links de comprovante na planilha.
-// Serviço de conta Google (service account) não tem cota de armazenamento no Drive,
-// portanto não é possível fazer upload; presigned URL é o único caminho viável.
-async function linkParaSheets(link) {
-  if (!link) return "";
-  const s3Match = link.match(/^\/api\/comprovante-s3\/(.+)$/);
-  if (!s3Match) return link;
-
-  const bucket = process.env.BUCKET_NAME;
-  if (!bucket) return link;
-
-  try {
-    const cmd = new GetObjectCommand({ Bucket: bucket, Key: s3Match[1] });
-    const urlPromise = getSignedUrl(s3SignerClient, cmd, { expiresIn: 30 * 24 * 3600 });
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
-    return await Promise.race([urlPromise, timeoutPromise]);
-  } catch (e) {
-    console.error("❌ Presigned URL falhou:", e.message);
-    return link;
-  }
-}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -316,7 +117,7 @@ async function sincronizarUsuariosParaSheets() {
   if (!sheets) return;
   try {
     const { rows } = await pgPool.query(
-      "SELECT username, role, escritorio, created_at FROM users WHERE username != $1 ORDER BY created_at ASC",
+      "SELECT username, role, escritorio, created_at FROM users WHERE username != $1 AND deleted_at IS NULL ORDER BY created_at ASC",
       [ADMIN_USER]
     );
     // Sem coluna password — hash bcrypt não deve ficar exposto na planilha (SEC-010)
@@ -487,6 +288,9 @@ async function initDb() {
   `);
   await pgPool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS nome_completo TEXT DEFAULT ''
+  `);
+  await pgPool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL
   `);
   // Tabela de states OAuth Gov.br — TTL gerenciado por expira_em (SEC-012)
   await pgPool.query(`
@@ -791,13 +595,13 @@ corrigirLinksComprovante();
 
 // ── MIDDLEWARE ─────────────────────────────────────────────
 app.use(express.json({ limit: "100kb" }));
+app.use(cookieParser());
 
-// Aceita HTTPS normalmente (não faz downgrade para HTTP)
-// Quando tiver domínio próprio + certificado SSL, descomentar para forçar HTTPS:
-// app.use((req, res, next) => {
-//   if (req.headers["x-forwarded-proto"] === "http") return res.redirect(301, "https://" + req.headers.host + req.url);
-//   next();
-// });
+// Força HTTPS quando atrás de proxy reverso (ELB)
+app.use((req, res, next) => {
+  if (req.headers["x-forwarded-proto"] === "http") return res.redirect(301, "https://" + req.headers.host + req.url);
+  next();
+});
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -820,7 +624,7 @@ app.use((req, res, next) => {
 });
 
 async function auth(req, res, next) {
-  const token = (req.headers.authorization || "").split(" ")[1];
+  const token = req.cookies?.token || (req.headers.authorization || "").split(" ")[1];
   if (!token) return res.status(401).json({ erro: "Não autorizado" });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
@@ -861,122 +665,6 @@ function semPrecatorios(req, res, next) {
 // ── PostgreSQL helpers (substitutos dos helpers NeDB) ───────
 // Campos JSONB por tabela — o driver pg já parseia automaticamente,
 // mas precisamos fazer JSON.stringify ao escrever via $set
-const _PG_JSON = {
-  recibos:   new Set(["assinatura_govbr", "historico_edicoes"]),
-  clientes:  new Set(["parcelas", "observacoes"]),
-  auditoria: new Set(["dados"]),
-};
-
-// Converte row do PostgreSQL para o formato esperado pelo app (adiciona _id)
-function _rowToDoc(row) {
-  if (!row) return null;
-  return { ...row, _id: row.id };
-}
-
-// Traduz query estilo NeDB para cláusula WHERE parametrizada
-function _buildWhere(query) {
-  const entries = Object.entries(query || {});
-  if (!entries.length) return { clause: "", params: [] };
-  const parts = [], params = [];
-  for (const [key, val] of entries) {
-    const col = key === "_id" ? "id" : key;
-    if (val && typeof val === "object" && "$exists" in val) {
-      parts.push(val.$exists ? `${col} IS NOT NULL` : `${col} IS NULL`);
-    } else if (val && typeof val === "object") {
-      if ("$lt"  in val) { params.push(val.$lt);  parts.push(`${col} < $${params.length}`); }
-      if ("$lte" in val) { params.push(val.$lte); parts.push(`${col} <= $${params.length}`); }
-      if ("$gte" in val) { params.push(val.$gte); parts.push(`${col} >= $${params.length}`); }
-      if ("$gt"  in val) { params.push(val.$gt);  parts.push(`${col} > $${params.length}`); }
-    } else {
-      params.push(val);
-      parts.push(`${col} = $${params.length}`);
-    }
-  }
-  return { clause: " WHERE " + parts.join(" AND "), params };
-}
-
-// Traduz sort estilo NeDB para ORDER BY
-function _buildOrder(sort) {
-  if (!sort || !Object.keys(sort).length) return "";
-  return " ORDER BY " + Object.entries(sort)
-    .map(([k, v]) => `${k === "_id" ? "id" : k} ${v === -1 ? "DESC" : "ASC"}`)
-    .join(", ");
-}
-
-// Serializa campos JSONB para inserção/update
-function _serializeDoc(table, doc) {
-  const jsonFields = _PG_JSON[table] || new Set();
-  const out = {};
-  for (const [k, v] of Object.entries(doc)) {
-    out[k] = (v !== null && v !== undefined && typeof v === "object" && jsonFields.has(k))
-      ? JSON.stringify(v)
-      : v;
-  }
-  return out;
-}
-
-async function find(table, query = {}, sort = null) {
-  const { clause, params } = _buildWhere(query);
-  const order = _buildOrder(sort);
-  const { rows } = await pgPool.query(`SELECT * FROM ${table}${clause}${order}`, params);
-  return rows.map(_rowToDoc);
-}
-
-async function findOne(table, query = {}) {
-  const { clause, params } = _buildWhere(query);
-  const { rows } = await pgPool.query(`SELECT * FROM ${table}${clause} LIMIT 1`, params);
-  return rows[0] ? _rowToDoc(rows[0]) : null;
-}
-
-async function insert(table, doc) {
-  const id  = doc._id || randomUUID();
-  const raw = _serializeDoc(table, doc);
-  const fields = Object.keys(raw).filter(k => k !== "_id" && k !== "id");
-  const cols   = ["id", ...fields];
-  const vals   = [id, ...fields.map(f => raw[f] ?? null)];
-  const ph     = cols.map((_, i) => `$${i + 1}`).join(", ");
-  const { rows } = await pgPool.query(
-    `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${ph}) RETURNING *`,
-    vals
-  );
-  return _rowToDoc(rows[0]);
-}
-
-async function update(table, query, upd) {
-  if (!upd || !Object.keys(upd).length) return;
-  const { clause, params } = _buildWhere(query);
-  const raw   = _serializeDoc(table, upd);
-  const fields = Object.keys(raw).filter(k => k !== "_id" && k !== "id");
-  if (!fields.length) return;
-  const setParts = fields.map((f, i) => `${f} = $${params.length + i + 1}`);
-  const setVals  = fields.map(f => raw[f] ?? null);
-  await pgPool.query(
-    `UPDATE ${table} SET ${setParts.join(", ")}${clause}`,
-    [...params, ...setVals]
-  );
-}
-
-async function remove(table, query) {
-  const { clause, params } = _buildWhere(query);
-  await pgPool.query(`DELETE FROM ${table}${clause}`, params);
-}
-
-async function count(table, query = {}) {
-  const { clause, params } = _buildWhere(query);
-  const { rows } = await pgPool.query(`SELECT COUNT(*) FROM ${table}${clause}`, params);
-  return parseInt(rows[0].count, 10);
-}
-
-async function findLimited(table, query = {}, sort = null, limitN = 50) {
-  const { clause, params } = _buildWhere(query);
-  const order = _buildOrder(sort);
-  const { rows } = await pgPool.query(
-    `SELECT * FROM ${table}${clause}${order} LIMIT ${parseInt(limitN)}`,
-    params
-  );
-  return rows.map(_rowToDoc);
-}
-
 function maskCPF(cpf) {
   const d = (cpf || "").replace(/\D/g, "");
   if (d.length === 11) return `***.${d.slice(3, 6)}.***-**`;
@@ -1012,19 +700,31 @@ app.post("/api/login", loginLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
   if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ erro: "Dados inválidos" });
-  const { rows } = await pgPool.query("SELECT * FROM users WHERE username = $1", [username]);
+  const { rows } = await pgPool.query("SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL", [username]);
   const user = rows[0];
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ erro: "Usuário ou senha incorretos" });
   }
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" }, JWT_SECRET, { expiresIn: "8h" });
-  res.json({ token, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" });
+  const isSecure = req.headers["x-forwarded-proto"] === "https" || req.protocol === "https";
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: "strict",
+    maxAge: 8 * 60 * 60 * 1000,
+  });
+  res.json({ username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" });
+});
+
+app.post("/api/logout", (req, res) => {
+  res.clearCookie("token", { httpOnly: true, sameSite: "strict" });
+  res.json({ ok: true });
 });
 
 // ── DADOS DO USUÁRIO LOGADO ────────────────────────────────
 app.get("/api/me", auth, async (req, res) => {
   const { rows } = await pgPool.query(
-    "SELECT id, username, nome_completo, role, escritorio, referencia_padrao FROM users WHERE id=$1",
+    "SELECT id, username, nome_completo, role, escritorio, referencia_padrao FROM users WHERE id=$1 AND deleted_at IS NULL",
     [req.user.id]
   );
   if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado" });
@@ -2197,7 +1897,7 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
 
 // ── ROTAS USUÁRIOS ─────────────────────────────────────────
 app.get("/api/users", auth, adminOnly, async (req, res) => {
-  const { rows } = await pgPool.query("SELECT id, username, role, escritorio, created_at FROM users ORDER BY created_at ASC");
+  const { rows } = await pgPool.query("SELECT id, username, role, escritorio, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC");
   res.json(rows);
 });
 
@@ -2229,6 +1929,8 @@ app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
   const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
   if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
   if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
+  const { rows: exists } = await pgPool.query("SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL", [req.params.id]);
+  if (!exists[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
   if (password) {
     await pgPool.query(
       "UPDATE users SET username=$1, role=$2, escritorio=$3, password=$4 WHERE id=$5",
@@ -2245,10 +1947,10 @@ app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
 });
 
 app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
-  const { rows } = await pgPool.query("SELECT username FROM users WHERE id=$1", [req.params.id]);
+  const { rows } = await pgPool.query("SELECT username FROM users WHERE id=$1 AND deleted_at IS NULL", [req.params.id]);
   if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
   if (rows[0].username === ADMIN_USER) return res.status(400).json({ erro: "Não é possível remover o admin." });
-  await pgPool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+  await pgPool.query("UPDATE users SET deleted_at=NOW() WHERE id=$1", [req.params.id]);
   registrarAuditoria(req, "excluir_usuario", req.params.id, { username: rows[0].username });
   sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
   res.json({ ok: true });
@@ -2305,7 +2007,7 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
         r.motivo_pagamento || r.complemento || "Honorários Advocatícios", // H: Motivo
         r.escritorio || "",                                               // I: Escritório
         "",                                                               // J: Observação
-        await linkParaSheets(r.link_comprovante || ""),                   // K: Comprovante
+        await linkParaSheets(r.link_comprovante || "", s3SignerClient),   // K: Comprovante
         mes,                                                              // L: Mês
         r.num || "",                                                      // M: Número recibo
         r.emitido_por || "",                                              // N: Responsável
@@ -3612,59 +3314,10 @@ cron.schedule("0 5 * * *", () => {
 
 // ── RENOVAÇÃO SEMANAL DE PRESIGNED URLS NO GOOGLE SHEETS ──
 // Percorre a coluna K da planilha e regera URLs de 30 dias para cada link S3 encontrado.
-async function renovarPresignedUrlsSheets() {
-  const sheets = getSheetsClient();
-  const bucket = process.env.BUCKET_NAME;
-  if (!sheets || !bucket) {
-    console.warn(`[${new Date().toISOString()}] ⚠️  Renovação de URLs ignorada — Sheets ou BUCKET_NAME não configurados.`);
-    return;
-  }
-  try {
-    const resp = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!K:K`,
-    });
-    const linhas = resp.data.values || [];
-
-    const atualizacoes = [];
-    for (let i = 0; i < linhas.length; i++) {
-      const celK = (linhas[i][0] || "").trim();
-      if (!celK) continue;
-
-      // Aceita /api/comprovante-s3/KEY e presigned URLs expiradas (https://...amazonaws.com/KEY?X-Amz-...)
-      const s3PathMatch = celK.match(/^\/api\/comprovante-s3\/(.+)$/);
-      const presignedMatch = celK.match(/amazonaws\.com\/(.+?)(?:\?|$)/);
-      const chave = s3PathMatch ? s3PathMatch[1] : presignedMatch ? presignedMatch[1] : null;
-      if (!chave) continue;
-
-      try {
-        const cmd = new GetObjectCommand({ Bucket: bucket, Key: decodeURIComponent(chave) });
-        const novaUrl = await getSignedUrl(s3SignerClient, cmd, { expiresIn: 30 * 24 * 3600 });
-        atualizacoes.push({ range: `${SHEET_NAME}!K${i + 1}`, values: [[novaUrl]] });
-      } catch (e) {
-        console.warn(`[${new Date().toISOString()}] ⚠️  Não foi possível renovar URL para chave "${chave}": ${e.message}`);
-      }
-    }
-
-    if (atualizacoes.length === 0) {
-      console.log(`[${new Date().toISOString()}] ℹ️  Renovação de URLs: nenhum link S3 encontrado na planilha.`);
-      return;
-    }
-
-    await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      requestBody: { valueInputOption: "USER_ENTERED", data: atualizacoes },
-    });
-    console.log(`[${new Date().toISOString()}] ✅ Renovação de presigned URLs — ${atualizacoes.length} link(s) atualizado(s).`);
-  } catch (e) {
-    console.error(`[${new Date().toISOString()}] ❌ Erro na renovação de presigned URLs: ${e.message}`);
-  }
-}
-
 // Executa todo domingo às 03:00 BRT (06:00 UTC)
 cron.schedule("0 6 * * 0", () => {
   console.log(`[${new Date().toISOString()}] 🕗 Cron disparado: renovação de presigned URLs no Sheets...`);
-  renovarPresignedUrlsSheets();
+  renovarPresignedUrlsSheets(s3SignerClient);
 }, { timezone: "UTC" });
 
 // ── INICIAR ────────────────────────────────────────────────
