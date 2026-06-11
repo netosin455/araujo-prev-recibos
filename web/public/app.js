@@ -22,7 +22,7 @@ function formatarValor(n){ return n.toLocaleString("pt-BR",{minimumFractionDigit
 
 // ── AUTH ───────────────────────────────────────────────────
 let token = "";
-let sessaoExpira = parseInt(localStorage.getItem("sessaoExpira") || "0");
+
 let usuarioLogado = localStorage.getItem("usuarioLogado") || "";
 let roleLogado = localStorage.getItem("roleLogado") || "financeiro";
 let escritorioLogado = localStorage.getItem("escritorioLogado") || "";
@@ -45,14 +45,12 @@ async function fazerLogin(){
   const data = await res.json();
   if(!res.ok){ erroEl.textContent=data.erro||"Erro ao entrar."; erroEl.style.display="block"; return; }
   token = "1";
-  sessaoExpira = data.expiresIn || 0;
   usuarioLogado = data.username;
   roleLogado = data.role || "financeiro";
   escritorioLogado = data.escritorio || "";
   localStorage.setItem("usuarioLogado", usuarioLogado);
   localStorage.setItem("roleLogado", roleLogado);
   localStorage.setItem("escritorioLogado", escritorioLogado);
-  localStorage.setItem("sessaoExpira", sessaoExpira);
   document.getElementById("tela-login").classList.add("hide");
   document.getElementById("nome-usuario").textContent = usuarioLogado;
   iniciarApp();
@@ -63,8 +61,7 @@ function fazerLogout(){
   localStorage.removeItem("usuarioLogado");
   localStorage.removeItem("roleLogado");
   localStorage.removeItem("escritorioLogado");
-  localStorage.removeItem("sessaoExpira");
-  token=""; sessaoExpira=0; usuarioLogado=""; roleLogado="financeiro"; escritorioLogado="";
+  token=""; usuarioLogado=""; roleLogado="financeiro"; escritorioLogado="";
   location.reload();
 }
 
@@ -136,7 +133,6 @@ async function iniciarApp(){
   await Promise.all([carregarRecibos(), carregarClientes()]);
   await atualizarNumRecibo();
   await carregarReferenciaPadrao();
-  iniciarAvisoSessao();
   atualizarSugestoesNomes();
   preencherFiltrosAnos();
   verificarClientesInativos();
@@ -169,15 +165,7 @@ async function carregarReferenciaPadrao() {
   }
 }
 
-function iniciarAvisoSessao() {
-  if (!sessaoExpira) return;
-  const avisarEm = sessaoExpira - Date.now() - 15 * 60 * 1000;
-  if (avisarEm > 0) {
-    setTimeout(() => {
-      mostrarToast("Sua sessão expira em 15 min. Salve o trabalho.", null, "error");
-    }, avisarEm);
-  }
-}
+
 
 function verificarParcelasVencendo() {
   const hoje = new Date().toISOString().slice(0, 10);
