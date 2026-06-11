@@ -647,7 +647,7 @@ async function gerarRecibo(){
       } catch(e) { if(compStatus) compStatus.textContent = "Erro ao enviar comprovante."; mostrarToast("Erro ao enviar comprovante: " + e.message, null, "error"); }
     }
     const bodyEdicao = {
-      nome:dados.nome,cpf:dados.cpf,municipio_uf:dados.municipio_uf,
+      nome:dados.nome,cpf:dados.cpf.replace(/\D/g,""),municipio_uf:dados.municipio_uf,
       valor:dados.valor,data:dados.data,emitido_por:dados.emitido_por,
       complemento:dados.complemento,referencia:dados.referencia,
       forma_pagamento:dados.forma_pagamento,escritorio:dados.escritorio,
@@ -716,7 +716,7 @@ async function gerarRecibo(){
 
   // Salvar no banco
   const salvarRes = await api("POST","/api/recibos",{
-    num:dados.num_recibo,nome:dados.nome,cpf:dados.cpf,
+    num:dados.num_recibo,nome:dados.nome,cpf:dados.cpf.replace(/\D/g,""),
     municipio_uf:dados.municipio_uf,valor:dados.valor,
     data:dados.data,emitido_por:dados.emitido_por,
     complemento:dados.complemento,referencia:dados.referencia,
@@ -1458,12 +1458,13 @@ function atualizarBadgeClientes() {
 }
 
 async function carregarClientes() {
-  const res = await api("GET", "/api/clientes");
+  const res = await api("GET", "/api/clientes?limit=500");
   if (!res || !res.ok) {
     if (!listaClientes.length) mostrarToast("Erro ao carregar clientes. Recarregue a página.", null, "error");
     return;
   }
-  listaClientes = await res.json();
+  const data = await res.json();
+  listaClientes = data.clientes || data;
 }
 
 function _badgeParcela(s) {
@@ -2020,7 +2021,7 @@ async function salvarCliente() {
   if (valor_contrato <= 0) { marcarInvalido("cliente-valor-contrato"); mostrarToast("Informe o valor total do contrato.", null, "error"); return; }
   if (num_parcelas <= 0)   { marcarInvalido("cliente-num-parcelas");   mostrarToast("Informe o número de parcelas.", null, "error"); return; }
 
-  const body = { nome, cpf, telefone, endereco, municipio_uf, firma, referencia, valor_beneficio, num_beneficios, valor_contrato, num_parcelas };
+  const body = { nome, cpf: cpf.replace(/\D/g,""), telefone, endereco, municipio_uf, firma, referencia, valor_beneficio, num_beneficios, valor_contrato, num_parcelas };
   const res  = id
     ? await api("PUT",  `/api/clientes/${id}`, body)
     : await api("POST", "/api/clientes", body);

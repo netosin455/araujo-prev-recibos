@@ -942,9 +942,15 @@ app.get("/api/clientes/cpf/:cpf", auth, async (req, res) => {
 });
 
 app.get("/api/clientes", auth, async (req, res) => {
-  const clientes = await find(dbClientes, NAO_DELETADO, { nome: 1 });
-  const enriquecidos = await Promise.all(clientes.map(enriquecerCliente));
-  res.json(enriquecidos);
+  const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+  const offset = parseInt(req.query.offset) || 0;
+  const { rows } = await pgPool.query(
+    `SELECT * FROM ${dbClientes} WHERE deletado_em IS NULL ORDER BY nome ASC LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  );
+  const total = await count(dbClientes, NAO_DELETADO);
+  const enriquecidos = await Promise.all(rows.map(r => ({ ...r, _id: r.id })).map(enriquecerCliente));
+  res.json({ clientes: enriquecidos, total, limit, offset });
 });
 
 app.get("/api/clientes/:id", auth, async (req, res) => {
@@ -1328,18 +1334,16 @@ app.post("/api/recibos/:id/recorrente", auth, financeiroOnly, async (req, res) =
 
 app.get("/api/proximo-num", auth, async (req, res) => {
   const ano = String(new Date().getFullYear());
-  const todos = await find(dbRecibos, {});
-  // Pega o maior número do ano atual a partir do campo num (formato "NNNN/AAAA")
+  const { rows } = await pgPool.query(
+    `SELECT num FROM ${dbRecibos} WHERE num LIKE $1 ORDER BY num DESC LIMIT 1`,
+    [`%/${ano}`]
+  );
   let maior = 0;
-  for (const r of todos) {
-    const match = (r.num || "").match(/^(\d+)\/(\d{4})$/);
-    if (match && match[2] === ano) {
-      const seq = parseInt(match[1], 10);
-      if (seq > maior) maior = seq;
-    }
+  if (rows[0]) {
+    const match = (rows[0].num || "").match(/^(\d+)\/(\d{4})$/);
+    if (match) maior = parseInt(match[1], 10);
   }
-  const num = maior + 1;
-  res.json({ num: `${String(num).padStart(4, "0")}/${ano}` });
+  res.json({ num: `${String(maior + 1).padStart(4, "0")}/${ano}` });
 });
 
 // ── RELATÓRIO DE INADIMPLÊNCIA ─────────────────────────────
@@ -1731,16 +1735,15 @@ app.get("/api/admin/backup-db", auth, adminOnly, async (req, res) => {
 app.get("/api/admin/audit-log", auth, adminOnly, async (req, res) => {
   try {
     const { usuario, acao, de, ate } = req.query;
-    const query = {};
-    if (usuario) query.usuario = usuario;
-    if (acao) query.acao = acao;
-    if (de || ate) {
-      query.ts = {};
-      if (de) query.ts.$gte = new Date(de).toISOString();
-      if (ate) query.ts.$lte = new Date(ate + "T23:59:59").toISOString();
-    }
-    const logs = await find(dbAuditoria, query, { ts: -1 });
-    res.json(logs.slice(0, 500));
+    let sql = `SELECT * FROM ${dbAuditoria} WHERE 1=1`;
+    const params = [];
+    if (usuario) { params.push(usuario); sql += ` AND usuario = $${params.length}`; }
+    if (acao) { params.push(acao); sql += ` AND acao = $${params.length}`; }
+    if (de) { params.push(new Date(de).toISOString()); sql += ` AND ts >= $${params.length}`; }
+    if (ate) { params.push(new Date(ate + "T23:59:59").toISOString()); sql += ` AND ts <= $${params.length}`; }
+    sql += " ORDER BY ts DESC LIMIT 500";
+    const { rows } = await pgPool.query(sql, params);
+    res.json(rows.map(r => ({ ...r, _id: r.id })));
   } catch (e) {
     console.error("Erro ao buscar audit-log:", e.message);
     res.status(500).json({ erro: "Erro ao buscar log de auditoria." });
