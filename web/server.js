@@ -624,44 +624,8 @@ app.use((req, res, next) => {
   next();
 });
 
-async function auth(req, res, next) {
-  const token = req.cookies?.token || (req.headers.authorization || "").split(" ")[1];
-  if (!token) return res.status(401).json({ erro: "Não autorizado" });
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    // Verifica se o usuário ainda existe no banco (invalida tokens de usuários deletados)
-    const { rows } = await pgPool.query("SELECT id FROM users WHERE id = $1", [payload.id]);
-    if (!rows[0]) return res.status(401).json({ erro: "Sessão inválida, faça login novamente" });
-    req.user = payload;
-    next();
-  } catch {
-    res.status(401).json({ erro: "Sessão expirada, faça login novamente" });
-  }
-}
-
-function adminOnly(req, res, next) {
-  if (req.user.username !== ADMIN_USER) return res.status(403).json({ erro: "Acesso restrito ao administrador." });
-  next();
-}
-
-// Bloqueia recepcao E precatorios — usado em operações de escrita (criar/editar/deletar)
-function financeiroOnly(req, res, next) {
-  if (req.user.role === "recepcao" || req.user.role === "precatorios")
-    return res.status(403).json({ erro: "Sem permissão para esta ação." });
-  next();
-}
-
-// Bloqueia apenas recepcao — relatórios e leituras que precatorios pode acessar
-function semRecepcao(req, res, next) {
-  if (req.user.role === "recepcao") return res.status(403).json({ erro: "Sem permissão para esta ação." });
-  next();
-}
-
-// Bloqueia apenas precatorios — permite recepcao criar/editar (mas não excluir) clientes
-function semPrecatorios(req, res, next) {
-  if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
-  next();
-}
+const mw = require("./middleware/auth")({ jwt, JWT_SECRET, ADMIN_USER, pgPool });
+const { auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios } = mw;
 
 // ── PostgreSQL helpers (substitutos dos helpers NeDB) ───────
 // Campos JSONB por tabela — o driver pg já parseia automaticamente,
@@ -688,7 +652,6 @@ async function registrarAuditoria(req, acao, entidade_id, dados) {
   }
 }
 
-// ── ROTAS AUTH ─────────────────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -697,136 +660,14 @@ const loginLimiter = rateLimit({
   message: { erro: "Muitas tentativas de login. Aguarde 15 minutos." },
 });
 
-app.post("/api/login", loginLimiter, async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
-  if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ erro: "Dados inválidos" });
-  const { rows } = await pgPool.query("SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL", [username]);
-  const user = rows[0];
-  if (!user || !bcrypt.compareSync(password, user.password)) {
-    return res.status(401).json({ erro: "Usuário ou senha incorretos" });
-  }
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" }, JWT_SECRET, { expiresIn: "8h" });
-  const isSecure = req.headers["x-forwarded-proto"] === "https" || req.protocol === "https";
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: "strict",
-    maxAge: 8 * 60 * 60 * 1000,
-  });
-  res.json({ username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" });
-});
+// ── MONTAGEM DAS ROTAS MODULARIZADAS ───────────────────────
+const routeDeps = { auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios, pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter, dbClientes, dbRecibos, dbAuditoria, dbNotificacoes, dbConfig, NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited, enriquecerCliente, registrarAuditoria, maskCPF, formatDateToBR, validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado, getSheetsClient, sincronizarUsuariosParaSheets, ADMIN_USER, s3Client, withTimeout, fetchWithTimeout, transporter, upload, crypto, fs, path, sharp };
+require("./routes/auth")(app, routeDeps);
+require("./routes/clientes")(app, routeDeps);
+require("./routes/admin")(app, routeDeps);
+require("./routes/misc")(app, routeDeps);
 
-app.post("/api/logout", (req, res) => {
-  res.clearCookie("token", { httpOnly: true, sameSite: "strict" });
-  res.json({ ok: true });
-});
 
-// ── DADOS DO USUÁRIO LOGADO ────────────────────────────────
-app.get("/api/me", auth, async (req, res) => {
-  const { rows } = await pgPool.query(
-    "SELECT id, username, nome_completo, role, escritorio, referencia_padrao FROM users WHERE id=$1 AND deleted_at IS NULL",
-    [req.user.id]
-  );
-  if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado" });
-  res.json(rows[0]);
-});
-
-app.put("/api/me/referencia", auth, async (req, res) => {
-  const { referencia_padrao } = req.body;
-  if (typeof referencia_padrao !== "string") return res.status(400).json({ erro: "Valor inválido" });
-  if (referencia_padrao.length > 20) return res.status(400).json({ erro: "Referência muito longa (máx. 20 caracteres)." });
-  await pgPool.query(
-    "UPDATE users SET referencia_padrao=$1 WHERE id=$2",
-    [referencia_padrao.toUpperCase(), req.user.id]
-  );
-  res.json({ ok: true });
-});
-
-app.put("/api/me/nome-completo", auth, async (req, res) => {
-  const { nome_completo } = req.body;
-  if (typeof nome_completo !== "string") return res.status(400).json({ erro: "Valor inválido" });
-  if (nome_completo.length > 80) return res.status(400).json({ erro: "Nome muito longo (máx. 80 caracteres)." });
-  await pgPool.query("UPDATE users SET nome_completo=$1 WHERE id=$2", [nome_completo.trim(), req.user.id]);
-  res.json({ ok: true });
-});
-
-// ── UPLOAD COMPROVANTE ─────────────────────────────────────
-app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ erro: "Nenhum arquivo enviado." });
-
-    // Validação de magic bytes — rejeita arquivos com assinatura desconhecida
-    const sig = req.file.buffer.slice(0, 8);
-    const isPDF  = sig.slice(0, 4).toString("ascii") === "%PDF";
-    const isJPEG = sig[0] === 0xFF && sig[1] === 0xD8 && sig[2] === 0xFF;
-    const isPNG  = sig[1] === 0x50 && sig[2] === 0x4E && sig[3] === 0x47;
-    if (!isPDF && !isJPEG && !isPNG) {
-      return res.status(400).json({ erro: "Tipo de arquivo não permitido. Envie PDF, JPEG ou PNG." });
-    }
-
-    const ext = path.extname(req.file.originalname) || "";
-    const nomeArquivo = `comprovante_${crypto.randomBytes(8).toString("hex")}${ext}`;
-
-    // S3 quando bucket configurado
-    const bucket = process.env.BUCKET_NAME;
-    if (bucket) {
-      const key = `comprovantes/${nomeArquivo}`;
-      await withTimeout(s3Client.send(new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: req.file.buffer,
-        ContentType: req.file.mimetype,
-      })), 15000);
-      return res.json({ link: `/api/comprovante-s3/${key}` });
-    }
-
-    // Fallback: arquivo local
-    fs.writeFileSync(path.join(uploadsDir, nomeArquivo), req.file.buffer);
-    res.json({ link: `/api/comprovante/${nomeArquivo}` });
-  } catch (e) {
-    console.error("Erro upload comprovante:", e);
-    res.status(500).json({ erro: "Erro ao salvar comprovante: " + e.message });
-  }
-});
-
-// ── PROXY S3: serve arquivo do bucket privado ──────────────────────────────
-app.get("/api/comprovante-s3/*", auth, async (req, res) => {
-  try {
-    const key = req.params[0];
-    const bucket = process.env.BUCKET_NAME;
-    if (!bucket) return res.status(404).json({ erro: "Bucket não configurado." });
-    const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
-    const obj = await withTimeout(s3Client.send(cmd), 15000);
-    res.setHeader("Content-Type", obj.ContentType || "application/octet-stream");
-    obj.Body.pipe(res);
-  } catch (e) {
-    console.error("Erro ao servir comprovante S3:", e);
-    res.status(404).json({ erro: "Arquivo não encontrado." });
-  }
-});
-
-// ── VINCULAR COMPROVANTE A UM RECIBO (qualquer role, inclusive recepcao) ───
-app.patch("/api/recibos/:id/comprovante", auth, async (req, res) => {
-  const { link_comprovante } = req.body;
-  if (!link_comprovante) return res.status(400).json({ erro: "link_comprovante é obrigatório." });
-  const linkValido = /^(\/api\/comprovante|https:\/\/drive\.google\.com|https:\/\/.*\.amazonaws\.com)/.test(link_comprovante);
-  if (!linkValido) return res.status(400).json({ erro: "Formato de link inválido." });
-  await update(dbRecibos, { _id: req.params.id }, { link_comprovante });
-  const recibo = await findOne(dbRecibos, { _id: req.params.id });
-  if (recibo && recibo.num) {
-    atualizarNoSheets(recibo.num, { ...recibo, link_comprovante });
-  }
-  res.json({ ok: true });
-});
-
-// ── VER COMPROVANTE (disco local — fallback sem S3) ────────
-app.get("/api/comprovante/:filename", auth, (req, res) => {
-  const safe = path.basename(req.params.filename);
-  const filePath = path.join(uploadsDir, safe);
-  if (!fs.existsSync(filePath)) return res.status(404).send("Arquivo não encontrado.");
-  res.sendFile(filePath);
-});
 
 // ── ROTAS CLIENTES ─────────────────────────────────────────
 function parseBRL(str) {
@@ -934,13 +775,6 @@ async function enriquecerCliente(c) {
   return { ...cliente, parcelas, id: cliente._id, valor_parcela: valorParcela };
 }
 
-// Busca por CPF — deve vir antes de /:id para não colidir
-app.get("/api/clientes/cpf/:cpf", auth, async (req, res) => {
-  const cliente = await findOne(dbClientes, { cpf: req.params.cpf });
-  if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
-  res.json(await enriquecerCliente(cliente));
-});
-
 app.get("/api/clientes", auth, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
   const offset = parseInt(req.query.offset) || 0;
@@ -951,230 +785,6 @@ app.get("/api/clientes", auth, async (req, res) => {
   const total = await count(dbClientes, NAO_DELETADO);
   const enriquecidos = await Promise.all(rows.map(r => ({ ...r, _id: r.id })).map(enriquecerCliente));
   res.json({ clientes: enriquecidos, total, limit, offset });
-});
-
-app.get("/api/clientes/:id", auth, async (req, res) => {
-  const cliente = await findOne(dbClientes, { _id: req.params.id, ...NAO_DELETADO });
-  if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
-  res.json(await enriquecerCliente(cliente));
-});
-
-app.post("/api/clientes", auth, semPrecatorios, async (req, res) => {
-  const {
-    nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
-    valor_beneficio, num_beneficios, valor_contrato, num_parcelas,
-  } = req.body;
-  if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
-  if (!num_parcelas || Number(num_parcelas) <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
-  const digsCliente = (cpf || "").replace(/\D/g, "");
-  if (digsCliente.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
-  if (digsCliente.length === 14 && !validarCNPJ(cpf)) return res.status(400).json({ erro: "CNPJ inválido." });
-
-  // Calcula valor_contrato: prefere o enviado, senão calcula a partir dos benefícios
-  const vBeneficio  = Number(valor_beneficio) || 0;
-  const nBeneficios = Number(num_beneficios) || 0;
-  const vContrato   = Number(valor_contrato) || (vBeneficio * nBeneficios) || 0;
-  if (vContrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
-
-  const existente = await findOne(dbClientes, { cpf });
-  if (existente) return res.status(400).json({ erro: "Já existe um cliente cadastrado com este CPF." });
-
-  const nParcelas = Number(num_parcelas);
-  const parcelas  = gerarParcelas(nParcelas, vContrato);
-  const resumo    = recalcularResumo(parcelas);
-
-  const doc = await insert(dbClientes, {
-    nome, cpf,
-    telefone: telefone || "",
-    endereco: endereco || "",
-    municipio_uf,
-    firma: firma || "",
-    referencia: referencia || "",
-    valor_beneficio: vBeneficio,
-    num_beneficios: nBeneficios,
-    valor_contrato: vContrato,
-    num_parcelas: nParcelas,
-    valor_parcela: nParcelas > 0 ? vContrato / nParcelas : 0,
-    parcelas,
-    ...resumo,
-    created_at: new Date().toISOString(),
-  });
-  res.json(await enriquecerCliente(doc));
-});
-
-app.put("/api/clientes/:id", auth, semPrecatorios, async (req, res) => {
-  const {
-    nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
-    valor_beneficio, num_beneficios, valor_contrato, num_parcelas, parcelas,
-  } = req.body;
-  if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
-  if (!num_parcelas || Number(num_parcelas) <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
-  const digsEdit = (cpf || "").replace(/\D/g, "");
-  if (digsEdit.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
-  if (digsEdit.length === 14 && !validarCNPJ(cpf)) return res.status(400).json({ erro: "CNPJ inválido." });
-
-  const vBeneficio  = Number(valor_beneficio) || 0;
-  const nBeneficios = Number(num_beneficios) || 0;
-  const vContrato   = Number(valor_contrato) || (vBeneficio * nBeneficios) || 0;
-  if (vContrato <= 0) return res.status(400).json({ erro: "Valor do contrato deve ser maior que zero." });
-
-  const { rows: dupl } = await pgPool.query(
-    "SELECT id FROM clientes WHERE cpf = $1 AND id != $2 AND deletado_em IS NULL LIMIT 1",
-    [cpf, req.params.id]
-  );
-  if (dupl.length > 0) return res.status(400).json({ erro: "CPF já cadastrado em outro cliente." });
-
-  const nParcelas = Number(num_parcelas);
-  const atual     = await findOne(dbClientes, { _id: req.params.id });
-  if (!atual) return res.status(404).json({ erro: "Cliente não encontrado." });
-
-  // Usa o array de parcelas enviado pelo front; se não veio, mantém o existente ou regenera
-  let novasParcelas;
-  if (Array.isArray(parcelas) && parcelas.length > 0) {
-    novasParcelas = parcelas;
-  } else if (atual && Array.isArray(atual.parcelas) && atual.parcelas.length === nParcelas) {
-    novasParcelas = atual.parcelas;
-  } else {
-    // Número de parcelas mudou: regenera preservando as pagas
-    const parcelasAntigas = (atual && Array.isArray(atual.parcelas)) ? atual.parcelas : [];
-    novasParcelas = gerarParcelas(nParcelas, vContrato).map((p, i) => {
-      const antiga = parcelasAntigas[i];
-      return antiga ? { ...p, ...antiga, num: p.num, valor: p.valor } : p;
-    });
-  }
-
-  const resumo = recalcularResumo(novasParcelas);
-
-  await update(dbClientes, { _id: req.params.id }, {
-    nome, cpf,
-    telefone: telefone || "",
-    endereco: endereco || "",
-    municipio_uf,
-    firma: firma || "",
-    referencia: referencia || "",
-    valor_beneficio: vBeneficio,
-    num_beneficios: nBeneficios,
-    valor_contrato: vContrato,
-    num_parcelas: nParcelas,
-    valor_parcela: nParcelas > 0 ? vContrato / nParcelas : 0,
-    parcelas: novasParcelas,
-    ...resumo,
-  });
-  const atualizado = await findOne(dbClientes, { _id: req.params.id });
-  res.json(await enriquecerCliente(atualizado));
-});
-
-app.delete("/api/clientes/:id", auth, financeiroOnly, async (req, res) => {
-  const cliente = await findOne(dbClientes, { _id: req.params.id });
-  if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
-  await update(dbClientes, { _id: req.params.id }, {
-    deletado_em: new Date().toISOString(),
-    deletado_por: req.user.username,
-  });
-  registrarAuditoria(req, "excluir_cliente", req.params.id, { nome: cliente.nome, cpf: maskCPF(cliente.cpf) });
-  res.json({ ok: true });
-});
-
-// ── OBSERVAÇÕES DE CLIENTE ─────────────────────────────────
-app.post("/api/clientes/:id/observacoes", auth, financeiroOnly, async (req, res) => {
-  try {
-    const cliente = await findOne(dbClientes, { _id: req.params.id, ...NAO_DELETADO });
-    if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
-    const { texto } = req.body;
-    if (!texto || typeof texto !== "string" || !texto.trim()) {
-      return res.status(400).json({ erro: "Texto da observação é obrigatório." });
-    }
-    if (texto.trim().length > 500) {
-      return res.status(400).json({ erro: "Observação muito longa (máx. 500 caracteres)." });
-    }
-    const novaObs = { texto: texto.trim(), autor: req.user.username, criado_em: new Date().toISOString() };
-    const observacoes = [...(cliente.observacoes || []), novaObs];
-    await update(dbClientes, { _id: req.params.id }, { observacoes });
-    const atualizado = await findOne(dbClientes, { _id: req.params.id });
-    res.json(await enriquecerCliente(atualizado));
-  } catch (e) {
-    console.error("Erro ao salvar observação:", e.message);
-    res.status(500).json({ erro: "Erro ao salvar observação." });
-  }
-});
-
-app.delete("/api/clientes/:id/observacoes/:idx", auth, adminOnly, async (req, res) => {
-  try {
-    const cliente = await findOne(dbClientes, { _id: req.params.id, ...NAO_DELETADO });
-    if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
-    const idx = parseInt(req.params.idx, 10);
-    const observacoes = [...(cliente.observacoes || [])];
-    if (isNaN(idx) || idx < 0 || idx >= observacoes.length) {
-      return res.status(400).json({ erro: "Índice de observação inválido." });
-    }
-    observacoes.splice(idx, 1);
-    await update(dbClientes, { _id: req.params.id }, { observacoes });
-    const atualizado = await findOne(dbClientes, { _id: req.params.id });
-    res.json(await enriquecerCliente(atualizado));
-  } catch (e) {
-    console.error("Erro ao remover observação:", e.message);
-    res.status(500).json({ erro: "Erro ao remover observação." });
-  }
-});
-
-// ── LEMBRETE ENVIADO — PARCELA ─────────────────────────────
-// Registra que um lembrete de cobrança foi enviado ao cliente para a parcela N
-app.post("/api/clientes/:id/parcela/:num/lembrete", auth, financeiroOnly, async (req, res) => {
-  try {
-    const cliente = await findOne(dbClientes, { _id: req.params.id, ...NAO_DELETADO });
-    if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
-    const num = parseInt(req.params.num, 10);
-    if (!num || num < 1) return res.status(400).json({ erro: "Número de parcela inválido." });
-    const parcelasAtual = inicializarParcelasLegado(cliente).parcelas;
-    const parcela = parcelasAtual.find(p => p.num === num);
-    if (!parcela) return res.status(404).json({ erro: "Parcela não encontrada." });
-    const parcelas = parcelasAtual.map(p =>
-      p.num === num
-        ? { ...p, lembrete_enviado_em: new Date().toISOString(), lembrete_enviado_por: req.user.username }
-        : p
-    );
-    const resumo = recalcularResumo(parcelas);
-    await update(dbClientes, { _id: req.params.id }, { parcelas, ...resumo });
-    const atualizado = await findOne(dbClientes, { _id: req.params.id });
-    res.json(await enriquecerCliente(atualizado));
-  } catch (e) {
-    console.error("Erro ao registrar lembrete:", e.message);
-    res.status(500).json({ erro: "Erro ao registrar lembrete." });
-  }
-});
-
-app.patch("/api/clientes/:id/parcela/:num", auth, financeiroOnly, async (req, res) => {
-  const cliente = await findOne(dbClientes, { _id: req.params.id });
-  if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
-  const num = Number(req.params.num);
-  if (!num || num < 1) return res.status(400).json({ erro: "Número de parcela inválido." });
-
-  // Whitelist de campos aceitos — evita sobrescrever num/valor por engano
-  const { status, data_recebimento, data_deposito, recibo_id, recibo_num, observacao, data_vencimento } = req.body;
-  const STATUS_VALIDOS = ["pendente", "pago", "atrasado"];
-  if (status !== undefined && !STATUS_VALIDOS.includes(status)) {
-    return res.status(400).json({ erro: "Status inválido. Use: pendente, pago ou atrasado." });
-  }
-  const atualizacao = {};
-  if (status           !== undefined) atualizacao.status           = status;
-  if (data_recebimento !== undefined) atualizacao.data_recebimento = data_recebimento;
-  if (data_deposito    !== undefined) atualizacao.data_deposito    = data_deposito;
-  if (recibo_id        !== undefined) atualizacao.recibo_id        = recibo_id;
-  if (recibo_num       !== undefined) atualizacao.recibo_num       = recibo_num;
-  if (observacao       !== undefined) atualizacao.observacao       = observacao;
-  if (data_vencimento  !== undefined) atualizacao.data_vencimento  = data_vencimento;
-
-  const parcelasAtuais = inicializarParcelasLegado(cliente).parcelas;
-  const parcelas = parcelasAtuais.map(p =>
-    p.num === num ? { ...p, ...atualizacao } : p
-  );
-  const resumo = recalcularResumo(parcelas);
-  await update(dbClientes, { _id: req.params.id }, { parcelas, ...resumo });
-  if (status !== undefined) {
-    registrarAuditoria(req, "atualizar_parcela", req.params.id, { num_parcela: num, status_novo: status });
-  }
-  const salvo = await findOne(dbClientes, { _id: req.params.id });
-  res.json(await enriquecerCliente(salvo));
 });
 
 // ── ROTAS RECIBOS ──────────────────────────────────────────
