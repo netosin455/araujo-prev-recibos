@@ -36,6 +36,7 @@ const cookieParser = require("cookie-parser");
 const archiver = require("archiver");
 const nodemailer = require("nodemailer");
 const cron = require("node-cron");
+const { withTimeout, fetchWithTimeout } = require("./services/timeout");
 
 // ── GOOGLE SHEETS ───────────────────────────────────────────
 const { getSheetsClient, testarConexaoSheets, uploadParaDrive, sanitizarLinkParaSheets, registrarNoSheets, atualizarNoSheets, linkParaSheets, renovarPresignedUrlsSheets, SHEET_ID, SHEET_NAME, MESES } = require("./services/google-sheets");
@@ -771,12 +772,12 @@ app.post("/api/upload-comprovante", auth, upload.single("comprovante"), async (r
     const bucket = process.env.BUCKET_NAME;
     if (bucket) {
       const key = `comprovantes/${nomeArquivo}`;
-      await s3Client.send(new PutObjectCommand({
+      await withTimeout(s3Client.send(new PutObjectCommand({
         Bucket: bucket,
         Key: key,
         Body: req.file.buffer,
         ContentType: req.file.mimetype,
-      }));
+      })), 15000);
       return res.json({ link: `/api/comprovante-s3/${key}` });
     }
 
@@ -796,7 +797,7 @@ app.get("/api/comprovante-s3/*", auth, async (req, res) => {
     const bucket = process.env.BUCKET_NAME;
     if (!bucket) return res.status(404).json({ erro: "Bucket não configurado." });
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
-    const obj = await s3Client.send(cmd);
+    const obj = await withTimeout(s3Client.send(cmd), 15000);
     res.setHeader("Content-Type", obj.ContentType || "application/octet-stream");
     obj.Body.pipe(res);
   } catch (e) {
@@ -2559,6 +2560,8 @@ function criarTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    connectionTimeout: 10000,
+    socketTimeout: 15000,
   });
 }
 
@@ -3066,7 +3069,7 @@ app.get("/api/govbr/callback", async (req, res) => {
 
   try {
     // Troca code por token
-    const tokenRes = await fetch(`${GOVBR_BASE_URL}/token`, {
+    const tokenRes = await fetchWithTimeout(`${GOVBR_BASE_URL}/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -3076,7 +3079,7 @@ app.get("/api/govbr/callback", async (req, res) => {
         client_id: GOVBR_CLIENT_ID,
         client_secret: GOVBR_CLIENT_SECRET,
       }),
-    });
+    }, 15000);
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
       console.error(`[${agora}] Gov.br callback — token não recebido. Resposta: ${JSON.stringify(tokenData)}`);
@@ -3084,9 +3087,9 @@ app.get("/api/govbr/callback", async (req, res) => {
     }
 
     // Busca dados do usuário (nome, CPF)
-    const userRes = await fetch(`${GOVBR_BASE_URL}/userinfo`, {
+    const userRes = await fetchWithTimeout(`${GOVBR_BASE_URL}/userinfo`, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
+    }, 15000);
     const userInfo = await userRes.json();
 
     // Salva assinatura no recibo
@@ -3151,11 +3154,11 @@ async function dispararWebhook(dadosRecibo) {
   const MAX_TENTATIVAS = 3;
   for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
     try {
-      const resp = await fetch(url, {
+      const resp = await fetchWithTimeout(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: payload,
-      });
+      }, 10000);
       if (resp.ok) {
         console.log(`[${new Date().toISOString()}] ✅ Webhook disparado → ${url} (status ${resp.status}, tentativa ${tentativa})`);
         return;
@@ -3294,12 +3297,12 @@ async function fazerBackupDiario() {
       archive.finalize();
     });
 
-    await s3Client.send(new PutObjectCommand({
+    await withTimeout(s3Client.send(new PutObjectCommand({
       Bucket: bucket,
       Key: chaveS3,
       Body: zipBuffer,
       ContentType: "application/zip",
-    }));
+    })), 30000);
     console.log(`[${new Date().toISOString()}] ✅ Backup diário → s3://${bucket}/${chaveS3} (${(zipBuffer.length / 1024).toFixed(1)} KB)`);
   } catch (e) {
     console.error(`[${new Date().toISOString()}] ❌ Erro no backup diário: ${e.message}`);

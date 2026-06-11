@@ -3,6 +3,7 @@
 // ============================================================
 const { google } = require("googleapis");
 const { Readable } = require("stream");
+const { withTimeout } = require("./timeout");
 
 const SHEET_ID   = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
 const SHEET_NAME = "Respostas ao formulário 1";
@@ -29,7 +30,7 @@ async function testarConexaoSheets() {
   const sheets = getSheetsClient();
   if (!sheets) return;
   try {
-    await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "spreadsheetId" });
+    await withTimeout(sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "spreadsheetId" }));
     console.log("✅ Conexão com Google Sheets OK.");
   } catch (e) {
     console.error(`❌ FALHA na conexão com Google Sheets: ${e.message}`);
@@ -49,18 +50,18 @@ async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
     stream.push(null);
     const meta = { name: nomeArquivo };
     if (DRIVE_FOLDER_ID) meta.parents = [DRIVE_FOLDER_ID];
-    const res = await drive.files.create({
+    const res = await withTimeout(drive.files.create({
       requestBody: meta,
       media: { mimeType, body: stream },
       fields: "id",
       supportsAllDrives: true,
-    });
+    }));
     const fileId = res.data.id;
-    await drive.permissions.create({
+    await withTimeout(drive.permissions.create({
       fileId,
       requestBody: { role: "reader", type: "anyone" },
       supportsAllDrives: true,
-    });
+    }));
     return `https://drive.google.com/file/d/${fileId}/view`;
   } catch (e) {
     console.error("❌ Erro ao fazer upload pro Drive:", e.message);
@@ -106,18 +107,18 @@ async function registrarNoSheets(dados) {
       dados.referencia || "",
     ];
 
-    const colA = await sheets.spreadsheets.values.get({
+    const colA = await withTimeout(sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A:A`,
-    });
+    }));
     const nextRow = (colA.data.values || []).length + 1;
 
-    await sheets.spreadsheets.values.update({
+    await withTimeout(sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A${nextRow}:O${nextRow}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [linha] },
-    });
+    }));
     console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets (linha ${nextRow})`);
     return true;
   } catch (e) {
@@ -130,10 +131,10 @@ async function atualizarNoSheets(num, dados) {
   const sheets = getSheetsClient();
   if (!sheets) return;
   try {
-    const res = await sheets.spreadsheets.values.get({
+    const res = await withTimeout(sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!M4:M`,
-    });
+    }));
     const rows = res.data.values || [];
     const idx = rows.findIndex(r => r[0] === num);
     if (idx === -1) return;
@@ -156,12 +157,12 @@ async function atualizarNoSheets(num, dados) {
       dados.emitido_por || "",
       dados.referencia || "",
     ];
-    await sheets.spreadsheets.values.update({
+    await withTimeout(sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!B${rowNum}:O${rowNum}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [linha.slice(1)] },
-    });
+    }));
     console.log(`✅ Recibo ${num} atualizado no Google Sheets`);
   } catch (e) {
     console.error("❌ Erro ao atualizar no Google Sheets:", e.message);
