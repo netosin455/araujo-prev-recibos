@@ -713,7 +713,7 @@ app.post("/api/login", loginLimiter, async (req, res) => {
     sameSite: "strict",
     maxAge: 8 * 60 * 60 * 1000,
   });
-  res.json({ username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" });
+  res.json({ username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "", expiresIn: Date.now() + 8 * 60 * 60 * 1000 });
 });
 
 app.post("/api/logout", (req, res) => {
