@@ -90,9 +90,11 @@ const upload = multer({
 });
 
 // Neon (PostgreSQL) â€” dados principais
-const dbRecibos   = "recibos";
-const dbClientes  = "clientes";
-const dbAuditoria = "auditoria";
+const dbRecibos       = "recibos";
+const dbClientes      = "clientes";
+const dbAuditoria     = "auditoria";
+const dbNotificacoes  = "notificacoes";
+const dbConfig        = "config";
 
 // Registros nÃ£o-deletados (soft delete)
 const NAO_DELETADO = { deletado_em: { $exists: false } };
@@ -663,7 +665,20 @@ const loginLimiter = rateLimit({
 });
 
 // â”€â”€ MONTAGEM DAS ROTAS MODULARIZADAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const routeDeps = { auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios, pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter, dbClientes, dbRecibos, dbAuditoria, dbNotificacoes, dbConfig, NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited, enriquecerCliente, registrarAuditoria, maskCPF, formatDateToBR, validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado, getSheetsClient, sincronizarUsuariosParaSheets, ADMIN_USER, s3Client, withTimeout, fetchWithTimeout, transporter, upload, crypto, fs, path, sharp, smtpConfigurado };
+const routeDeps = {
+  auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios,
+  pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter,
+  dbClientes, dbRecibos, dbAuditoria, dbNotificacoes, dbConfig,
+  NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited,
+  enriquecerCliente, registrarAuditoria, maskCPF,
+  validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado,
+  getSheetsClient, sincronizarUsuariosParaSheets, ADMIN_USER,
+  s3Client, withTimeout, fetchWithTimeout,
+  upload, crypto, fs, path,
+  smtpConfigurado,
+  // transporter criado sob demanda (criarTransporter é hoisted)
+  get transporter() { return criarTransporter(); },
+};
 require("./routes/auth")(app, routeDeps);
 require("./routes/clientes")(app, routeDeps);
 require("./routes/admin")(app, routeDeps);
