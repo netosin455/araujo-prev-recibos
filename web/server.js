@@ -1,23 +1,23 @@
-// =============================================================
-//  SERVIDOR — web/server.js
-//  Roda na AWS. Nunca abre no navegador, só no terminal/servidor.
+﻿// =============================================================
+//  SERVIDOR â€” web/server.js
+//  Roda na AWS. Nunca abre no navegador, sÃ³ no terminal/servidor.
 //
 //  O QUE ESSE ARQUIVO FAZ:
 //  - Recebe os pedidos do navegador (login, salvar recibo, etc.)
-//  - Verifica se o usuário está logado e tem permissão
+//  - Verifica se o usuÃ¡rio estÃ¡ logado e tem permissÃ£o
 //  - Salva e busca dados no banco de dados
 //  - Gera o documento Word (.docx) do recibo
 //
 //  QUANDO MEXER AQUI:
 //  - Mudar campos do recibo
-//  - Mudar regras de permissão (quem pode fazer o quê)
-//  - Mudar tempo de expiração do login (atualmente 8h)
+//  - Mudar regras de permissÃ£o (quem pode fazer o quÃª)
+//  - Mudar tempo de expiraÃ§Ã£o do login (atualmente 8h)
 //  - Adicionar novas funcionalidades no servidor
 // =============================================================
 require("dotenv").config();
 const express = require("express");
 const { Pool, types } = require("pg");
-// NUMERIC (OID 1700) vem como string por padrão — força conversão para float
+// NUMERIC (OID 1700) vem como string por padrÃ£o â€” forÃ§a conversÃ£o para float
 types.setTypeParser(1700, (val) => val === null ? null : parseFloat(val));
 const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
@@ -38,42 +38,42 @@ const nodemailer = require("nodemailer");
 const cron = require("node-cron");
 const { withTimeout, fetchWithTimeout } = require("./services/timeout");
 
-// ── GOOGLE SHEETS ───────────────────────────────────────────
+// â”€â”€ GOOGLE SHEETS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const { getSheetsClient, testarConexaoSheets, uploadParaDrive, sanitizarLinkParaSheets, registrarNoSheets, atualizarNoSheets, linkParaSheets, renovarPresignedUrlsSheets, SHEET_ID, SHEET_NAME, MESES } = require("./services/google-sheets");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error("❌ ERRO: Defina a variável de ambiente JWT_SECRET antes de iniciar.");
+  console.error("âŒ ERRO: Defina a variÃ¡vel de ambiente JWT_SECRET antes de iniciar.");
   process.exit(1);
 }
 
-// ── NEON (PostgreSQL) — usuários ───────────────────────────
+// â”€â”€ NEON (PostgreSQL) â€” usuÃ¡rios â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error("❌ ERRO: Defina a variável de ambiente DATABASE_URL (Neon) antes de iniciar.");
+  console.error("âŒ ERRO: Defina a variÃ¡vel de ambiente DATABASE_URL (Neon) antes de iniciar.");
   process.exit(1);
 }
 const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
-// Módulos
+// MÃ³dulos
 const db = require("./services/database")(pgPool);
 const { find, findOne, insert, update, remove, count, findLimited } = db;
 
-// ── BANCO DE DADOS ─────────────────────────────────────────
+// â”€â”€ BANCO DE DADOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const dbDir = process.env.DATA_DIR || path.join(__dirname, "data");
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-// ── UPLOAD DE COMPROVANTES ─────────────────────────────────
+// â”€â”€ UPLOAD DE COMPROVANTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const uploadsDir = path.join(dbDir, "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-// S3 — usado quando BUCKET_NAME estiver configurado
+// S3 â€” usado quando BUCKET_NAME estiver configurado
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
 
-// Cliente S3 com credenciais IAM estáticas — necessário para presigned URLs longas.
-// Credenciais do instance profile são temporárias e invalidam a URL antes do prazo.
+// Cliente S3 com credenciais IAM estÃ¡ticas â€” necessÃ¡rio para presigned URLs longas.
+// Credenciais do instance profile sÃ£o temporÃ¡rias e invalidam a URL antes do prazo.
 const s3SignerClient = (process.env.S3_SIGNER_KEY_ID && process.env.S3_SIGNER_SECRET)
   ? new S3Client({
       region: process.env.AWS_REGION || "us-east-1",
@@ -82,37 +82,37 @@ const s3SignerClient = (process.env.S3_SIGNER_KEY_ID && process.env.S3_SIGNER_SE
         secretAccessKey: process.env.S3_SIGNER_SECRET,
       },
     })
-  : s3Client; // fallback para instance profile se env vars não estiverem definidas
+  : s3Client; // fallback para instance profile se env vars nÃ£o estiverem definidas
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-// Neon (PostgreSQL) — dados principais
+// Neon (PostgreSQL) â€” dados principais
 const dbRecibos   = "recibos";
 const dbClientes  = "clientes";
 const dbAuditoria = "auditoria";
 
-// Registros não-deletados (soft delete)
+// Registros nÃ£o-deletados (soft delete)
 const NAO_DELETADO = { deletado_em: { $exists: false } };
 
-// Admin padrão via variáveis de ambiente
+// Admin padrÃ£o via variÃ¡veis de ambiente
 const ADMIN_USER = process.env.ADMIN_USER;
 const ADMIN_PASS = process.env.ADMIN_PASS;
 if (!ADMIN_USER || !ADMIN_PASS) {
-  console.error("❌ ERRO: Defina as variáveis de ambiente ADMIN_USER e ADMIN_PASS antes de iniciar.");
+  console.error("âŒ ERRO: Defina as variÃ¡veis de ambiente ADMIN_USER e ADMIN_PASS antes de iniciar.");
   process.exit(1);
 }
 
-// Usuários extras via variável de ambiente USERS_JSON (base64 de JSON array)
+// UsuÃ¡rios extras via variÃ¡vel de ambiente USERS_JSON (base64 de JSON array)
 // Formato: [{"username":"financeiro","password":"senha","role":"financeiro"}, ...]
 // Para gerar: btoa(JSON.stringify([...])) no console do navegador
 const USERS_JSON = process.env.USERS_JSON;
 
-// ── BACKUP DE USUÁRIOS NO GOOGLE SHEETS ────────────────────
-// Salva todos os usuários (exceto admin) na aba "Usuarios" da planilha.
-// Armazena o hash bcrypt — não é texto puro, não dá pra reverter.
+// â”€â”€ BACKUP DE USUÃRIOS NO GOOGLE SHEETS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Salva todos os usuÃ¡rios (exceto admin) na aba "Usuarios" da planilha.
+// Armazena o hash bcrypt â€” nÃ£o Ã© texto puro, nÃ£o dÃ¡ pra reverter.
 async function sincronizarUsuariosParaSheets() {
   const sheets = getSheetsClient();
   if (!sheets) return;
@@ -121,7 +121,7 @@ async function sincronizarUsuariosParaSheets() {
       "SELECT username, role, escritorio, created_at FROM users WHERE username != $1 AND deleted_at IS NULL ORDER BY created_at ASC",
       [ADMIN_USER]
     );
-    // Sem coluna password — hash bcrypt não deve ficar exposto na planilha (SEC-010)
+    // Sem coluna password â€” hash bcrypt nÃ£o deve ficar exposto na planilha (SEC-010)
     const valores = rows.map(u => [u.username, u.role, u.escritorio || "", u.created_at]);
     // Limpa range antigo (incluindo col E de password residual) e reescreve sem senha
     await sheets.spreadsheets.values.clear({
@@ -136,9 +136,9 @@ async function sincronizarUsuariosParaSheets() {
         requestBody: { values: valores },
       });
     }
-    console.log(`✅ ${valores.length} usuário(s) sincronizados para o Sheets.`);
+    console.log(`âœ… ${valores.length} usuÃ¡rio(s) sincronizados para o Sheets.`);
   } catch (e) {
-    // Aba pode não existir ainda — tenta criar
+    // Aba pode nÃ£o existir ainda â€” tenta criar
     if (e.message && e.message.includes("Unable to parse range")) {
       try {
         const sheets2 = getSheetsClient();
@@ -148,17 +148,17 @@ async function sincronizarUsuariosParaSheets() {
         });
         await sincronizarUsuariosParaSheets();
       } catch (e2) {
-        console.error("❌ Erro ao criar aba Usuarios:", e2.message);
+        console.error("âŒ Erro ao criar aba Usuarios:", e2.message);
       }
     } else {
-      console.error("❌ Erro ao sincronizar usuários para Sheets:", e.message);
+      console.error("âŒ Erro ao sincronizar usuÃ¡rios para Sheets:", e.message);
     }
   }
 }
 
-// Restaura usuários do Sheets para o Neon (chamado quando DB está vazio após reset).
-// Formato atual (SEC-010): 4 colunas — username, role, escritorio, created_at (sem senha).
-// Usuários restaurados recebem hash placeholder inutilizável; admin deve redefinir senhas.
+// Restaura usuÃ¡rios do Sheets para o Neon (chamado quando DB estÃ¡ vazio apÃ³s reset).
+// Formato atual (SEC-010): 4 colunas â€” username, role, escritorio, created_at (sem senha).
+// UsuÃ¡rios restaurados recebem hash placeholder inutilizÃ¡vel; admin deve redefinir senhas.
 async function restaurarUsuariosDeSheets() {
   const sheets = getSheetsClient();
   if (!sheets) return 0;
@@ -172,7 +172,7 @@ async function restaurarUsuariosDeSheets() {
     let restaurados = 0;
     for (const [username, role, escritorio, created_at] of linhas) {
       if (!username) continue;
-      // Hash impossível de autenticar — usuário deve ter senha redefinida pelo admin
+      // Hash impossÃ­vel de autenticar â€” usuÃ¡rio deve ter senha redefinida pelo admin
       const placeholderHash = bcrypt.hashSync(crypto.randomBytes(32).toString("hex"), 10);
       const result = await pgPool.query(`
         INSERT INTO users (id, username, password, role, escritorio, created_at)
@@ -181,18 +181,18 @@ async function restaurarUsuariosDeSheets() {
       `, [username, placeholderHash, role || "financeiro", escritorio || "", created_at || new Date().toISOString()]);
       if (result.rowCount > 0) {
         restaurados++;
-        console.warn(`⚠️  Usuário '${username}' restaurado sem senha — admin deve redefinir via painel.`);
+        console.warn(`âš ï¸  UsuÃ¡rio '${username}' restaurado sem senha â€” admin deve redefinir via painel.`);
       }
     }
-    console.log(`✅ ${restaurados} usuário(s) restaurados do Sheets para o Neon.`);
+    console.log(`âœ… ${restaurados} usuÃ¡rio(s) restaurados do Sheets para o Neon.`);
     return restaurados;
   } catch (e) {
-    console.error("❌ Erro ao restaurar usuários do Sheets:", e.message);
+    console.error("âŒ Erro ao restaurar usuÃ¡rios do Sheets:", e.message);
     return 0;
   }
 }
 
-// ── AUTO-MIGRAÇÃO NEDB → NEON ──────────────────────────────
+// â”€â”€ AUTO-MIGRAÃ‡ÃƒO NEDB â†’ NEON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Roda automaticamente no startup se as tabelas estiverem vazias
 // e os arquivos .db ainda existirem no servidor.
 async function autoMigrarNedb() {
@@ -209,9 +209,9 @@ async function autoMigrarNedb() {
   if (!recibosDb.length) return; // sem .db, nada a migrar
 
   const { rows: [{ n }] } = await pgPool.query("SELECT COUNT(*) AS n FROM recibos");
-  if (parseInt(n) > 0) return; // já tem dados no Neon, pula
+  if (parseInt(n) > 0) return; // jÃ¡ tem dados no Neon, pula
 
-  console.log("🔄 Auto-migração NeDB → Neon iniciada...");
+  console.log("ðŸ”„ Auto-migraÃ§Ã£o NeDB â†’ Neon iniciada...");
   let ok = 0, err = 0;
 
   for (const r of recibosDb) {
@@ -230,7 +230,7 @@ async function autoMigrarNedb() {
       ok++;
     } catch { err++; }
   }
-  console.log(`  ✅ Recibos: ${ok} migrados, ${err} erros`);
+  console.log(`  âœ… Recibos: ${ok} migrados, ${err} erros`);
 
   ok = 0; err = 0;
   for (const c of lerDb("clientes")) {
@@ -252,7 +252,7 @@ async function autoMigrarNedb() {
       ok++;
     } catch { err++; }
   }
-  console.log(`  ✅ Clientes: ${ok} migrados, ${err} erros`);
+  console.log(`  âœ… Clientes: ${ok} migrados, ${err} erros`);
 
   ok = 0; err = 0;
   for (const a of lerDb("auditoria")) {
@@ -264,11 +264,11 @@ async function autoMigrarNedb() {
       ok++;
     } catch { err++; }
   }
-  console.log(`  ✅ Auditoria: ${ok} migrados, ${err} erros`);
-  console.log("🎉 Auto-migração concluída!");
+  console.log(`  âœ… Auditoria: ${ok} migrados, ${err} erros`);
+  console.log("ðŸŽ‰ Auto-migraÃ§Ã£o concluÃ­da!");
 }
 
-// ── INICIALIZAÇÃO DO BANCO DE USUÁRIOS (Neon) ──────────────
+// â”€â”€ INICIALIZAÃ‡ÃƒO DO BANCO DE USUÃRIOS (Neon) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function initDb() {
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -280,7 +280,7 @@ async function initDb() {
       created_at TEXT NOT NULL
     )
   `);
-  // Migração: adiciona colunas caso a tabela já exista sem elas
+  // MigraÃ§Ã£o: adiciona colunas caso a tabela jÃ¡ exista sem elas
   await pgPool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS escritorio TEXT NOT NULL DEFAULT ''
   `);
@@ -293,7 +293,7 @@ async function initDb() {
   await pgPool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL
   `);
-  // Tabela de states OAuth Gov.br — TTL gerenciado por expira_em (SEC-012)
+  // Tabela de states OAuth Gov.br â€” TTL gerenciado por expira_em (SEC-012)
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS govbr_states (
       state      TEXT PRIMARY KEY,
@@ -304,7 +304,7 @@ async function initDb() {
   `);
   // Limpeza de states expirados ao iniciar
   await pgPool.query(`DELETE FROM govbr_states WHERE expira_em < NOW()`);
-  console.log("✅ Tabela govbr_states pronta.");
+  console.log("âœ… Tabela govbr_states pronta.");
 
   // Admin: sempre atualiza senha/role para refletir env vars (conta de sistema)
   const adminHash = bcrypt.hashSync(ADMIN_PASS, 10);
@@ -313,10 +313,10 @@ async function initDb() {
     VALUES (gen_random_uuid()::text, $1, $2, 'admin', $3)
     ON CONFLICT (username) DO UPDATE SET password = $2, role = 'admin'
   `, [ADMIN_USER, adminHash, new Date().toISOString()]);
-  console.log("✅ Usuário admin configurado (Neon).");
+  console.log("âœ… UsuÃ¡rio admin configurado (Neon).");
 
-  // Usuários extras via USERS_JSON — só cria se não existir, nunca sobrescreve
-  // Isso garante que senhas alteradas pelo painel não sejam resetadas no deploy
+  // UsuÃ¡rios extras via USERS_JSON â€” sÃ³ cria se nÃ£o existir, nunca sobrescreve
+  // Isso garante que senhas alteradas pelo painel nÃ£o sejam resetadas no deploy
   if (USERS_JSON) {
     try {
       const extraUsers = JSON.parse(Buffer.from(USERS_JSON, "base64").toString("utf8"));
@@ -329,15 +329,15 @@ async function initDb() {
           ON CONFLICT (username) DO NOTHING
         `, [u.username, hash, u.role || "financeiro", u.escritorio || "", new Date().toISOString()]);
         if (result.rowCount > 0) {
-          console.log(`✅ Usuário ${u.username} criado via USERS_JSON.`);
+          console.log(`âœ… UsuÃ¡rio ${u.username} criado via USERS_JSON.`);
         }
       }
     } catch (e) {
-      console.error("❌ Erro ao processar USERS_JSON:", e.message);
+      console.error("âŒ Erro ao processar USERS_JSON:", e.message);
     }
   }
 
-  // Tabelas principais — recibos, clientes e auditoria
+  // Tabelas principais â€” recibos, clientes e auditoria
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS recibos (
       id                TEXT        PRIMARY KEY,
@@ -395,6 +395,7 @@ async function initDb() {
   `);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_clientes_cpf  ON clientes (cpf)`);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_clientes_nome ON clientes (nome)`);
+  await pgPool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS auto_recibo BOOLEAN NOT NULL DEFAULT false`);
 
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS auditoria (
@@ -408,24 +409,24 @@ async function initDb() {
     )
   `);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_auditoria_ts ON auditoria (ts DESC)`);
-  console.log("✅ Tabelas recibos, clientes e auditoria prontas.");
+  console.log("âœ… Tabelas recibos, clientes e auditoria prontas.");
 
-  // Auto-migração NeDB → Neon: roda uma única vez se as tabelas estiverem vazias
+  // Auto-migraÃ§Ã£o NeDB â†’ Neon: roda uma Ãºnica vez se as tabelas estiverem vazias
   await autoMigrarNedb();
 
-  // Se o banco tem só o admin (reset detectado), tenta restaurar do Sheets
+  // Se o banco tem sÃ³ o admin (reset detectado), tenta restaurar do Sheets
   const { rows: countRows } = await pgPool.query(
     "SELECT COUNT(*) AS total FROM users WHERE username != $1", [ADMIN_USER]
   );
   const totalNaoAdmin = parseInt(countRows[0].total, 10);
-  console.log(`ℹ️  Usuários no banco Neon (exceto admin): ${totalNaoAdmin}`);
+  console.log(`â„¹ï¸  UsuÃ¡rios no banco Neon (exceto admin): ${totalNaoAdmin}`);
   if (totalNaoAdmin === 0) {
-    console.log("⚠️  Banco vazio — tentando restaurar usuários do Sheets...");
+    console.log("âš ï¸  Banco vazio â€” tentando restaurar usuÃ¡rios do Sheets...");
     await restaurarUsuariosDeSheets();
   }
 }
 
-// Sincroniza recibos da planilha se o banco estiver vazio (restauração após troca de servidor)
+// Sincroniza recibos da planilha se o banco estiver vazio (restauraÃ§Ã£o apÃ³s troca de servidor)
 async function sincronizarDeSheets() {
   try {
     const total = await count(dbRecibos, {});
@@ -466,14 +467,14 @@ async function sincronizarDeSheets() {
       await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por, complemento: "", referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
       importados++;
     }
-    console.log(`✅ ${importados} recibos restaurados da planilha Google Sheets.`);
+    console.log(`âœ… ${importados} recibos restaurados da planilha Google Sheets.`);
   } catch (e) {
-    console.error("❌ Erro ao sincronizar recibos da planilha:", e.message);
+    console.error("âŒ Erro ao sincronizar recibos da planilha:", e.message);
   }
 }
 testarConexaoSheets();
 sincronizarDeSheets();
-initDb().catch(e => console.error("❌ Erro ao inicializar Neon:", e.message));
+initDb().catch(e => console.error("âŒ Erro ao inicializar Neon:", e.message));
 
 // Sincroniza links de comprovante da planilha para recibos existentes no banco
 async function sincronizarComprovantes() {
@@ -491,26 +492,26 @@ async function sincronizarComprovantes() {
       if (!link) continue;
       const num = row[12] || "";
       const cpf = row[2] || "";
-      // Tenta achar pelo número do recibo, senão pelo CPF + data
+      // Tenta achar pelo nÃºmero do recibo, senÃ£o pelo CPF + data
       let recibo = null;
       if (num) recibo = await findOne(dbRecibos, { num });
       if (!recibo && cpf) recibo = await findOne(dbRecibos, { cpf, data: row[4] || "" });
       if (!recibo) continue;
-      // Nunca sobrescreve link existente — só preenche se banco estiver vazio
+      // Nunca sobrescreve link existente â€” sÃ³ preenche se banco estiver vazio
       if (recibo.link_comprovante) continue;
-      // Nunca salva presigned URL (expira em horas) — só Drive links
+      // Nunca salva presigned URL (expira em horas) â€” sÃ³ Drive links
       if (link.includes("amazonaws.com")) continue;
       await update(dbRecibos, { _id: recibo._id }, { link_comprovante: link });
       atualizados++;
     }
-    if (atualizados > 0) console.log(`✅ ${atualizados} comprovantes sincronizados da planilha.`);
+    if (atualizados > 0) console.log(`âœ… ${atualizados} comprovantes sincronizados da planilha.`);
   } catch (e) {
-    console.error("❌ Erro ao sincronizar comprovantes:", e.message);
+    console.error("âŒ Erro ao sincronizar comprovantes:", e.message);
   }
 }
 sincronizarComprovantes();
 
-// Normaliza nomes e CPFs já existentes no banco
+// Normaliza nomes e CPFs jÃ¡ existentes no banco
 async function normalizarDados() {
   try {
     const todos = await find(dbRecibos, NAO_DELETADO);
@@ -520,7 +521,7 @@ async function normalizarDados() {
       // Title Case no nome
       const nomeNorm = (r.nome || "").replace(/\b\w/g, c => c.toUpperCase());
       if (nomeNorm !== r.nome) updates.nome = nomeNorm;
-      // CPF: formata se vier sem máscara
+      // CPF: formata se vier sem mÃ¡scara
       const digits = (r.cpf || "").replace(/\D/g, "");
       let cpfNorm = r.cpf;
       if (digits.length === 11) cpfNorm = digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
@@ -531,9 +532,9 @@ async function normalizarDados() {
         corrigidos++;
       }
     }
-    if (corrigidos > 0) console.log(`✅ ${corrigidos} registros normalizados (nome/CPF).`);
+    if (corrigidos > 0) console.log(`âœ… ${corrigidos} registros normalizados (nome/CPF).`);
   } catch (e) {
-    console.error("❌ Erro ao normalizar dados:", e.message);
+    console.error("âŒ Erro ao normalizar dados:", e.message);
   }
 }
 normalizarDados();
@@ -549,7 +550,7 @@ async function unificarNomesPorCPF() {
       if (!cpfKey) continue;
       if (!nomePorCPF[cpfKey]) nomePorCPF[cpfKey] = r.nome;
     }
-    // Corrige todos os registros que têm nome diferente do canonical
+    // Corrige todos os registros que tÃªm nome diferente do canonical
     let corrigidos = 0;
     for (const r of todos) {
       const cpfKey = (r.cpf || "").replace(/\D/g, "");
@@ -560,9 +561,9 @@ async function unificarNomesPorCPF() {
         corrigidos++;
       }
     }
-    if (corrigidos > 0) console.log(`✅ ${corrigidos} registros com nome unificado por CPF.`);
+    if (corrigidos > 0) console.log(`âœ… ${corrigidos} registros com nome unificado por CPF.`);
   } catch (e) {
-    console.error("❌ Erro ao unificar nomes por CPF:", e.message);
+    console.error("âŒ Erro ao unificar nomes por CPF:", e.message);
   }
 }
 unificarNomesPorCPF();
@@ -581,25 +582,25 @@ async function corrigirLinksComprovante() {
         corrigidos++;
         continue;
       }
-      // Converte URL pública S3 ou presigned URL (https://bucket.s3.*.amazonaws.com/KEY?X-Amz-...)
+      // Converte URL pÃºblica S3 ou presigned URL (https://bucket.s3.*.amazonaws.com/KEY?X-Amz-...)
       const matchS3 = r.link_comprovante.match(/amazonaws\.com\/(.+?)(?:\?|$)/);
       if (matchS3) {
         await update(dbRecibos, { _id: r._id }, { link_comprovante: `/api/comprovante-s3/${matchS3[1]}` });
         corrigidos++;
       }
     }
-    if (corrigidos > 0) console.log(`✅ ${corrigidos} links de comprovante corrigidos.`);
+    if (corrigidos > 0) console.log(`âœ… ${corrigidos} links de comprovante corrigidos.`);
   } catch (e) {
-    console.error("❌ Erro ao corrigir links de comprovante:", e.message);
+    console.error("âŒ Erro ao corrigir links de comprovante:", e.message);
   }
 }
 corrigirLinksComprovante();
 
-// ── MIDDLEWARE ─────────────────────────────────────────────
+// â”€â”€ MIDDLEWARE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
 
-// Força HTTPS quando atrás de proxy reverso (ELB)
+// ForÃ§a HTTPS quando atrÃ¡s de proxy reverso (ELB)
 app.use((req, res, next) => {
   if (req.headers["x-forwarded-proto"] === "http") return res.redirect(301, "https://" + req.headers.host + req.url);
   next();
@@ -607,7 +608,7 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// Headers de segurança
+// Headers de seguranÃ§a
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
@@ -628,8 +629,8 @@ app.use((req, res, next) => {
 const mw = require("./middleware/auth")({ jwt, JWT_SECRET, ADMIN_USER, pgPool });
 const { auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios } = mw;
 
-// ── PostgreSQL helpers (substitutos dos helpers NeDB) ───────
-// Campos JSONB por tabela — o driver pg já parseia automaticamente,
+// â”€â”€ PostgreSQL helpers (substitutos dos helpers NeDB) â”€â”€â”€â”€â”€â”€â”€
+// Campos JSONB por tabela â€” o driver pg jÃ¡ parseia automaticamente,
 // mas precisamos fazer JSON.stringify ao escrever via $set
 function maskCPF(cpf) {
   const d = (cpf || "").replace(/\D/g, "");
@@ -649,7 +650,7 @@ async function registrarAuditoria(req, acao, entidade_id, dados) {
       dados: dados || {},
     });
   } catch (e) {
-    console.error(`❌ Auditoria falhou (${acao}):`, e.message);
+    console.error(`âŒ Auditoria falhou (${acao}):`, e.message);
   }
 }
 
@@ -661,16 +662,17 @@ const loginLimiter = rateLimit({
   message: { erro: "Muitas tentativas de login. Aguarde 15 minutos." },
 });
 
-// ── MONTAGEM DAS ROTAS MODULARIZADAS ───────────────────────
-const routeDeps = { auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios, pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter, dbClientes, dbRecibos, dbAuditoria, dbNotificacoes, dbConfig, NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited, enriquecerCliente, registrarAuditoria, maskCPF, formatDateToBR, validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado, getSheetsClient, sincronizarUsuariosParaSheets, ADMIN_USER, s3Client, withTimeout, fetchWithTimeout, transporter, upload, crypto, fs, path, sharp };
+// â”€â”€ MONTAGEM DAS ROTAS MODULARIZADAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const routeDeps = { auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios, pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter, dbClientes, dbRecibos, dbAuditoria, dbNotificacoes, dbConfig, NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited, enriquecerCliente, registrarAuditoria, maskCPF, formatDateToBR, validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado, getSheetsClient, sincronizarUsuariosParaSheets, ADMIN_USER, s3Client, withTimeout, fetchWithTimeout, transporter, upload, crypto, fs, path, sharp, smtpConfigurado };
 require("./routes/auth")(app, routeDeps);
 require("./routes/clientes")(app, routeDeps);
 require("./routes/admin")(app, routeDeps);
 require("./routes/misc")(app, routeDeps);
+require("./routes/recibos")(app, routeDeps);
 
 
 
-// ── ROTAS CLIENTES ─────────────────────────────────────────
+// â”€â”€ ROTAS CLIENTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function parseBRL(str) {
   return parseFloat(String(str || "0").replace(/\./g, "").replace(",", ".")) || 0;
 }
@@ -713,7 +715,7 @@ function recalcularResumo(parcelas) {
   };
 }
 
-// (NAO_DELETADO declarado perto do topo — ver início do arquivo)
+// (NAO_DELETADO declarado perto do topo â€” ver inÃ­cio do arquivo)
 
 function validarCPF(cpf) {
   const d = cpf.replace(/\D/g, "");
@@ -740,7 +742,7 @@ function validarCNPJ(cnpj) {
   return calc(12) === Number(d[12]) && calc(13) === Number(d[13]);
 }
 
-// Converte "DD/MM/YYYY" → "YYYY-MM" para filtros de mês
+// Converte "DD/MM/YYYY" â†’ "YYYY-MM" para filtros de mÃªs
 function mesDeData(dataStr) {
   if (!dataStr) return null;
   const parts = String(dataStr).split("/");
@@ -749,7 +751,7 @@ function mesDeData(dataStr) {
   return null;
 }
 
-// Migração on-the-fly: clientes sem campo parcelas recebem array inicializado
+// MigraÃ§Ã£o on-the-fly: clientes sem campo parcelas recebem array inicializado
 function inicializarParcelasLegado(c) {
   if (c.parcelas && c.parcelas.length > 0) return c;
   const numParcelas   = c.num_parcelas || 0;
@@ -796,181 +798,7 @@ app.get("/api/clientes", auth, async (req, res) => {
   res.json({ clientes: enriquecidos, total, limit, offset });
 });
 
-// ── ROTAS RECIBOS ──────────────────────────────────────────
-app.get("/api/recibos", auth, async (req, res) => {
-  const isRecepcao = req.user.role === "recepcao" && req.user.escritorio;
-
-  // Modo cursor: ?cursor=<timestamp> retorna próxima página sem carregar tudo em memória
-  if (req.query.cursor !== undefined) {
-    const cursorTs = req.query.cursor ? Number(req.query.cursor) : undefined;
-    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
-    const query = { ...NAO_DELETADO };
-    if (cursorTs) query.timestamp = { $lt: cursorTs };
-    if (isRecepcao) {
-      const escEsc = req.user.escritorio.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      query.escritorio = { $regex: new RegExp("^" + escEsc + "$", "i") };
-    }
-    const docs = await findLimited(dbRecibos, query, { timestamp: -1 }, limit + 1);
-    const hasMore = docs.length > limit;
-    const recibos = docs.slice(0, limit).map(r => ({ ...r, id: r._id }));
-    const nextCursor = hasMore && recibos.length > 0 ? String(recibos[recibos.length - 1].timestamp) : null;
-    return res.json({ recibos, nextCursor, hasMore });
-  }
-
-  // Modo legado page/limit — mantém compatibilidade com scripts de importação e frontend atual
-  const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: -1 });
-  const filtrados = isRecepcao
-    ? todos.filter(r => (r.escritorio || "").toUpperCase() === req.user.escritorio.toUpperCase())
-    : todos;
-  const total = filtrados.length;
-  const page  = Math.max(1, parseInt(req.query.page)  || 1);
-  const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit) || 50));
-  const totalPaginas = Math.ceil(total / limit) || 1;
-  const recibos = filtrados.slice((page - 1) * limit, page * limit).map(r => ({ ...r, id: r._id }));
-  res.json({ recibos, total, pagina: page, totalPaginas });
-});
-
-app.post("/api/recibos", auth, async (req, res) => {
-  try {
-    if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
-    const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, motivo_pagamento, link_comprovante, timestamp } = req.body;
-    // Recepcao sempre usa o escritorio do seu perfil — impede digitação livre e garante nome padronizado
-    const escritorio = req.user.role === "recepcao"
-      ? (req.user.escritorio || "")
-      : (req.body.escritorio || "");
-    const digsCPF = (cpf || "").replace(/\D/g, "");
-    if (digsCPF.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
-    if (digsCPF.length === 14 && !validarCNPJ(cpf)) return res.status(400).json({ erro: "CNPJ inválido." });
-    // Unicidade de num_recibo
-    if (num) {
-      const { rows: dup } = await pgPool.query("SELECT id FROM recibos WHERE num=$1 AND deletado_em IS NULL LIMIT 1", [num]);
-      if (dup.length > 0) return res.status(409).json({ erro: `Já existe um recibo com o número ${num}.` });
-    }
-    // Se CPF já existe, usa o nome já cadastrado (CPF é identidade única do cliente)
-    const existente = await findOne(dbRecibos, { cpf });
-    const nome = existente
-      ? existente.nome
-      : (req.body.nome || "").replace(/\b\w/g, c => c.toUpperCase());
-    // Garante timestamp como número (BIGINT)
-    const ts = typeof timestamp === "number" ? timestamp : (Date.now());
-    const doc = await insert(dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio, motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp: ts });
-    registrarAuditoria(req, "criar_recibo", doc._id, { num, nome, escritorio, valor, cpf: maskCPF(cpf) });
-    const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
-    dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia });
-    res.json({ id: doc._id, sheets_ok: sheets_result === true, sheets_erro: sheets_result !== true ? sheets_result : null });
-  } catch (err) {
-    console.error("Erro em POST /api/recibos:", err);
-    res.status(500).json({ erro: "Erro interno ao salvar recibo: " + err.message });
-  }
-});
-
-app.put("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
-  const { nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante } = req.body;
-  const upd = { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"" };
-  if (link_comprovante) upd.link_comprovante = link_comprovante;
-
-  // Histórico de edições — diff dos campos auditados antes de sobrescrever
-  const atual = await findOne(dbRecibos, { _id: req.params.id });
-  const CAMPOS_AUDITADOS = ["nome","cpf","municipio_uf","valor","data","emitido_por","complemento","referencia","forma_pagamento","escritorio","motivo_pagamento","link_comprovante"];
-  const campos_alterados = CAMPOS_AUDITADOS
-    .filter(c => String(atual?.[c] ?? "") !== String(upd[c] ?? ""))
-    .map(c => ({ campo: c, anterior: String(atual?.[c] ?? ""), novo: String(upd[c] ?? "") }));
-  const historico_edicoes = atual?.historico_edicoes || [];
-  if (campos_alterados.length > 0) {
-    historico_edicoes.push({ data: new Date().toISOString(), editado_por: req.user.username, campos_alterados });
-  }
-
-  await update(dbRecibos, { _id: req.params.id }, { ...upd, historico_edicoes });
-  registrarAuditoria(req, "editar_recibo", req.params.id, { campos_alterados: campos_alterados.map(c => c.campo) });
-  const recibo = await findOne(dbRecibos, { _id: req.params.id });
-  if (recibo && recibo.num) {
-    atualizarNoSheets(recibo.num, recibo);
-  }
-  res.json({ ok: true });
-});
-
-app.delete("/api/recibos/:id", auth, financeiroOnly, async (req, res) => {
-  const recibo = await findOne(dbRecibos, { _id: req.params.id });
-  if (!recibo) return res.status(404).json({ erro: "Recibo não encontrado." });
-  await update(dbRecibos, { _id: req.params.id }, {
-    deletado_em: new Date().toISOString(),
-    deletado_por: req.user.username,
-  });
-  registrarAuditoria(req, "excluir_recibo", req.params.id, { num: recibo.num, nome: recibo.nome });
-  res.json({ ok: true });
-});
-
-// ── RECIBO RECORRENTE — clona pro mês seguinte ──────────────
-app.post("/api/recibos/:id/recorrente", auth, financeiroOnly, async (req, res) => {
-  try {
-    const original = await findOne(dbRecibos, { _id: req.params.id, ...NAO_DELETADO });
-    if (!original) return res.status(404).json({ erro: "Recibo não encontrado." });
-
-    // Avança um mês na data (DD/MM/YYYY)
-    const [dd, mm, yyyy] = (original.data || "").split("/");
-    let newMes = parseInt(mm, 10) + 1;
-    let newAno = parseInt(yyyy, 10);
-    if (newMes > 12) { newMes = 1; newAno++; }
-    const defaultData = `${(dd || "01").padStart(2, "0")}/${String(newMes).padStart(2, "0")}/${newAno}`;
-    const newData = req.body.data || defaultData;
-    const newReferencia = req.body.referencia !== undefined ? req.body.referencia : (original.referencia || "");
-
-    // Próximo número no ano da nova data
-    const anoNum = (newData.split("/")[2]) || String(new Date().getFullYear());
-    const todos = await find(dbRecibos, {});
-    let maior = 0;
-    for (const r of todos) {
-      const match = (r.num || "").match(/^(\d+)\/(\d{4})$/);
-      if (match && match[2] === anoNum) {
-        const seq = parseInt(match[1], 10);
-        if (seq > maior) maior = seq;
-      }
-    }
-    const newNum = `${String(maior + 1).padStart(4, "0")}/${anoNum}`;
-
-    const novoRecibo = {
-      num: newNum,
-      nome: original.nome,
-      cpf: original.cpf,
-      municipio_uf: original.municipio_uf || "",
-      valor: original.valor,
-      data: newData,
-      emitido_por: original.emitido_por || "",
-      complemento: original.complemento || "",
-      referencia: newReferencia,
-      forma_pagamento: original.forma_pagamento || "",
-      escritorio: original.escritorio || "",
-      motivo_pagamento: original.motivo_pagamento || "",
-      link_comprovante: "",
-      timestamp: Date.now(),
-    };
-
-    const doc = await insert(dbRecibos, novoRecibo);
-    registrarAuditoria(req, "criar_recibo_recorrente", doc._id, { num: newNum, origem_num: original.num });
-    const sheetsResult = await registrarNoSheets({ ...novoRecibo, num_recibo: newNum });
-    dispararWebhook(novoRecibo);
-    res.json({ id: doc._id, num: newNum, data: newData, sheets_ok: sheetsResult === true });
-  } catch (e) {
-    console.error("Erro ao criar recibo recorrente:", e.message);
-    res.status(500).json({ erro: "Erro ao criar recibo recorrente." });
-  }
-});
-
-app.get("/api/proximo-num", auth, async (req, res) => {
-  const ano = String(new Date().getFullYear());
-  const { rows } = await pgPool.query(
-    `SELECT num FROM ${dbRecibos} WHERE num LIKE $1 ORDER BY num DESC LIMIT 1`,
-    [`%/${ano}`]
-  );
-  let maior = 0;
-  if (rows[0]) {
-    const match = (rows[0].num || "").match(/^(\d+)\/(\d{4})$/);
-    if (match) maior = parseInt(match[1], 10);
-  }
-  res.json({ num: `${String(maior + 1).padStart(4, "0")}/${ano}` });
-});
-
-// ── RELATÓRIO DE INADIMPLÊNCIA ─────────────────────────────
+// â”€â”€ RELATÃ“RIO DE INADIMPLÃŠNCIA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/relatorios/inadimplencia", auth, semRecepcao, async (req, res) => {
   try {
     const clientes = await find(dbClientes, NAO_DELETADO);
@@ -1000,94 +828,16 @@ app.get("/api/relatorios/inadimplencia", auth, semRecepcao, async (req, res) => 
     relatorio.sort((a, b) => b.valor_em_aberto - a.valor_em_aberto);
     res.json({ total_inadimplentes: relatorio.length, relatorio });
   } catch (e) {
-    console.error("Erro ao gerar relatório de inadimplência:", e.message);
-    res.status(500).json({ erro: "Erro ao gerar relatório." });
+    console.error("Erro ao gerar relatÃ³rio de inadimplÃªncia:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar relatÃ³rio." });
   }
 });
 
-// ── HELPER: gera buffer PDF de um recibo do banco ──────────
-async function gerarBufferPDFRecibo(recibo) {
-  const logoPath = path.join(__dirname, "public", "logo.png");
-  const logoExists = fs.existsSync(logoPath);
-  const digits = (recibo.cpf || "").replace(/\D/g, "");
-  const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
-  const complemento = recibo.complemento ? ` - ${recibo.complemento}` : "";
-  const MESES_EXT = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
-  const [dia, mes, ano] = (recibo.data || "").split("/");
-  const mesNome = MESES_EXT[parseInt(mes, 10) - 1] || "";
-  const data_extenso = dia && mes && ano ? `${parseInt(dia, 10)} de ${mesNome} de ${ano}` : (recibo.data || "");
-  const textoCorpo = `Recebemos do (a) senhor (a) ${recibo.nome}, residente e domiciliado(a) no Município de ${recibo.municipio_uf}, a importância de R$ ${recibo.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${complemento}.`;
-
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    const pdf = new PDFDocument({ margin: 60, size: "A4" });
-    pdf.on("data", c => chunks.push(c));
-    pdf.on("end", () => resolve(Buffer.concat(chunks)));
-    pdf.on("error", reject);
-
-    if (logoExists) pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
-    pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
-      .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
-    pdf.fontSize(12).fillColor("#000000").text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
-    const lx = pdf.page.margins.left;
-    const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
-    pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
-    pdf.fontSize(12).font("Helvetica-Bold")
-      .text(`Recibo Nº ${recibo.num}${recibo.referencia ? "   |   Ref: " + recibo.referencia : ""}`, { align: "center" }).moveDown(0.2);
-    pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
-    pdf.fontSize(11).font("Helvetica").text(textoCorpo, { align: "justify" }).moveDown(0.6);
-    pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
-    pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
-    pdf.text(`${recibo.municipio_uf}, ${data_extenso}`, { align: "left" }).moveDown(6);
-    pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
-    pdf.fontSize(10).text(recibo.nome, { align: "center" }).moveDown(0.1);
-    pdf.fontSize(9).text(`${labelDoc}: ${recibo.cpf}`, { align: "center" }).moveDown(5);
-    pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
-    pdf.fontSize(10).text(recibo.emitido_por || "A ARAUJO PREV", { align: "left" });
-    if (logoExists) pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
-    pdf.end();
-  });
-}
-
-// ── EXPORTAR RECIBOS EM LOTE (ZIP) ──────────────────────────
-app.post("/api/recibos/exportar-zip", auth, financeiroOnly, async (req, res) => {
-  try {
-    const { ids } = req.body;
-    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ erro: "Informe ao menos um ID." });
-    if (ids.length > 100) return res.status(400).json({ erro: "Máximo de 100 recibos por exportação." });
-
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="recibos_${Date.now()}.zip"`);
-
-    const archive = archiver("zip", { zlib: { level: 6 } });
-    archive.on("error", e => { console.error("Erro archiver:", e.message); });
-    archive.pipe(res);
-
-    for (const id of ids) {
-      const recibo = await findOne(dbRecibos, { _id: id });
-      if (!recibo || recibo.deletado_em) continue;
-      try {
-        const buf = await gerarBufferPDFRecibo(recibo);
-        const nomeArq = `recibo_${(recibo.num || id).replace(/[\/\\]/g, "-")}_${(recibo.nome || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "_").toLowerCase()}.pdf`;
-        archive.append(buf, { name: nomeArq });
-      } catch (e) {
-        console.error(`Erro ao gerar PDF do recibo ${id}:`, e.message);
-      }
-    }
-
-    await archive.finalize();
-  } catch (e) {
-    console.error("Erro ao exportar ZIP:", e.message);
-    if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar arquivo ZIP." });
-  }
-});
-
-// ── RELATÓRIO: PROJEÇÃO DE RECEBIMENTOS (6 MESES) ──────────
 app.get("/api/relatorios/projecao", auth, semRecepcao, async (req, res) => {
   try {
     const clientes = await find(dbClientes, NAO_DELETADO);
     const hoje = new Date();
-    // Mapa mes-chave → valor acumulado para os próximos 6 meses
+    // Mapa mes-chave â†’ valor acumulado para os prÃ³ximos 6 meses
     const mesesPT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
     const limite = new Date(hoje.getFullYear(), hoje.getMonth() + 6, 1);
     const mapa = {};
@@ -1112,26 +862,26 @@ app.get("/api/relatorios/projecao", auth, semRecepcao, async (req, res) => {
     const resultado = Object.entries(mapa).map(([mes, valor]) => ({ mes, valor: Math.round(valor * 100) / 100 }));
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar projeção:", e.message);
-    res.status(500).json({ erro: "Erro ao gerar projeção." });
+    console.error("Erro ao gerar projeÃ§Ã£o:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar projeÃ§Ã£o." });
   }
 });
 
-// ── RELATÓRIO: RECEITA POR ESCRITÓRIO ──────────────────────
+// â”€â”€ RELATÃ“RIO: RECEITA POR ESCRITÃ“RIO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/relatorios/por-escritorio", auth, semRecepcao, async (req, res) => {
   try {
     const recibos  = await find(dbRecibos,  NAO_DELETADO);
     const clientes = await find(dbClientes, NAO_DELETADO);
     const escritorios = {};
     for (const r of recibos) {
-      const esc = (r.escritorio || "").trim() || "(sem escritório)";
+      const esc = (r.escritorio || "").trim() || "(sem escritÃ³rio)";
       if (!escritorios[esc]) escritorios[esc] = { escritorio: esc, receita: 0, qtd_recibos: 0, qtd_clientes: 0 };
       const val = parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
       escritorios[esc].receita      += val;
       escritorios[esc].qtd_recibos  += 1;
     }
     for (const c of clientes) {
-      const esc = (c.escritorio || "").trim() || "(sem escritório)";
+      const esc = (c.escritorio || "").trim() || "(sem escritÃ³rio)";
       if (!escritorios[esc]) escritorios[esc] = { escritorio: esc, receita: 0, qtd_recibos: 0, qtd_clientes: 0 };
       escritorios[esc].qtd_clientes += 1;
     }
@@ -1140,12 +890,12 @@ app.get("/api/relatorios/por-escritorio", auth, semRecepcao, async (req, res) =>
       .sort((a, b) => b.receita - a.receita);
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar relatório por escritório:", e.message);
-    res.status(500).json({ erro: "Erro ao gerar relatório." });
+    console.error("Erro ao gerar relatÃ³rio por escritÃ³rio:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar relatÃ³rio." });
   }
 });
 
-// ── RESUMO MENSAL COM KPIs COMPARATIVOS ─────────────────────
+// â”€â”€ RESUMO MENSAL COM KPIs COMPARATIVOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/relatorios/resumo-mes", auth, async (req, res) => {
   try {
     const hoje = new Date();
@@ -1191,11 +941,11 @@ app.get("/api/relatorios/resumo-mes", auth, async (req, res) => {
     });
   } catch (e) {
     console.error("Erro ao gerar resumo-mes:", e.message);
-    res.status(500).json({ erro: "Erro ao gerar resumo do mês." });
+    res.status(500).json({ erro: "Erro ao gerar resumo do mÃªs." });
   }
 });
 
-// ── RECEITA POR RESPONSÁVEL ──────────────────────────────────
+// â”€â”€ RECEITA POR RESPONSÃVEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/relatorios/por-responsavel", auth, semRecepcao, async (req, res) => {
   try {
     const recibos = await find(dbRecibos, NAO_DELETADO);
@@ -1205,7 +955,7 @@ app.get("/api/relatorios/por-responsavel", auth, semRecepcao, async (req, res) =
     const parseValor = (r) => parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
     const mapa = {};
     for (const r of filtrados) {
-      const resp = (r.emitido_por || "").trim() || "(não informado)";
+      const resp = (r.emitido_por || "").trim() || "(nÃ£o informado)";
       if (!mapa[resp]) mapa[resp] = { responsavel: resp, total_recibos: 0, receita_total: 0 };
       mapa[resp].total_recibos += 1;
       mapa[resp].receita_total += parseValor(r);
@@ -1220,12 +970,12 @@ app.get("/api/relatorios/por-responsavel", auth, semRecepcao, async (req, res) =
       .sort((a, b) => b.receita_total - a.receita_total);
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar relatório por responsável:", e.message);
-    res.status(500).json({ erro: "Erro ao gerar relatório." });
+    console.error("Erro ao gerar relatÃ³rio por responsÃ¡vel:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar relatÃ³rio." });
   }
 });
 
-// ── RECEITA POR FORMA DE PAGAMENTO ──────────────────────────
+// â”€â”€ RECEITA POR FORMA DE PAGAMENTO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/relatorios/formas-pagamento", auth, semRecepcao, async (req, res) => {
   try {
     const recibos = await find(dbRecibos, NAO_DELETADO);
@@ -1236,7 +986,7 @@ app.get("/api/relatorios/formas-pagamento", auth, semRecepcao, async (req, res) 
     const mapa = {};
     let totalReceita = 0;
     for (const r of filtrados) {
-      const forma = (r.forma_pagamento || "").trim() || "(não informado)";
+      const forma = (r.forma_pagamento || "").trim() || "(nÃ£o informado)";
       if (!mapa[forma]) mapa[forma] = { forma, recibos: 0, receita: 0 };
       const val = parseValor(r);
       mapa[forma].recibos += 1;
@@ -1252,12 +1002,12 @@ app.get("/api/relatorios/formas-pagamento", auth, semRecepcao, async (req, res) 
       .sort((a, b) => b.receita - a.receita);
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar relatório de formas de pagamento:", e.message);
-    res.status(500).json({ erro: "Erro ao gerar relatório." });
+    console.error("Erro ao gerar relatÃ³rio de formas de pagamento:", e.message);
+    res.status(500).json({ erro: "Erro ao gerar relatÃ³rio." });
   }
 });
 
-// ── COMPARATIVO DE ANOS ─────────────────────────────────────
+// â”€â”€ COMPARATIVO DE ANOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/relatorios/comparativo-anos", auth, semRecepcao, async (req, res) => {
   try {
     const recibos = await find(dbRecibos, NAO_DELETADO);
@@ -1289,13 +1039,13 @@ app.get("/api/relatorios/comparativo-anos", auth, semRecepcao, async (req, res) 
   }
 });
 
-// ── DRE SIMPLIFICADO ─────────────────────────────────────────
+// â”€â”€ DRE SIMPLIFICADO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/relatorios/dre", auth, semRecepcao, async (req, res) => {
   try {
     const ano = parseInt(req.query.ano || new Date().getFullYear(), 10);
     const recibos = await find(dbRecibos, NAO_DELETADO);
     const parseValor = (r) => parseFloat(String(r.valor || "0").replace(/[^\d,.-]/g, "").replace(",", ".")) || 0;
-    const MESES_NOME = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+    const MESES_NOME = ["Janeiro","Fevereiro","MarÃ§o","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
     const porMes = Array.from({ length: 12 }, () => ({ receita: 0, qtd: 0 }));
     for (const r of recibos) {
       const mesAno = mesDeData(r.data);
@@ -1331,7 +1081,7 @@ app.get("/api/relatorios/dre", auth, semRecepcao, async (req, res) => {
   }
 });
 
-// ── BACKUP DO BANCO DE DADOS ────────────────────────────────
+// â”€â”€ BACKUP DO BANCO DE DADOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/admin/backup-db", auth, adminOnly, async (req, res) => {
   try {
     const dbDir = path.join(__dirname, "data");
@@ -1355,7 +1105,7 @@ app.get("/api/admin/backup-db", auth, adminOnly, async (req, res) => {
   }
 });
 
-// ── LOG DE AUDITORIA ────────────────────────────────────────
+// â”€â”€ LOG DE AUDITORIA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/admin/audit-log", auth, adminOnly, async (req, res) => {
   try {
     const { usuario, acao, de, ate } = req.query;
@@ -1374,7 +1124,7 @@ app.get("/api/admin/audit-log", auth, adminOnly, async (req, res) => {
   }
 });
 
-// ── GERAR DOCUMENTO ────────────────────────────────────────
+// â”€â”€ GERAR DOCUMENTO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/gerar-recibo", auth, async (req, res) => {
   try {
     const dados = req.body;
@@ -1407,7 +1157,7 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
       });
     }
 
-    const textoCorpo = `Recebemos do (a) senhor (a) ${dados.nome}, residente e domiciliado(a) no Município de ${dados.municipio_uf}, a importância de R$ ${dados.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${complemento}.`;
+    const textoCorpo = `Recebemos do (a) senhor (a) ${dados.nome}, residente e domiciliado(a) no MunicÃ­pio de ${dados.municipio_uf}, a importÃ¢ncia de R$ ${dados.valor} referentes aos honorÃ¡rios advocatÃ­cios relacionados Ã  AÃ§Ã£o PrevidenciÃ¡ria${complemento}.`;
 
     const children = [];
 
@@ -1422,20 +1172,20 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
     const semBorda = { top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" } };
 
     children.push(
-      p("A ARAUJO SERVIÇOS LTDA ME", { align: AlignmentType.CENTER, bold: true, size: 14, color: "1E40AF", spaceAfter: 40 }),
+      p("A ARAUJO SERVIÃ‡OS LTDA ME", { align: AlignmentType.CENTER, bold: true, size: 14, color: "1E40AF", spaceAfter: 40 }),
       p("A ARAUJO PREV", { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 40 }),
       linha(),
-      p(`Recibo Nº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 20 }),
-      p("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: AlignmentType.CENTER, bold: true, size: 14, spaceAfter: 80 }),
+      p(`Recibo NÂº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 20 }),
+      p("RECIBO DE HONORÃRIOS ADVOCATÃCIOS", { align: AlignmentType.CENTER, bold: true, size: 14, spaceAfter: 80 }),
       p(textoCorpo, { align: AlignmentType.JUSTIFIED, spaceAfter: 60 }),
       p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
       linha(),
       p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 3600 }),
-      // Assinatura do cliente — centro
+      // Assinatura do cliente â€” centro
       p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 40 }),
       p(dados.nome, { align: AlignmentType.CENTER, size: 10, spaceAfter: 20 }),
       p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: 2800 }),
-      // Assinatura do emissor — esquerda
+      // Assinatura do emissor â€” esquerda
       p("________________________", { align: AlignmentType.LEFT, spaceAfter: 40 }),
       p(dados.emitido_por || "A ARAUJO PREV", { align: AlignmentType.LEFT, size: 10, spaceAfter: 0 }),
     );
@@ -1453,7 +1203,7 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
     const nomeBase = `recibo_${dados.num_recibo.replace(/[\/\\]/g, "-")}_${dados.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").toLowerCase()}`;
 
     if (dados.formato === "pdf") {
-      // ── Gerar PDF ──
+      // â”€â”€ Gerar PDF â”€â”€
       const chunks = [];
       const pdf = new PDFDocument({ margin: 60, size: "A4" });
       pdf.on("data", c => chunks.push(c));
@@ -1467,7 +1217,7 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
         }
 
         pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
-          .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
+          .text("A ARAUJO SERVIÃ‡OS LTDA ME", { align: "center" }).moveDown(0.2);
         pdf.fontSize(12).fillColor("#000000")
           .text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
 
@@ -1477,8 +1227,8 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
         pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
 
         pdf.fontSize(12).font("Helvetica-Bold")
-          .text(`Recibo Nº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
-        pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
+          .text(`Recibo NÂº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
+        pdf.fontSize(14).text("RECIBO DE HONORÃRIOS ADVOCATÃCIOS", { align: "center" }).moveDown(0.8);
 
         pdf.fontSize(11).font("Helvetica")
           .text(textoCorpo, { align: "justify" }).moveDown(0.6);
@@ -1488,17 +1238,17 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
 
         pdf.text(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: "left" }).moveDown(6);
 
-        // Assinatura cliente — centro
+        // Assinatura cliente â€” centro
         const cx = pdf.page.width / 2;
         pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
         pdf.fontSize(10).text(dados.nome, { align: "center" }).moveDown(0.1);
         pdf.fontSize(9).text(`${labelDoc}: ${dados.cpf}`, { align: "center" }).moveDown(5);
 
-        // Assinatura emissor — esquerda
+        // Assinatura emissor â€” esquerda
         pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
         pdf.fontSize(10).text(dados.emitido_por || "A ARAUJO PREV", { align: "left" });
 
-        // Logo rodapé
+        // Logo rodapÃ©
         if (logoExists) {
           pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
         }
@@ -1511,7 +1261,7 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
       res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.pdf"`);
       res.send(pdfBuf);
     } else {
-      // ── Gerar DOCX (padrão) ──
+      // â”€â”€ Gerar DOCX (padrÃ£o) â”€â”€
       const buf = await Packer.toBuffer(doc);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
       res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.docx"`);
@@ -1523,7 +1273,7 @@ app.post("/api/gerar-recibo", auth, async (req, res) => {
   }
 });
 
-// ── ROTAS USUÁRIOS ─────────────────────────────────────────
+// â”€â”€ ROTAS USUÃRIOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/users", auth, adminOnly, async (req, res) => {
   const { rows } = await pgPool.query("SELECT id, username, role, escritorio, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC");
   res.json(rows);
@@ -1531,11 +1281,11 @@ app.get("/api/users", auth, adminOnly, async (req, res) => {
 
 app.post("/api/users", auth, adminOnly, async (req, res) => {
   const { username, password, role, escritorio } = req.body;
-  if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
+  if (!username || !password) return res.status(400).json({ erro: "Preencha usuÃ¡rio e senha" });
   const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
-  if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
-  // Recepção sem escritório vinculado não filtra nada — força informar
-  if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
+  if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role invÃ¡lido." });
+  // RecepÃ§Ã£o sem escritÃ³rio vinculado nÃ£o filtra nada â€” forÃ§a informar
+  if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritÃ³rio para usuÃ¡rio de recepÃ§Ã£o." });
   const hash = bcrypt.hashSync(password, 10);
   try {
     const { rows } = await pgPool.query(
@@ -1543,22 +1293,22 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
       [username, hash, role || "financeiro", escritorio || "", new Date().toISOString()]
     );
     registrarAuditoria(req, "criar_usuario", rows[0].id, { username, role: role || "financeiro" });
-    sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
+    sincronizarUsuariosParaSheets().catch(e => console.error("âŒ Sync Sheets falhou:", e.message));
     res.json({ id: rows[0].id, username });
   } catch (e) {
-    if (e.code === "23505") return res.status(400).json({ erro: "Usuário já existe" });
+    if (e.code === "23505") return res.status(400).json({ erro: "UsuÃ¡rio jÃ¡ existe" });
     throw e;
   }
 });
 
 app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
   const { username, password, role, escritorio } = req.body;
-  if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
+  if (!username) return res.status(400).json({ erro: "Preencha o usuÃ¡rio." });
   const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
-  if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
-  if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
+  if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role invÃ¡lido." });
+  if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritÃ³rio para usuÃ¡rio de recepÃ§Ã£o." });
   const { rows: exists } = await pgPool.query("SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL", [req.params.id]);
-  if (!exists[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
+  if (!exists[0]) return res.status(404).json({ erro: "UsuÃ¡rio nÃ£o encontrado." });
   if (password) {
     await pgPool.query(
       "UPDATE users SET username=$1, role=$2, escritorio=$3, password=$4 WHERE id=$5",
@@ -1570,47 +1320,47 @@ app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
       [username, role || "financeiro", escritorio || "", req.params.id]
     );
   }
-  sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
+  sincronizarUsuariosParaSheets().catch(e => console.error("âŒ Sync Sheets falhou:", e.message));
   res.json({ ok: true });
 });
 
 app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
   const { rows } = await pgPool.query("SELECT username FROM users WHERE id=$1 AND deleted_at IS NULL", [req.params.id]);
-  if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
-  if (rows[0].username === ADMIN_USER) return res.status(400).json({ erro: "Não é possível remover o admin." });
+  if (!rows[0]) return res.status(404).json({ erro: "UsuÃ¡rio nÃ£o encontrado." });
+  if (rows[0].username === ADMIN_USER) return res.status(400).json({ erro: "NÃ£o Ã© possÃ­vel remover o admin." });
   await pgPool.query("UPDATE users SET deleted_at=NOW() WHERE id=$1", [req.params.id]);
   registrarAuditoria(req, "excluir_usuario", req.params.id, { username: rows[0].username });
-  sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
+  sincronizarUsuariosParaSheets().catch(e => console.error("âŒ Sync Sheets falhou:", e.message));
   res.json({ ok: true });
 });
 
-// ── SYNC FORÇADO: NeDB → Google Sheets ─────────────────────
+// â”€â”€ SYNC FORÃ‡ADO: NeDB â†’ Google Sheets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();
-  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado (verifique GOOGLE_CREDENTIALS no EB)." });
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets nÃ£o configurado (verifique GOOGLE_CREDENTIALS no EB)." });
 
   try {
-    // Lê todos os recibos do banco local, ordenados por timestamp
+    // LÃª todos os recibos do banco local, ordenados por timestamp
     const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: 1 });
     if (todos.length === 0) return res.json({ ok: true, enviados: 0, mensagem: "Nenhum recibo no banco." });
 
-    // Lê números de recibo já existentes na planilha (coluna M a partir da linha 4)
+    // LÃª nÃºmeros de recibo jÃ¡ existentes na planilha (coluna M a partir da linha 4)
     const existing = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!M4:M`,
     });
     const naPlilha = new Set((existing.data.values || []).flat().map(v => String(v || "").trim()).filter(Boolean));
 
-    // Filtra apenas os que ainda não estão na planilha
+    // Filtra apenas os que ainda nÃ£o estÃ£o na planilha
     const faltando = todos.filter(r => r.num && !naPlilha.has(String(r.num).trim()));
     if (faltando.length === 0) return res.json({
       ok: true, enviados: 0,
-      mensagem: `Todos os ${todos.length} recibos já estão na planilha (${naPlilha.size} entradas detectadas na coluna M).`
+      mensagem: `Todos os ${todos.length} recibos jÃ¡ estÃ£o na planilha (${naPlilha.size} entradas detectadas na coluna M).`
     });
 
-    // Monta as linhas para inserção em lote
-    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
-    // r.data vem como "DD/MM/YYYY" do banco — new Date() interpreta como MM/DD, invertendo mês/dia
+    // Monta as linhas para inserÃ§Ã£o em lote
+    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÃ‡O","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+    // r.data vem como "DD/MM/YYYY" do banco â€” new Date() interpreta como MM/DD, invertendo mÃªs/dia
     function parseDateBR(str) {
       if (!str) return null;
       const [d, m, y] = String(str).split("/");
@@ -1630,16 +1380,16 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
         r.cpf || "",                                                      // C: CPF
         r.valor ? `R$ ${r.valor}` : "",                                   // D: Valor
         r.data || dataFmt,                                                // E: Data pagamento
-        r.data || dataFmt,                                                // F: Data depósito
+        r.data || dataFmt,                                                // F: Data depÃ³sito
         r.forma_pagamento || "",                                          // G: Forma pagamento
-        r.motivo_pagamento || r.complemento || "Honorários Advocatícios", // H: Motivo
-        r.escritorio || "",                                               // I: Escritório
-        "",                                                               // J: Observação
+        r.motivo_pagamento || r.complemento || "HonorÃ¡rios AdvocatÃ­cios", // H: Motivo
+        r.escritorio || "",                                               // I: EscritÃ³rio
+        "",                                                               // J: ObservaÃ§Ã£o
         await linkParaSheets(r.link_comprovante || "", s3SignerClient),   // K: Comprovante
-        mes,                                                              // L: Mês
-        r.num || "",                                                      // M: Número recibo
-        r.emitido_por || "",                                              // N: Responsável
-        r.referencia || "",                                               // O: Referência
+        mes,                                                              // L: MÃªs
+        r.num || "",                                                      // M: NÃºmero recibo
+        r.emitido_por || "",                                              // N: ResponsÃ¡vel
+        r.referencia || "",                                               // O: ReferÃªncia
       ];
     }));
 
@@ -1652,31 +1402,31 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
     });
 
     const rangeEscrito = appendResult.data.updates?.updatedRange || "desconhecido";
-    console.log(`✅ Sync forçado: ${linhas.length} recibo(s) escritos no range ${rangeEscrito}.`);
+    console.log(`âœ… Sync forÃ§ado: ${linhas.length} recibo(s) escritos no range ${rangeEscrito}.`);
     res.json({
       ok: true,
       enviados: linhas.length,
       mensagem: `${linhas.length} recibo(s) adicionados. Total no banco: ${todos.length}. Na planilha antes: ${naPlilha.size}. Escrito em: ${rangeEscrito}.`
     });
   } catch (e) {
-    console.error("❌ Erro no sync forçado para Sheets:", e.message);
+    console.error("âŒ Erro no sync forÃ§ado para Sheets:", e.message);
     res.status(500).json({ erro: "Erro ao sincronizar planilha." });
   }
 });
 
-// ── LIMPAR DUPLICATAS NA PLANILHA ────────────────────────────
+// â”€â”€ LIMPAR DUPLICATAS NA PLANILHA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();
-  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado." });
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets nÃ£o configurado." });
 
   try {
-    // Descobre o sheetId numérico da aba
+    // Descobre o sheetId numÃ©rico da aba
     const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "sheets.properties" });
     const sheetMeta = meta.data.sheets.find(s => s.properties.title === SHEET_NAME);
-    if (!sheetMeta) return res.status(404).json({ erro: `Aba "${SHEET_NAME}" não encontrada.` });
+    if (!sheetMeta) return res.status(404).json({ erro: `Aba "${SHEET_NAME}" nÃ£o encontrada.` });
     const sheetId = sheetMeta.properties.sheetId;
 
-    // Lê todas as linhas (col M = num_recibo, índice 12)
+    // LÃª todas as linhas (col M = num_recibo, Ã­ndice 12)
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A1:M`,
@@ -1684,12 +1434,12 @@ app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
     const rows = result.data.values || [];
 
     // Identifica linhas duplicadas pelo num_recibo (col M)
-    // Mantém a PRIMEIRA ocorrência, marca as demais para deletar
+    // MantÃ©m a PRIMEIRA ocorrÃªncia, marca as demais para deletar
     const seen = new Set();
-    const toDelete = []; // índices de linha (0-based) a deletar, do maior pro menor
+    const toDelete = []; // Ã­ndices de linha (0-based) a deletar, do maior pro menor
     rows.forEach((row, idx) => {
       const num = String(row[12] || "").trim();
-      if (!num) return; // linha sem número — ignora
+      if (!num) return; // linha sem nÃºmero â€” ignora
       if (seen.has(num)) {
         toDelete.push(idx);
       } else {
@@ -1701,7 +1451,7 @@ app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
       return res.json({ ok: true, removidas: 0, mensagem: "Nenhuma duplicata encontrada na planilha." });
     }
 
-    // Deleta do fim para o começo para não deslocar índices
+    // Deleta do fim para o comeÃ§o para nÃ£o deslocar Ã­ndices
     toDelete.sort((a, b) => b - a);
     const requests = toDelete.map(rowIdx => ({
       deleteDimension: {
@@ -1714,18 +1464,18 @@ app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
       requestBody: { requests },
     });
 
-    console.log(`✅ Limpeza: ${toDelete.length} linha(s) duplicada(s) removida(s).`);
+    console.log(`âœ… Limpeza: ${toDelete.length} linha(s) duplicada(s) removida(s).`);
     res.json({ ok: true, removidas: toDelete.length, mensagem: `${toDelete.length} linha(s) duplicada(s) removida(s) com sucesso.` });
   } catch (e) {
-    console.error("❌ Erro ao limpar duplicatas:", e.message);
+    console.error("âŒ Erro ao limpar duplicatas:", e.message);
     res.status(500).json({ erro: "Erro ao limpar duplicatas." });
   }
 });
 
-// ── IMPORTAR PLANILHA → BANCO (MERGE/UPSERT, funciona mesmo com banco não-vazio) ──
+// â”€â”€ IMPORTAR PLANILHA â†’ BANCO (MERGE/UPSERT, funciona mesmo com banco nÃ£o-vazio) â”€â”€
 app.post("/api/admin/importar-de-sheets", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();
-  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado." });
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets nÃ£o configurado." });
   try {
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
@@ -1751,7 +1501,7 @@ app.post("/api/admin/importar-de-sheets", auth, adminOnly, async (req, res) => {
       const emitido_por = row[13] || "";
       const referencia  = row[14] || "";
 
-      // Se já existe no banco pelo número, pula
+      // Se jÃ¡ existe no banco pelo nÃºmero, pula
       const existente = num ? await findOne(dbRecibos, { num }) : null;
       if (existente) { ignorados++; continue; }
 
@@ -1767,15 +1517,15 @@ app.post("/api/admin/importar-de-sheets", auth, adminOnly, async (req, res) => {
       await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por, complemento: "", referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
       importados++;
     }
-    console.log(`✅ Importação da planilha: ${importados} novo(s), ${ignorados} já existiam.`);
-    res.json({ ok: true, importados, ignorados, mensagem: `${importados} recibo(s) importado(s) da planilha. ${ignorados} já existiam no banco.` });
+    console.log(`âœ… ImportaÃ§Ã£o da planilha: ${importados} novo(s), ${ignorados} jÃ¡ existiam.`);
+    res.json({ ok: true, importados, ignorados, mensagem: `${importados} recibo(s) importado(s) da planilha. ${ignorados} jÃ¡ existiam no banco.` });
   } catch (e) {
-    console.error("❌ Erro ao importar da planilha:", e.message);
+    console.error("âŒ Erro ao importar da planilha:", e.message);
     res.status(500).json({ erro: "Erro ao importar da planilha." });
   }
 });
 
-// ── IMPORTAÇÃO EM MASSA VIA JSON (para restaurar dados do Excel/backup) ──────
+// â”€â”€ IMPORTAÃ‡ÃƒO EM MASSA VIA JSON (para restaurar dados do Excel/backup) â”€â”€â”€â”€â”€â”€
 app.post("/api/admin/importar-bulk", auth, adminOnly, async (req, res) => {
   const registros = req.body;
   if (!Array.isArray(registros) || registros.length === 0)
@@ -1815,22 +1565,22 @@ app.post("/api/admin/importar-bulk", auth, adminOnly, async (req, res) => {
     }
   }
 
-  console.log(`✅ importar-bulk: ${importados} importados, ${ignorados} ignorados, ${erros.length} erros`);
+  console.log(`âœ… importar-bulk: ${importados} importados, ${ignorados} ignorados, ${erros.length} erros`);
   res.json({ ok: true, importados, ignorados, erros: erros.slice(0, 10),
-    mensagem: `${importados} registro(s) importado(s). ${ignorados} já existiam. Execute "Reescrever planilha" para sincronizar.` });
+    mensagem: `${importados} registro(s) importado(s). ${ignorados} jÃ¡ existiam. Execute "Reescrever planilha" para sincronizar.` });
 });
 
-// ── LIMPAR PLANILHA E REESCREVER DO ZERO ────────────────────
+// â”€â”€ LIMPAR PLANILHA E REESCREVER DO ZERO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();
-  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado." });
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets nÃ£o configurado." });
 
   try {
-    // Lê todos os recibos do banco ordenados por timestamp
+    // LÃª todos os recibos do banco ordenados por timestamp
     const todos = await find(dbRecibos, NAO_DELETADO, { timestamp: 1 });
     if (todos.length === 0) return res.json({ ok: true, mensagem: "Nenhum recibo no banco." });
 
-    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÃ‡O","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
     function parseDateBR(str) {
       if (!str) return null;
       const [d, m, y] = String(str).split("/");
@@ -1839,7 +1589,7 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       return isNaN(dt.getTime()) ? null : dt;
     }
 
-    // 1. Monta todas as linhas ANTES de limpar (sem gerar presigned URLs — evita timeout)
+    // 1. Monta todas as linhas ANTES de limpar (sem gerar presigned URLs â€” evita timeout)
     const linhas = todos.map(r => {
       const dt = parseDateBR(r.data) || new Date(r.timestamp || Date.now());
       const tsDate = r.timestamp ? new Date(r.timestamp) : dt;
@@ -1854,7 +1604,7 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
         r.data || dataFmt,
         r.data || dataFmt,
         r.forma_pagamento || "",
-        r.motivo_pagamento || r.complemento || "Honorários Advocatícios",
+        r.motivo_pagamento || r.complemento || "HonorÃ¡rios AdvocatÃ­cios",
         r.escritorio || "",
         "",
         r.link_comprovante || "",
@@ -1868,18 +1618,18 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
     // 2. Descobre sheetId e rowCount para deletar fisicamente as linhas extras
     const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
     const sheetMeta = meta.data.sheets.find(s => s.properties.title === SHEET_NAME);
-    if (!sheetMeta) return res.status(404).json({ erro: `Aba "${SHEET_NAME}" não encontrada.` });
+    if (!sheetMeta) return res.status(404).json({ erro: `Aba "${SHEET_NAME}" nÃ£o encontrada.` });
     const sheetId = sheetMeta.properties.sheetId;
     const totalRows = sheetMeta.properties.gridProperties?.rowCount || 0;
 
-    // 3. Deleta fisicamente linhas extras (deixa 1 no fim — Sheets exige ao menos 1 linha não-congelada)
+    // 3. Deleta fisicamente linhas extras (deixa 1 no fim â€” Sheets exige ao menos 1 linha nÃ£o-congelada)
     if (totalRows > 4) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SHEET_ID,
         requestBody: {
           requests: [{
             deleteDimension: {
-              // endIndex exclusivo: deleta índices 3..(totalRows-2), mantém última linha
+              // endIndex exclusivo: deleta Ã­ndices 3..(totalRows-2), mantÃ©m Ãºltima linha
               range: { sheetId, dimension: "ROWS", startIndex: 3, endIndex: totalRows - 1 },
             },
           }],
@@ -1887,7 +1637,7 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       });
     }
 
-    // 4. Limpa valores remanescentes (a linha que sobrou + qualquer resíduo)
+    // 4. Limpa valores remanescentes (a linha que sobrou + qualquer resÃ­duo)
     await sheets.spreadsheets.values.clear({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A4:Z`,
@@ -1901,15 +1651,15 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       requestBody: { values: linhas },
     });
 
-    console.log(`✅ Planilha reescrita: ${linhas.length} recibo(s) do banco.`);
+    console.log(`âœ… Planilha reescrita: ${linhas.length} recibo(s) do banco.`);
     res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco.` });
   } catch (e) {
-    console.error("❌ Erro ao reescrever planilha:", e.message);
+    console.error("âŒ Erro ao reescrever planilha:", e.message);
     res.status(500).json({ erro: "Erro ao reescrever planilha.", detalhe: e.message });
   }
 });
 
-// ── NORMALIZAR CAMPOS LIVRES (escritório + forma de pagamento) ────────────────
+// â”€â”€ NORMALIZAR CAMPOS LIVRES (escritÃ³rio + forma de pagamento) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function normalizarEscritorio(raw) {
   const v = (raw || "").trim().toUpperCase().replace(/[-/,]+/g, " ").replace(/\s+/g, " ").trim();
   if (v.includes("TERRA RICA"))              return "Terra Rica - PR";
@@ -1922,20 +1672,20 @@ function normalizarEscritorio(raw) {
 }
 
 function normalizarFormaPagamento(raw) {
-  const v = (raw || "").trim().toUpperCase().replace(/[^A-ZÁÉÍÓÚÃÕÂÊÔÇ0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-  if (v === "PIX" || v === "PÌX")            return "Pix";
-  if (v.includes("LOTÉRIC") ||
-      v.includes("LOTERIC"))                 return "Depósito lotérica";
-  if (v.includes("CAIXA"))                   return "Depósito caixa";
-  if (v.includes("BB"))                      return "Depósito BB";
+  const v = (raw || "").trim().toUpperCase().replace(/[^A-ZÃÃ‰ÃÃ“ÃšÃƒÃ•Ã‚ÃŠÃ”Ã‡0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  if (v === "PIX" || v === "PÃŒX")            return "Pix";
+  if (v.includes("LOTÃ‰RIC") ||
+      v.includes("LOTERIC"))                 return "DepÃ³sito lotÃ©rica";
+  if (v.includes("CAIXA"))                   return "DepÃ³sito caixa";
+  if (v.includes("BB"))                      return "DepÃ³sito BB";
   if (v === "TED")                           return "TED";
-  if (v.includes("TRANSFER"))               return "Transferência bancária";
+  if (v.includes("TRANSFER"))               return "TransferÃªncia bancÃ¡ria";
   if (v.includes("DINHEIRO"))               return "Dinheiro";
   if (v.includes("CHEQUE"))                 return "Cheque";
   return raw;
 }
 
-// ── MIGRAÇÃO NEDB → NEON (endpoint único, seguro rodar N vezes) ──────────────
+// â”€â”€ MIGRAÃ‡ÃƒO NEDB â†’ NEON (endpoint Ãºnico, seguro rodar N vezes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/admin/migrar-nedb", auth, adminOnly, async (req, res) => {
   const result = { recibos: { ok: 0, skip: 0 }, clientes: { ok: 0, skip: 0 }, auditoria: { ok: 0, skip: 0 }, erros: [] };
   function lerDb(nome) {
@@ -2016,15 +1766,15 @@ app.post("/api/admin/normalizar-escritorios", auth, adminOnly, async (req, res) 
         atualizados++;
       }
     }
-    console.log(`✅ Dados normalizados: ${atualizados} recibo(s)`);
+    console.log(`âœ… Dados normalizados: ${atualizados} recibo(s)`);
     res.json({ ok: true, atualizados, total: todos.length });
   } catch (e) {
-    console.error("❌ Erro ao normalizar:", e.message);
+    console.error("âŒ Erro ao normalizar:", e.message);
     res.status(500).json({ erro: "Erro ao normalizar.", detalhe: e.message });
   }
 });
 
-// ── IMPORTAR CLIENTES DOS RECIBOS ─────────────────────────
+// â”€â”€ IMPORTAR CLIENTES DOS RECIBOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/admin/importar-clientes-dos-recibos", auth, financeiroOnly, async (req, res) => {
   try {
     const todosRecibos   = await find(dbRecibos, NAO_DELETADO);
@@ -2046,15 +1796,15 @@ app.post("/api/admin/importar-clientes-dos-recibos", auth, financeiroOnly, async
       const g = mapa[key];
       const cpfDigits = g.cpf.replace(/\D/g, "");
 
-      // Pula se já existe (por CPF ou por nome quando sem CPF)
+      // Pula se jÃ¡ existe (por CPF ou por nome quando sem CPF)
       if (cpfDigits && cpfsExistentes.has(cpfDigits)) { ignorados++; continue; }
       if (!cpfDigits && nomesExist.has(g.nome.toUpperCase())) { ignorados++; continue; }
 
-      // Valida CPF/CNPJ se preenchido — pula inválido
+      // Valida CPF/CNPJ se preenchido â€” pula invÃ¡lido
       if (cpfDigits && cpfDigits.length === 11 && !validarCPF(g.cpf)) { ignorados++; continue; }
       if (cpfDigits && cpfDigits.length === 14 && !validarCNPJ(g.cpf)) { ignorados++; continue; }
 
-      // Usa o recibo mais recente para dados de referência
+      // Usa o recibo mais recente para dados de referÃªncia
       const recente = g.recibos.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
       const totalValor = g.recibos.reduce((s, r) => s + (parseFloat((r.valor || "0").toString().replace(/\./g, "").replace(",", ".")) || 0), 0);
       const nRec = g.recibos.length;
@@ -2084,32 +1834,32 @@ app.post("/api/admin/importar-clientes-dos-recibos", auth, financeiroOnly, async
       importados++;
     }
 
-    console.log(`[${new Date().toISOString()}] ✅ Importar clientes dos recibos: ${importados} importados, ${ignorados} já existiam`);
+    console.log(`[${new Date().toISOString()}] âœ… Importar clientes dos recibos: ${importados} importados, ${ignorados} jÃ¡ existiam`);
     res.json({ ok: true, importados, ignorados });
   } catch (e) {
-    console.error("❌ Erro ao importar clientes dos recibos:", e.message);
+    console.error("âŒ Erro ao importar clientes dos recibos:", e.message);
     res.status(500).json({ erro: "Erro ao importar clientes.", detalhe: e.message });
   }
 });
 
-// ── CORRIGIR DATAS NA PLANILHA ────────────────────────────
+// â”€â”€ CORRIGIR DATAS NA PLANILHA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
   const sheets = getSheetsClient();
-  if (!sheets) return res.status(503).json({ erro: "Google Sheets não configurado." });
+  if (!sheets) return res.status(503).json({ erro: "Google Sheets nÃ£o configurado." });
 
   try {
-    // Lê todos os recibos do banco indexados por num_recibo
+    // LÃª todos os recibos do banco indexados por num_recibo
     const todos = await find(dbRecibos, NAO_DELETADO);
     const dbMap = new Map(todos.map(r => [String(r.num || "").trim(), r]));
 
-    // Lê todas as linhas da planilha
+    // LÃª todas as linhas da planilha
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A1:M`,
     });
     const rows = result.data.values || [];
 
-    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
+    const MESES_LOCAL = ["JANEIRO","FEVEREIRO","MARÃ‡O","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
     function parseDateBR(str) {
       if (!str) return null;
       const [d, m, y] = String(str).split("/");
@@ -2125,14 +1875,14 @@ app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
       const rec = dbMap.get(num);
       if (!rec) return;
 
-      // Reconstrói carimbo e mês a partir do timestamp do banco
+      // ReconstrÃ³i carimbo e mÃªs a partir do timestamp do banco
       const dt = parseDateBR(rec.data) || new Date(rec.timestamp || Date.now());
       const tsDate = rec.timestamp ? new Date(rec.timestamp) : dt;
       const carimbo = tsDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
       const mes = MESES_LOCAL[dt.getMonth()] || "";
       const dataFmt = dt.toLocaleDateString("pt-BR");
 
-      const rowNum = idx + 1; // planilha é 1-based
+      const rowNum = idx + 1; // planilha Ã© 1-based
       updates.push({ rowNum, carimbo, mes, dataFmt, dataBR: rec.data || dataFmt });
     });
 
@@ -2140,7 +1890,7 @@ app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
       return res.json({ ok: true, corrigidas: 0, mensagem: "Nenhuma linha para corrigir." });
     }
 
-    // Atualiza em lote: coluna A (carimbo), E (data pag), F (data dep), L (mês)
+    // Atualiza em lote: coluna A (carimbo), E (data pag), F (data dep), L (mÃªs)
     const data = updates.map(u => ({
       range: `${SHEET_NAME}!A${u.rowNum}`,
       values: [[u.carimbo]],
@@ -2157,22 +1907,22 @@ app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
       requestBody: { valueInputOption: "USER_ENTERED", data },
     });
 
-    console.log(`✅ Datas corrigidas em ${updates.length} linha(s).`);
+    console.log(`âœ… Datas corrigidas em ${updates.length} linha(s).`);
     res.json({ ok: true, corrigidas: updates.length, mensagem: `Datas corrigidas em ${updates.length} linha(s) da planilha.` });
   } catch (e) {
-    console.error("❌ Erro ao corrigir datas:", e.message);
+    console.error("âŒ Erro ao corrigir datas:", e.message);
     res.status(500).json({ erro: "Erro ao corrigir datas." });
   }
 });
 
-// ── EMAIL SMTP ─────────────────────────────────────────────
-// Variáveis de ambiente necessárias no Elastic Beanstalk:
+// â”€â”€ EMAIL SMTP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// VariÃ¡veis de ambiente necessÃ¡rias no Elastic Beanstalk:
 //   SMTP_HOST=smtp.gmail.com
 //   SMTP_PORT=587
 //   SMTP_USER=email@dominio.com
-//   SMTP_PASS=senha_de_app          ← use App Password do Google, não a senha da conta
+//   SMTP_PASS=senha_de_app          â† use App Password do Google, nÃ£o a senha da conta
 //   SMTP_FROM=Araujo Prev <email@dominio.com>
-//   SMTP_ADMIN=email-do-admin@dominio.com  ← destinatário dos alertas de inadimplência
+//   SMTP_ADMIN=email-do-admin@dominio.com  â† destinatÃ¡rio dos alertas de inadimplÃªncia
 
 function smtpConfigurado() {
   return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
@@ -2194,7 +1944,7 @@ function criarTransporter() {
 
 async function enviarEmail({ to, subject, html, attachments = [] }) {
   if (!smtpConfigurado()) {
-    console.warn("⚠️  SMTP não configurado — e-mail não enviado.");
+    console.warn("âš ï¸  SMTP nÃ£o configurado â€” e-mail nÃ£o enviado.");
     return false;
   }
   const transporter = criarTransporter();
@@ -2206,15 +1956,15 @@ async function enviarEmail({ to, subject, html, attachments = [] }) {
       html,
       attachments,
     });
-    console.log(`✅ E-mail enviado para ${to} — messageId: ${info.messageId}`);
+    console.log(`âœ… E-mail enviado para ${to} â€” messageId: ${info.messageId}`);
     return true;
   } catch (e) {
-    console.error(`❌ Falha ao enviar e-mail para ${to}: ${e.message}`);
+    console.error(`âŒ Falha ao enviar e-mail para ${to}: ${e.message}`);
     return false;
   }
 }
 
-// Carrega template HTML de web/templates/ e substitui variáveis {{chave}} pelos valores.
+// Carrega template HTML de web/templates/ e substitui variÃ¡veis {{chave}} pelos valores.
 function carregarTemplate(nome, variaveis = {}) {
   try {
     const templatePath = path.join(__dirname, "templates", nome);
@@ -2224,13 +1974,13 @@ function carregarTemplate(nome, variaveis = {}) {
     }
     return html;
   } catch (e) {
-    console.error(`❌ Erro ao carregar template ${nome}: ${e.message}`);
+    console.error(`âŒ Erro ao carregar template ${nome}: ${e.message}`);
     return null;
   }
 }
 
 // GET /api/notificacoes
-// Retorna notificações para a central de notificações (parcelas vencendo/vencidas)
+// Retorna notificaÃ§Ãµes para a central de notificaÃ§Ãµes (parcelas vencendo/vencidas)
 app.get("/api/notificacoes", auth, async (req, res) => {
   try {
     const hoje = new Date();
@@ -2256,7 +2006,7 @@ app.get("/api/notificacoes", auth, async (req, res) => {
           titulo = "Parcela vencida";
         } else if (diff <= 2) {
           gravidade = "warning";
-          titulo = "Parcela próxima do vencimento";
+          titulo = "Parcela prÃ³xima do vencimento";
         } else if (diff <= 7) {
           gravidade = "info";
           titulo = "Parcela a vencer";
@@ -2268,7 +2018,7 @@ app.get("/api/notificacoes", auth, async (req, res) => {
           id: c._id + "-" + idx,
           tipo: "vencimento",
           titulo,
-          texto: (c.nome || "Cliente") + " — Parcela " + (idx + 1) + (diff < 0 ? " venceu há " + Math.abs(diff) + " dia(s)" : " vence em " + diff + " dia(s)"),
+          texto: (c.nome || "Cliente") + " â€” Parcela " + (idx + 1) + (diff < 0 ? " venceu hÃ¡ " + Math.abs(diff) + " dia(s)" : " vence em " + diff + " dia(s)"),
           lido: false,
           gravidade,
           data: venc.toISOString(),
@@ -2281,15 +2031,15 @@ app.get("/api/notificacoes", auth, async (req, res) => {
     const naoLidas = notificacoes.filter(n => !n.lido).length;
     res.json({ notificacoes: notificacoes.slice(0, 50), naoLidas });
   } catch (err) {
-    console.error("Erro ao buscar notificações:", err);
-    res.status(500).json({ erro: "Erro ao buscar notificações" });
+    console.error("Erro ao buscar notificaÃ§Ãµes:", err);
+    res.status(500).json({ erro: "Erro ao buscar notificaÃ§Ãµes" });
   }
 });
 
 // POST /api/notificacoes/marcar-lidas
 app.post("/api/notificacoes/marcar-lidas", auth, (req, res) => {
-  // As notificações são voláteis (calculadas sob demanda), então "marcar como lido"
-  // é apenas no front-end, mas aceitamos a requisição para compatibilidade.
+  // As notificaÃ§Ãµes sÃ£o volÃ¡teis (calculadas sob demanda), entÃ£o "marcar como lido"
+  // Ã© apenas no front-end, mas aceitamos a requisiÃ§Ã£o para compatibilidade.
   res.json({ ok: true });
 });
 
@@ -2298,12 +2048,12 @@ app.post("/api/notificacoes/marcar-lidas", auth, (req, res) => {
 // Requer role admin ou financeiro.
 app.post("/api/notificacoes/email-inadimplencia", auth, financeiroOnly, async (req, res) => {
   if (!smtpConfigurado()) {
-    return res.status(503).json({ erro: "Integração de e-mail não configurada. Defina SMTP_HOST, SMTP_USER e SMTP_PASS no painel do EB." });
+    return res.status(503).json({ erro: "IntegraÃ§Ã£o de e-mail nÃ£o configurada. Defina SMTP_HOST, SMTP_USER e SMTP_PASS no painel do EB." });
   }
 
   const adminEmail = process.env.SMTP_ADMIN || process.env.SMTP_USER;
   if (!adminEmail) {
-    return res.status(503).json({ erro: "Defina SMTP_ADMIN com o e-mail do destinatário do alerta." });
+    return res.status(503).json({ erro: "Defina SMTP_ADMIN com o e-mail do destinatÃ¡rio do alerta." });
   }
 
   try {
@@ -2348,7 +2098,7 @@ app.post("/api/notificacoes/email-inadimplencia", auth, financeiroOnly, async (r
     const dataRelatorio = hoje.toLocaleDateString("pt-BR");
 
     const linhasTabela = inadimplentes.length === 0
-      ? `<p style="color:#16a34a">Nenhum cliente inadimplente no momento. ✅</p>`
+      ? `<p style="color:#16a34a">Nenhum cliente inadimplente no momento. âœ…</p>`
       : `<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb">
           <thead><tr style="background:#1E40AF;color:#fff">
             <th style="padding:8px 10px;text-align:left">Cliente</th>
@@ -2371,159 +2121,43 @@ app.post("/api/notificacoes/email-inadimplencia", auth, financeiroOnly, async (r
       total_clientes: inadimplentes.length,
       total_valor: totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }),
       tabela_clientes: linhasTabela,
-    }) || `<p>Inadimplência ${dataRelatorio}: ${inadimplentes.length} cliente(s) — R$ ${totalValor.toFixed(2)}</p>`;
+    }) || `<p>InadimplÃªncia ${dataRelatorio}: ${inadimplentes.length} cliente(s) â€” R$ ${totalValor.toFixed(2)}</p>`;
 
     const ok = await enviarEmail({
       to: adminEmail,
-      subject: `[Araujo Prev] Inadimplência — ${inadimplentes.length} cliente(s) — ${dataRelatorio}`,
+      subject: `[Araujo Prev] InadimplÃªncia â€” ${inadimplentes.length} cliente(s) â€” ${dataRelatorio}`,
       html,
     });
 
-    if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configurações SMTP." });
+    if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configuraÃ§Ãµes SMTP." });
 
-    console.log(`[${new Date().toISOString()}] E-mail de inadimplência enviado por ${req.user.username} — ${inadimplentes.length} clientes`);
+    console.log(`[${new Date().toISOString()}] E-mail de inadimplÃªncia enviado por ${req.user.username} â€” ${inadimplentes.length} clientes`);
     res.json({ ok: true, inadimplentes: inadimplentes.length, destinatario: adminEmail });
   } catch (e) {
-    console.error("❌ Erro ao gerar relatório de inadimplência por e-mail:", e.message);
-    res.status(500).json({ erro: "Erro interno ao processar relatório." });
+    console.error("âŒ Erro ao gerar relatÃ³rio de inadimplÃªncia por e-mail:", e.message);
+    res.status(500).json({ erro: "Erro interno ao processar relatÃ³rio." });
   }
 });
 
-// POST /api/recibos/batch-email
-// Envia e-mail com PDF anexado para múltiplos recibos.
-app.post("/api/recibos/batch-email", auth, async (req, res) => {
-  if (!smtpConfigurado()) {
-    return res.status(503).json({ erro: "Integração de e-mail não configurada." });
-  }
-  const { ids } = req.body;
-  if (!ids || !Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ erro: "Nenhum recibo selecionado." });
-  }
-  try {
-    let enviados = 0;
-    for (const id of ids) {
-      const recibo = await findOne(dbRecibos, { _id: id });
-      if (!recibo || !recibo.email_cliente || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recibo.email_cliente)) continue;
-      // Busca dados complementares
-      const cliente = await findOne(dbClientes, { nome: recibo.nome, ...NAO_DELETADO });
-      const cpfCliente = recibo.cpf || (cliente ? cliente.cpf : "");
-      const munUf = recibo.municipio_uf || (cliente ? (cliente.municipio + "/" + cliente.uf) : "");
-      await enviarReciboEmail({
-        email_cliente: recibo.email_cliente,
-        nome: recibo.nome,
-        cpf: cpfCliente,
-        valor: recibo.valor,
-        num_recibo: recibo.num,
-        data: recibo.data,
-        emitido_por: recibo.emitido_por || "",
-        complemento: recibo.complemento || "",
-        referencia: recibo.referencia || "",
-        municipio_uf: munUf,
-        data_extenso: recibo.data_extenso || "",
-      });
-      enviados++;
-    }
-    res.json({ mensagem: enviados + " e-mail(s) enviado(s) com sucesso." });
-  } catch (err) {
-    console.error("Erro no batch email:", err);
-    res.status(500).json({ erro: "Erro ao enviar e-mails em lote." });
-  }
-});
-
-async function enviarReciboEmail(params) {
-  // Extrai parâmetros
-  const { email_cliente, nome, cpf, valor, num_recibo, data, emitido_por, complemento, referencia, municipio_uf, data_extenso } = params;
-  const digits = (cpf || "").replace(/\D/g, "");
-  const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
-  const textoComplemento = complemento ? ` - ${complemento}` : "";
-  const logoPath = path.join(__dirname, "public", "logo.png");
-  const logoExists = fs.existsSync(logoPath);
-
-  const textoCorpo = `Recebemos do (a) senhor (a) ${nome}${municipio_uf ? `, residente e domiciliado(a) no Município de ${municipio_uf}` : ""}, a importância de R$ ${valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${textoComplemento}.`;
-
-  const chunks = [];
-  const pdf = new PDFDocument({ margin: 60, size: "A4" });
-  pdf.on("data", c => chunks.push(c));
-  await new Promise((resolve, reject) => {
-    pdf.on("end", resolve);
-    pdf.on("error", reject);
-
-    if (logoExists) pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
-    pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
-      .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
-    pdf.fontSize(12).fillColor("#000000").text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
-
-    const lx = pdf.page.margins.left;
-    const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
-    pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
-
-    pdf.fontSize(12).fillColor("#000000").font("Helvetica")
-      .text(`Recibo de Honorários Advocatícios nº ${num_recibo}`, { align: "center" }).moveDown(0.2)
-      .fontSize(10).text(`Data: ${data}${data_extenso ? ` (${data_extenso})` : ""}`, { align: "center" }).moveDown(0.3);
-
-    pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.5);
-
-    const textWidth = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
-    const textX = pdf.page.margins.left;
-    let y = pdf.y;
-
-    const drawLine = (label, value) => {
-      const line = `${label}: ${value}`;
-      pdf.fontSize(10).fillColor("#000000").text(line, textX, y, { width: textWidth, align: "justify" });
-      y = pdf.y + 8;
-    };
-
-    drawLine(labelDoc, cpf || "NÃO INFORMADO");
-    drawLine("Cliente", nome);
-    drawLine("Valor", `R$ ${valor}`);
-    drawLine("Referência", referencia || "NÃO INFORMADO");
-    drawLine("Emitido por", emitido_por || "NÃO INFORMADO");
-
-    pdf.moveTo(lx, y + 4).lineTo(lx + lw, y + 4).stroke();
-    y = pdf.y + 12;
-
-    pdf.fontSize(9).fillColor("#333333").text(textoCorpo, textX, y, { width: textWidth, align: "justify" });
-    y = pdf.y + 10;
-
-    if (complemento) {
-      pdf.fontSize(9).fillColor("#333333").text(`Complemento: ${complemento}`, textX, y, { width: textWidth, align: "justify" });
-    }
-    pdf.end();
-  });
-
-  const pdfBuffer = Buffer.concat(chunks);
-
-  const mailOptions = {
-    from: `"Araujo Prev" <${process.env.SMTP_USER}>`,
-    to: email_cliente,
-    subject: `Recibo de Honorários nº ${num_recibo} - Araujo Prev`,
-    text: `Prezado(a) ${nome},\n\nSegue em anexo o Recibo de Honorários Advocatícios nº ${num_recibo}.\n\nAtenciosamente,\nAraujo Prev`,
-    attachments: [{ filename: `Recibo_${num_recibo}.pdf`, content: pdfBuffer }],
-  };
-
-  await transporter.sendMail(mailOptions);
-}
-
-// POST /api/notificacoes/enviar-recibo-email
-// Gera PDF do recibo em memória e envia como anexo para o e-mail do cliente.
+// Gera PDF do recibo em memÃ³ria e envia como anexo para o e-mail do cliente.
 // Aceita email_cliente OU email (alias usado pelo frontend); num_recibo OU num (alias).
-// CPF, municipio_uf e data_extenso são opcionais — o PDF é gerado sem eles se ausentes.
+// CPF, municipio_uf e data_extenso sÃ£o opcionais â€” o PDF Ã© gerado sem eles se ausentes.
 app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (req, res) => {
   if (!smtpConfigurado()) {
-    return res.status(503).json({ erro: "Integração de e-mail não configurada. Defina SMTP_HOST, SMTP_USER e SMTP_PASS no painel do EB." });
+    return res.status(503).json({ erro: "IntegraÃ§Ã£o de e-mail nÃ£o configurada. Defina SMTP_HOST, SMTP_USER e SMTP_PASS no painel do EB." });
   }
 
   const body = req.body;
-  // Aceita aliases usados pelo frontend (email → email_cliente, num → num_recibo)
+  // Aceita aliases usados pelo frontend (email â†’ email_cliente, num â†’ num_recibo)
   const emailDest = body.email_cliente || body.email || "";
   const numRecibo = body.num_recibo || body.num || "";
   const { nome, cpf = "", valor, data, emitido_por, complemento, referencia, municipio_uf = "", data_extenso = "" } = body;
 
   if (!emailDest || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailDest)) {
-    return res.status(400).json({ erro: "E-mail do destinatário inválido ou não informado." });
+    return res.status(400).json({ erro: "E-mail do destinatÃ¡rio invÃ¡lido ou nÃ£o informado." });
   }
   if (!nome || !valor) {
-    return res.status(400).json({ erro: "Campos obrigatórios ausentes: nome, valor." });
+    return res.status(400).json({ erro: "Campos obrigatÃ³rios ausentes: nome, valor." });
   }
 
   try {
@@ -2533,7 +2167,7 @@ app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (r
     const logoPath = path.join(__dirname, "public", "logo.png");
     const logoExists = fs.existsSync(logoPath);
 
-    const textoCorpo = `Recebemos do (a) senhor (a) ${nome}${municipio_uf ? `, residente e domiciliado(a) no Município de ${municipio_uf}` : ""}, a importância de R$ ${valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${textoComplemento}.`;
+    const textoCorpo = `Recebemos do (a) senhor (a) ${nome}${municipio_uf ? `, residente e domiciliado(a) no MunicÃ­pio de ${municipio_uf}` : ""}, a importÃ¢ncia de R$ ${valor} referentes aos honorÃ¡rios advocatÃ­cios relacionados Ã  AÃ§Ã£o PrevidenciÃ¡ria${textoComplemento}.`;
 
     const chunks = [];
     const pdf = new PDFDocument({ margin: 60, size: "A4" });
@@ -2544,7 +2178,7 @@ app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (r
 
       if (logoExists) pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
       pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
-        .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
+        .text("A ARAUJO SERVIÃ‡OS LTDA ME", { align: "center" }).moveDown(0.2);
       pdf.fontSize(12).fillColor("#000000").text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
 
       const lx = pdf.page.margins.left;
@@ -2552,8 +2186,8 @@ app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (r
       pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
 
       pdf.fontSize(12).font("Helvetica-Bold")
-        .text(`Recibo Nº ${numRecibo}${referencia ? "   |   Ref: " + referencia : ""}`, { align: "center" }).moveDown(0.2);
-      pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
+        .text(`Recibo NÂº ${numRecibo}${referencia ? "   |   Ref: " + referencia : ""}`, { align: "center" }).moveDown(0.2);
+      pdf.fontSize(14).text("RECIBO DE HONORÃRIOS ADVOCATÃCIOS", { align: "center" }).moveDown(0.8);
       pdf.fontSize(11).font("Helvetica").text(textoCorpo, { align: "justify" }).moveDown(0.6);
       pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
       pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
@@ -2580,37 +2214,37 @@ app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (r
       num_recibo: numRecibo,
       valor,
       data: data || "",
-    }) || `<p>Olá ${nome}, segue em anexo o recibo Nº ${numRecibo} no valor de R$ ${valor}.</p>`;
+    }) || `<p>OlÃ¡ ${nome}, segue em anexo o recibo NÂº ${numRecibo} no valor de R$ ${valor}.</p>`;
 
     const ok = await enviarEmail({
       to: emailDest,
-      subject: `Recibo de Honorários Nº ${numRecibo} — Araujo Prev`,
+      subject: `Recibo de HonorÃ¡rios NÂº ${numRecibo} â€” Araujo Prev`,
       html,
       attachments: [{ filename: nomeArquivo, content: pdfBuf, contentType: "application/pdf" }],
     });
 
-    if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configurações SMTP." });
+    if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configuraÃ§Ãµes SMTP." });
 
     console.log(`[${new Date().toISOString()}] Recibo ${numRecibo} enviado por e-mail para ${emailDest} por ${req.user.username}`);
     res.json({ ok: true, destinatario: emailDest });
   } catch (e) {
-    console.error("❌ Erro ao enviar recibo por e-mail:", e.message);
+    console.error("âŒ Erro ao enviar recibo por e-mail:", e.message);
     res.status(500).json({ erro: "Erro interno ao processar envio." });
   }
 });
 
-// ── GOV.BR — ASSINATURA DIGITAL ────────────────────────────
-// Credenciais fornecidas pelo Gov.br após cadastro em:
+// â”€â”€ GOV.BR â€” ASSINATURA DIGITAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Credenciais fornecidas pelo Gov.br apÃ³s cadastro em:
 // https://www.gov.br/governodigital/pt-br/privacidade-e-seguranca/login-unico
 //
-// Variáveis de ambiente necessárias no Elastic Beanstalk:
-//   GOVBR_CLIENT_ID     → client_id recebido do Gov.br
-//   GOVBR_CLIENT_SECRET → client_secret recebido do Gov.br
-//   GOVBR_REDIRECT_URI  → URL de callback (ex: http://seu-dominio/api/govbr/callback)
+// VariÃ¡veis de ambiente necessÃ¡rias no Elastic Beanstalk:
+//   GOVBR_CLIENT_ID     â†’ client_id recebido do Gov.br
+//   GOVBR_CLIENT_SECRET â†’ client_secret recebido do Gov.br
+//   GOVBR_REDIRECT_URI  â†’ URL de callback (ex: http://seu-dominio/api/govbr/callback)
 //
 // Ambientes:
-//   Homologação: https://sso.staging.acesso.gov.br
-//   Produção:    https://sso.acesso.gov.br
+//   HomologaÃ§Ã£o: https://sso.staging.acesso.gov.br
+//   ProduÃ§Ã£o:    https://sso.acesso.gov.br
 
 const GOVBR_CLIENT_ID     = process.env.GOVBR_CLIENT_ID     || "";
 const GOVBR_CLIENT_SECRET = process.env.GOVBR_CLIENT_SECRET || "";
@@ -2619,25 +2253,25 @@ const GOVBR_BASE_URL      = process.env.GOVBR_ENV === "producao"
   ? "https://sso.acesso.gov.br"
   : "https://sso.staging.acesso.gov.br";
 
-// Verifica se Gov.br está configurado
+// Verifica se Gov.br estÃ¡ configurado
 function govbrConfigurado() {
   return !!(GOVBR_CLIENT_ID && GOVBR_CLIENT_SECRET && GOVBR_REDIRECT_URI);
 }
 
-// Gera state aleatório para segurança OAuth2
+// Gera state aleatÃ³rio para seguranÃ§a OAuth2
 function gerarState() {
   return require("crypto").randomBytes(16).toString("hex");
 }
 
-// States OAuth Gov.br persistidos no Neon (SEC-012 — sem Map em memória)
+// States OAuth Gov.br persistidos no Neon (SEC-012 â€” sem Map em memÃ³ria)
 
-// PASSO 1 — Inicia fluxo OAuth2: retorna URL de redirecionamento para o Gov.br
+// PASSO 1 â€” Inicia fluxo OAuth2: retorna URL de redirecionamento para o Gov.br
 app.get("/api/govbr/iniciar", auth, async (req, res) => {
   if (!govbrConfigurado()) {
-    return res.status(503).json({ erro: "Integração Gov.br não configurada. Aguardando credenciais." });
+    return res.status(503).json({ erro: "IntegraÃ§Ã£o Gov.br nÃ£o configurada. Aguardando credenciais." });
   }
   const { recibo_id } = req.query;
-  if (!recibo_id) return res.status(400).json({ erro: "recibo_id obrigatório" });
+  if (!recibo_id) return res.status(400).json({ erro: "recibo_id obrigatÃ³rio" });
 
   try {
     const state = gerarState();
@@ -2659,11 +2293,11 @@ app.get("/api/govbr/iniciar", auth, async (req, res) => {
     res.json({ url: `${GOVBR_BASE_URL}/authorize?${params.toString()}` });
   } catch (e) {
     console.error("Erro ao iniciar Gov.br:", e.message);
-    res.status(500).json({ erro: "Erro interno ao iniciar autenticação Gov.br." });
+    res.status(500).json({ erro: "Erro interno ao iniciar autenticaÃ§Ã£o Gov.br." });
   }
 });
 
-// PASSO 2 — Callback: Gov.br redireciona aqui após o cliente autenticar
+// PASSO 2 â€” Callback: Gov.br redireciona aqui apÃ³s o cliente autenticar
 app.get("/api/govbr/callback", async (req, res) => {
   const { code, state, error, error_description } = req.query;
   const agora = new Date().toISOString();
@@ -2672,9 +2306,9 @@ app.get("/api/govbr/callback", async (req, res) => {
     const mensagem = error_description
       ? `${error}: ${error_description}`
       : error === "access_denied"
-        ? "Acesso negado pelo usuário no Gov.br."
+        ? "Acesso negado pelo usuÃ¡rio no Gov.br."
         : `Erro retornado pelo Gov.br: ${error}`;
-    console.warn(`[${agora}] Gov.br callback — erro retornado pelo provedor: ${mensagem}`);
+    console.warn(`[${agora}] Gov.br callback â€” erro retornado pelo provedor: ${mensagem}`);
     return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent(mensagem)}`);
   }
 
@@ -2684,15 +2318,15 @@ app.get("/api/govbr/callback", async (req, res) => {
   );
   const stateData = stateRows[0] ? { recibo_id: stateRows[0].recibo_id, user: stateRows[0].username, expires: new Date(stateRows[0].expira_em).getTime() } : null;
   if (!stateData) {
-    console.warn(`[${agora}] Gov.br callback — state desconhecido ou já utilizado: ${state}`);
-    return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("Sessão expirada ou inválida. Inicie o processo novamente.")}`);
+    console.warn(`[${agora}] Gov.br callback â€” state desconhecido ou jÃ¡ utilizado: ${state}`);
+    return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("SessÃ£o expirada ou invÃ¡lida. Inicie o processo novamente.")}`);
   }
   if (Date.now() > stateData.expires) {
-    console.warn(`[${agora}] Gov.br callback — state expirado para usuário ${stateData.user}`);
-    return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("Sessão Gov.br expirada (limite de 10 minutos). Tente novamente.")}`);
+    console.warn(`[${agora}] Gov.br callback â€” state expirado para usuÃ¡rio ${stateData.user}`);
+    return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("SessÃ£o Gov.br expirada (limite de 10 minutos). Tente novamente.")}`);
   }
 
-  console.log(`[${agora}] Gov.br callback — iniciando troca de code por token para recibo ${stateData.recibo_id} (usuário: ${stateData.user})`);
+  console.log(`[${agora}] Gov.br callback â€” iniciando troca de code por token para recibo ${stateData.recibo_id} (usuÃ¡rio: ${stateData.user})`);
 
   try {
     // Troca code por token
@@ -2709,11 +2343,11 @@ app.get("/api/govbr/callback", async (req, res) => {
     }, 15000);
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
-      console.error(`[${agora}] Gov.br callback — token não recebido. Resposta: ${JSON.stringify(tokenData)}`);
-      throw new Error("Token de acesso não recebido. Verifique as credenciais Gov.br ou tente novamente.");
+      console.error(`[${agora}] Gov.br callback â€” token nÃ£o recebido. Resposta: ${JSON.stringify(tokenData)}`);
+      throw new Error("Token de acesso nÃ£o recebido. Verifique as credenciais Gov.br ou tente novamente.");
     }
 
-    // Busca dados do usuário (nome, CPF)
+    // Busca dados do usuÃ¡rio (nome, CPF)
     const userRes = await fetchWithTimeout(`${GOVBR_BASE_URL}/userinfo`, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     }, 15000);
@@ -2731,22 +2365,22 @@ app.get("/api/govbr/callback", async (req, res) => {
     };
 
     await update(dbRecibos, { _id: stateData.recibo_id }, { assinatura_govbr: assinatura });
-    console.log(`[${new Date().toISOString()}] ✅ Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante} (CPF: ${assinatura.cpf_assinante || "n/d"}) — usuário do sistema: ${stateData.user}`);
+    console.log(`[${new Date().toISOString()}] âœ… Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante} (CPF: ${assinatura.cpf_assinante || "n/d"}) â€” usuÃ¡rio do sistema: ${stateData.user}`);
 
     res.redirect(`/?govbr_ok=1&recibo_id=${stateData.recibo_id}`);
   } catch (e) {
-    console.error(`[${new Date().toISOString()}] ❌ Erro no callback Gov.br para recibo ${stateData?.recibo_id}: ${e.message}`);
+    console.error(`[${new Date().toISOString()}] âŒ Erro no callback Gov.br para recibo ${stateData?.recibo_id}: ${e.message}`);
     const msgUsuario = e.message.includes("Token") || e.message.includes("userinfo")
-      ? "Falha na comunicação com Gov.br. Tente novamente em instantes."
+      ? "Falha na comunicaÃ§Ã£o com Gov.br. Tente novamente em instantes."
       : e.message;
     res.redirect(`/govbr-erro.html?msg=${encodeURIComponent(msgUsuario)}`);
   }
 });
 
-// PASSO 3 — Retorna status da assinatura de um recibo
+// PASSO 3 â€” Retorna status da assinatura de um recibo
 app.get("/api/govbr/status/:id", auth, async (req, res) => {
   const recibo = await findOne(dbRecibos, { _id: req.params.id });
-  if (!recibo) return res.status(404).json({ erro: "Recibo não encontrado" });
+  if (!recibo) return res.status(404).json({ erro: "Recibo nÃ£o encontrado" });
   res.json({
     assinado: !!recibo.assinatura_govbr,
     assinatura: recibo.assinatura_govbr || null,
@@ -2754,58 +2388,12 @@ app.get("/api/govbr/status/:id", auth, async (req, res) => {
   });
 });
 
-// ── WEBHOOK — RECIBO GERADO ────────────────────────────────
+// â”€â”€ WEBHOOK â€” RECIBO GERADO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Dispara um POST para WEBHOOK_URL (se configurado) a cada recibo salvo.
-// Retry: 3 tentativas com backoff exponencial (1s → 4s → 16s).
-// Fire-and-forget — não bloqueia a resposta HTTP ao cliente.
-async function dispararWebhook(dadosRecibo) {
-  const url = process.env.WEBHOOK_URL;
-  if (!url) return;
-
-  const payload = JSON.stringify({
-    evento: "recibo_gerado",
-    recibo: {
-      num:             dadosRecibo.num,
-      nome:            dadosRecibo.nome,
-      cpf:             dadosRecibo.cpf,
-      valor:           dadosRecibo.valor,
-      data:            dadosRecibo.data,
-      forma_pagamento: dadosRecibo.forma_pagamento || "",
-      escritorio:      dadosRecibo.escritorio || "",
-      emitido_por:     dadosRecibo.emitido_por || "",
-      referencia:      dadosRecibo.referencia || "",
-    },
-    timestamp: new Date().toISOString(),
-  });
-
-  const MAX_TENTATIVAS = 3;
-  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
-    try {
-      const resp = await fetchWithTimeout(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-      }, 10000);
-      if (resp.ok) {
-        console.log(`[${new Date().toISOString()}] ✅ Webhook disparado → ${url} (status ${resp.status}, tentativa ${tentativa})`);
-        return;
-      }
-      console.warn(`[${new Date().toISOString()}] ⚠️  Webhook → ${url} retornou status ${resp.status} (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
-    } catch (e) {
-      console.warn(`[${new Date().toISOString()}] ⚠️  Webhook → ${url} falhou: ${e.message} (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
-    }
-    if (tentativa < MAX_TENTATIVAS) {
-      const delay = Math.pow(4, tentativa - 1) * 1000; // 1s, 4s, 16s
-      await new Promise(r => setTimeout(r, delay));
-    }
-  }
-  console.error(`[${new Date().toISOString()}] ❌ Webhook permanentemente falhou após ${MAX_TENTATIVAS} tentativas → ${url} (recibo: ${dadosRecibo.num})`);
-}
-
-// ── LEMBRETE AUTOMÁTICO DE PARCELAS ────────────────────────
-// Executa 30s após startup para não bloquear a inicialização.
-// Envia e-mail ao SMTP_ADMIN com parcelas que vencem nos próximos 3 dias
-// e ainda não tiveram lembrete registrado (lembrete_enviado_em ausente).
+// â”€â”€ LEMBRETE AUTOMÃTICO DE PARCELAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Executa 30s apÃ³s startup para nÃ£o bloquear a inicializaÃ§Ã£o.
+// Envia e-mail ao SMTP_ADMIN com parcelas que vencem nos prÃ³ximos 3 dias
+// e ainda nÃ£o tiveram lembrete registrado (lembrete_enviado_em ausente).
 async function verificarEEnviarLembretesParcelasProximas() {
   if (!smtpConfigurado()) return;
 
@@ -2837,7 +2425,7 @@ async function verificarEEnviarLembretesParcelasProximas() {
     }
 
     if (lembretes.length === 0) {
-      console.log(`[${new Date().toISOString()}] Lembrete automático: nenhuma parcela vencendo nos próximos 3 dias.`);
+      console.log(`[${new Date().toISOString()}] Lembrete automÃ¡tico: nenhuma parcela vencendo nos prÃ³ximos 3 dias.`);
       return;
     }
 
@@ -2862,11 +2450,11 @@ async function verificarEEnviarLembretesParcelasProximas() {
       data_relatorio: new Date().toLocaleDateString("pt-BR"),
       total_parcelas: lembretes.length,
       tabela_parcelas: linhasLembrete,
-    }) || `<p>${lembretes.length} parcela(s) vencem nos próximos 3 dias.</p>`;
+    }) || `<p>${lembretes.length} parcela(s) vencem nos prÃ³ximos 3 dias.</p>`;
 
     const ok = await enviarEmail({
       to: adminEmail,
-      subject: `[Araujo Prev] ${lembretes.length} parcela(s) vencem nos próximos 3 dias`,
+      subject: `[Araujo Prev] ${lembretes.length} parcela(s) vencem nos prÃ³ximos 3 dias`,
       html,
     });
 
@@ -2882,26 +2470,26 @@ async function verificarEEnviarLembretesParcelasProximas() {
         const resumo = recalcularResumo(parcelasAtualizadas);
         await update(dbClientes, { _id: l.cliente._id }, { parcelas: parcelasAtualizadas, ...resumo });
       }
-      console.log(`[${agora}] ✅ Lembretes de parcela enviados: ${lembretes.length} parcela(s) — destinatário: ${adminEmail}`);
+      console.log(`[${agora}] âœ… Lembretes de parcela enviados: ${lembretes.length} parcela(s) â€” destinatÃ¡rio: ${adminEmail}`);
     }
   } catch (e) {
-    console.error(`[${new Date().toISOString()}] ❌ Erro no lembrete automático de parcelas: ${e.message}`);
+    console.error(`[${new Date().toISOString()}] âŒ Erro no lembrete automÃ¡tico de parcelas: ${e.message}`);
   }
 }
 
-// ── CRON — LEMBRETE DIÁRIO ─────────────────────────────────
-// Executa todo dia às 8h no horário de Brasília
+// â”€â”€ CRON â€” LEMBRETE DIÃRIO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Executa todo dia Ã s 8h no horÃ¡rio de BrasÃ­lia
 cron.schedule("0 8 * * *", () => {
-  console.log(`[${new Date().toISOString()}] 🕗 Cron disparado: verificando lembretes de parcelas...`);
+  console.log(`[${new Date().toISOString()}] ðŸ•— Cron disparado: verificando lembretes de parcelas...`);
   verificarEEnviarLembretesParcelasProximas();
 }, { timezone: "America/Sao_Paulo" });
 
-// ── BACKUP AUTOMÁTICO DIÁRIO PARA S3 ───────────────────────
+// â”€â”€ BACKUP AUTOMÃTICO DIÃRIO PARA S3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Zipa recibos.db + clientes.db e grava em s3://BUCKET/backups/YYYY-MM-DD_backup_db.zip
 async function fazerBackupDiario() {
   const bucket = process.env.BUCKET_NAME;
   if (!bucket) {
-    console.warn(`[${new Date().toISOString()}] ⚠️  Backup diário ignorado — BUCKET_NAME não configurado.`);
+    console.warn(`[${new Date().toISOString()}] âš ï¸  Backup diÃ¡rio ignorado â€” BUCKET_NAME nÃ£o configurado.`);
     return;
   }
   const ts = new Date().toISOString().slice(0, 10);
@@ -2910,7 +2498,7 @@ async function fazerBackupDiario() {
     const dataDir = path.join(__dirname, "data");
     const arquivos = ["recibos.db", "clientes.db"].filter(f => fs.existsSync(path.join(dataDir, f)));
     if (arquivos.length === 0) {
-      console.warn(`[${new Date().toISOString()}] ⚠️  Backup: nenhum arquivo .db encontrado em ${dataDir}`);
+      console.warn(`[${new Date().toISOString()}] âš ï¸  Backup: nenhum arquivo .db encontrado em ${dataDir}`);
       return;
     }
 
@@ -2930,28 +2518,28 @@ async function fazerBackupDiario() {
       Body: zipBuffer,
       ContentType: "application/zip",
     })), 30000);
-    console.log(`[${new Date().toISOString()}] ✅ Backup diário → s3://${bucket}/${chaveS3} (${(zipBuffer.length / 1024).toFixed(1)} KB)`);
+    console.log(`[${new Date().toISOString()}] âœ… Backup diÃ¡rio â†’ s3://${bucket}/${chaveS3} (${(zipBuffer.length / 1024).toFixed(1)} KB)`);
   } catch (e) {
-    console.error(`[${new Date().toISOString()}] ❌ Erro no backup diário: ${e.message}`);
+    console.error(`[${new Date().toISOString()}] âŒ Erro no backup diÃ¡rio: ${e.message}`);
   }
 }
 
-// Executa todo dia às 02:00 BRT (05:00 UTC)
+// Executa todo dia Ã s 02:00 BRT (05:00 UTC)
 cron.schedule("0 5 * * *", () => {
-  console.log(`[${new Date().toISOString()}] 🕗 Cron disparado: backup diário para S3...`);
+  console.log(`[${new Date().toISOString()}] ðŸ•— Cron disparado: backup diÃ¡rio para S3...`);
   fazerBackupDiario();
 }, { timezone: "UTC" });
 
-// ── RENOVAÇÃO SEMANAL DE PRESIGNED URLS NO GOOGLE SHEETS ──
+// â”€â”€ RENOVAÃ‡ÃƒO SEMANAL DE PRESIGNED URLS NO GOOGLE SHEETS â”€â”€
 // Percorre a coluna K da planilha e regera URLs de 30 dias para cada link S3 encontrado.
-// Executa todo domingo às 03:00 BRT (06:00 UTC)
+// Executa todo domingo Ã s 03:00 BRT (06:00 UTC)
 cron.schedule("0 6 * * 0", () => {
-  console.log(`[${new Date().toISOString()}] 🕗 Cron disparado: renovação de presigned URLs no Sheets...`);
+  console.log(`[${new Date().toISOString()}] ðŸ•— Cron disparado: renovaÃ§Ã£o de presigned URLs no Sheets...`);
   renovarPresignedUrlsSheets(s3SignerClient);
 }, { timezone: "UTC" });
 
-// ── CRON — INADIMPLÊNCIA + EMAIL DIÁRIO ─────────────────────
-// Executa todo dia às 8h no horário de Brasília: marca parcelas vencidas como atrasadas
+// â”€â”€ CRON â€” INADIMPLÃŠNCIA + EMAIL DIÃRIO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Executa todo dia Ã s 8h no horÃ¡rio de BrasÃ­lia: marca parcelas vencidas como atrasadas
 // e envia e-mail ao admin se houver inadimplentes.
 cron.schedule("0 8 * * *", async () => {
   console.log("[CRON] Verificando parcelas inadimplentes...");
@@ -2987,22 +2575,58 @@ cron.schedule("0 8 * * *", async () => {
           await enviarEmail({
             to: adminEmail,
             subject: `[Araujo Prev] ${totalCount} parcela(s) inadimplente(s)`,
-            html: `<p>Olá,</p><p>${totalCount} parcela(s) estão vencidas e foram marcadas como atrasadas automaticamente.</p><p>Acesse o sistema para mais detalhes.</p>`,
+            html: `<p>OlÃ¡,</p><p>${totalCount} parcela(s) estÃ£o vencidas e foram marcadas como atrasadas automaticamente.</p><p>Acesse o sistema para mais detalhes.</p>`,
           });
-          console.log(`[CRON] Email de inadimplência enviado para ${adminEmail}`);
+          console.log(`[CRON] Email de inadimplÃªncia enviado para ${adminEmail}`);
         } catch(e) {
           console.error("[CRON] Erro ao enviar email:", e.message);
         }
       }
     }
   } catch(e) {
-    console.error("[CRON] Erro na verificação:", e.message);
+    console.error("[CRON] Erro na verificaÃ§Ã£o:", e.message);
+  }
+}, { timezone: "America/Sao_Paulo" });
+// ---- CRON - AUTO-RECIBOS MENSAIS ------------------------------------
+cron.schedule("0 8 1 * *", async () => {
+  console.log(`[${new Date().toISOString()}] Cron auto-recibos disparado...`);
+  try {
+    const clientes = await find(dbClientes, { auto_recibo: true, ...NAO_DELETADO });
+    let gerados = 0;
+    for (const c of clientes) {
+      const enriquecido = await enriquecerCliente(c);
+      const valorRecibo = enriquecido.valor_parcela || enriquecido.valor_contrato || 0;
+      if (valorRecibo <= 0) continue;
+      const timestamp = Date.now();
+      const num = `${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}${String(gerados+1).padStart(3,"0")}`;
+      await insert(dbRecibos, {
+        num,
+        nome: enriquecido.nome,
+        cpf: enriquecido.cpf,
+        municipio_uf: enriquecido.municipio_uf || "",
+        valor: valorRecibo,
+        data: new Date().toLocaleDateString("pt-BR"),
+        emitido_por: "Sistema (auto)",
+        complemento: "Mensalidade automática",
+        referencia: enriquecido.referencia || "",
+        forma_pagamento: "",
+        escritorio: enriquecido.firma || "",
+        timestamp,
+        auto: true,
+      });
+      gerados++;
+    }
+    console.log(`[${new Date().toISOString()}] Auto-recibos: ${gerados} recibo(s) gerado(s).`);
+  } catch (e) {
+    console.error(`[${new Date().toISOString()}] Erro no auto-recibos:`, e.message);
   }
 }, { timezone: "America/Sao_Paulo" });
 
-// ── INICIAR ────────────────────────────────────────────────
+
+
+// â”€â”€ INICIAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.listen(PORT, async () => {
-  console.log(`✅ Araujo Prev rodando em http://localhost:${PORT}`);
-  // Executa também no startup (30s) para verificar parcelas do dia sem esperar o cron das 8h
+  console.log(`âœ… Araujo Prev rodando em http://localhost:${PORT}`);
+  // Executa tambÃ©m no startup (30s) para verificar parcelas do dia sem esperar o cron das 8h
   setTimeout(verificarEEnviarLembretesParcelasProximas, 30_000);
 });

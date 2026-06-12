@@ -66,6 +66,8 @@ function limparModalCliente() {
   if (btnToggleObs) { btnToggleObs.style.display = "none"; btnToggleObs.innerHTML = '<i class="bi bi-plus-circle"></i> Adicionar observaÃ§Ã£o'; }
   const obsTexto = document.getElementById("cliente-obs-texto");
   if (obsTexto) obsTexto.value = "";
+  const auto = document.getElementById("cliente-auto-recibo");
+  if (auto) auto.checked = false;
 }
 
 function abrirModalCliente() {
@@ -109,6 +111,8 @@ async function editarCliente(id) {
   renderObservacoes(c.observacoes || []);
   const btnToggleObs = document.getElementById("btn-toggle-obs");
   if (btnToggleObs) btnToggleObs.style.display = "";
+  const autoEl = document.getElementById("cliente-auto-recibo");
+  if (autoEl) autoEl.checked = c.auto_recibo === true;
   document.getElementById("modal-cliente").classList.add("active");
 }
 
@@ -141,7 +145,8 @@ async function salvarCliente() {
   if (valor_contrato <= 0) { marcarInvalido("cliente-valor-contrato"); mostrarToast("Informe o valor total do contrato.", null, "error"); return; }
   if (num_parcelas <= 0)   { marcarInvalido("cliente-num-parcelas");   mostrarToast("Informe o nÃºmero de parcelas.", null, "error"); return; }
 
-  const body = { nome, cpf: cpf.replace(/\D/g,""), telefone, endereco, municipio_uf, firma, referencia, valor_beneficio, num_beneficios, valor_contrato, num_parcelas };
+  const autoRecibo = document.getElementById("cliente-auto-recibo")?.checked || false;
+  const body = { nome, cpf: cpf.replace(/\D/g,""), telefone, endereco, municipio_uf, firma, referencia, valor_beneficio, num_beneficios, valor_contrato, num_parcelas, auto_recibo: autoRecibo };
   const res  = id
     ? await api("PUT",  `/api/clientes/${id}`, body)
     : await api("POST", "/api/clientes", body);
@@ -344,6 +349,15 @@ function abrirAdminTab(tab,el){
   if(tab==="auditoria") carregarAuditoria();
 }
 
+let _inadimplenciaDados = [];
+
+const AGING_BUCKETS = [
+  { key: "1_30",    label: "1 a 30 dias",     min: 1,  max: 30, color: "#F59E0B" },
+  { key: "31_60",   label: "31 a 60 dias",    min: 31, max: 60, color: "#F97316" },
+  { key: "61_90",   label: "61 a 90 dias",    min: 61, max: 90, color: "#EF4444" },
+  { key: "90_mais", label: "Mais de 90 dias", min: 91, max: 999, color: "#B91C1C" },
+];
+
 async function carregarInadimplencia() {
   const status = document.getElementById("inadimplencia-status");
   const wrap   = document.getElementById("inadimplencia-wrap");
@@ -351,30 +365,123 @@ async function carregarInadimplencia() {
   status.textContent = "Carregando...";
   const res = await api("GET", "/api/relatorios/inadimplencia");
   if (!res || res.status === 404) {
-    status.textContent = "Em breve â€” relatÃ³rio de inadimplÃªncia em desenvolvimento.";
+    status.textContent = "Em breve - relatório de inadimplência em desenvolvimento.";
     return;
   }
-  if (!res.ok) { status.textContent = "Erro ao carregar relatÃ³rio."; return; }
+  if (!res.ok) { status.textContent = "Erro ao carregar relatório."; return; }
   const body = await res.json();
   const dados = Array.isArray(body) ? body : (body.relatorio || []);
+  _inadimplenciaDados = dados;
   if (!dados.length) {
     status.textContent = "Nenhum cliente inadimplente no momento.";
     return;
   }
-  let totalAberto = 0;
-  document.getElementById("tabela-inadimplencia").innerHTML = dados.map(c => {
-    totalAberto += c.valor_em_aberto || 0;
+
+  const buckets = AGING_BUCKETS.map(b => ({ ...b, clientes: [] }));
+  dados.forEach((c, i) => {
     const maiorAtraso = c.parcelas?.reduce((mx, p) => Math.max(mx, p.dias_atraso || 0), 0) || 0;
-    return `<tr>
-      <td>${esc(c.nome)}</td>
-      <td>${esc(c.cpf||"-")}</td>
-      <td style="color:var(--error);font-weight:600">${c.parcelas_atrasadas||0}</td>
-      <td style="color:var(--error);font-weight:700">R$ ${formatarValor(c.valor_em_aberto||0)}</td>
-      <td>${maiorAtraso} dia${maiorAtraso!==1?"s":""}</td>
-    </tr>`;
+    c._idx = i;
+    c._maiorAtraso = maiorAtraso;
+    const bucket = buckets.find(b => maiorAtraso >= b.min && maiorAtraso <= b.max) || buckets[buckets.length - 1];
+    bucket.clientes.push(c);
+  });
+
+  const totalAberto = dados.reduce((s, c) => s + (c.valor_em_aberto || 0), 0);
+  const container = document.getElementById("inadimplencia-aging-container");
+  container.innerHTML = buckets.map((bucket, bi) => {
+    if (!bucket.clientes.length) return "";
+    const bucketTotal = bucket.clientes.reduce((s, c) => s + (c.valor_em_aberto || 0), 0);
+    return `
+      <div class="aging-section" style="margin-bottom:12px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+        <div class="aging-header" data-bucket="${bi}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${bucket.color};color:white;cursor:pointer;font-size:13px;font-weight:600">
+          <i class="bi bi-chevron-down" style="transition:transform .2s"></i>
+          <span style="flex:1">${bucket.label}</span>
+          <span style="font-size:12px;opacity:.9">${bucket.clientes.length} cliente${bucket.clientes.length !== 1 ? "s" : ""}</span>
+          <span style="font-size:13px">R$ ${formatarValor(bucketTotal)}</span>
+        </div>
+        <div class="aging-body" style="display:none">
+          <table style="width:100%;font-size:12px">
+            <thead><tr>
+              <th style="width:32px;padding:6px 8px;text-align:center"><input type="checkbox" class="checkbox-aging-all" data-bucket="${bi}"></th>
+              <th style="text-align:left;padding:6px 8px">Cliente</th>
+              <th style="text-align:left;padding:6px 8px">CPF/CNPJ</th>
+              <th style="text-align:center;padding:6px 8px">Parcelas</th>
+              <th style="text-align:right;padding:6px 8px">Valor</th>
+              <th style="text-align:center;padding:6px 8px">Maior Atraso</th>
+            </tr></thead>
+            <tbody>
+              ${bucket.clientes.map(c => `
+                <tr>
+                  <td style="text-align:center;padding:4px 8px"><input type="checkbox" class="checkbox-inadimplencia" data-idx="${c._idx}"></td>
+                  <td style="padding:4px 8px">${esc(c.nome)}</td>
+                  <td style="padding:4px 8px">${esc(c.cpf || "-")}</td>
+                  <td style="text-align:center;padding:4px 8px;color:var(--error);font-weight:600">${c.parcelas_atrasadas || 0}</td>
+                  <td style="text-align:right;padding:4px 8px;color:var(--error);font-weight:700">R$ ${formatarValor(c.valor_em_aberto || 0)}</td>
+                  <td style="text-align:center;padding:4px 8px">${c._maiorAtraso} dia${c._maiorAtraso !== 1 ? "s" : ""}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
   }).join("");
-  document.getElementById("inadimplencia-count").textContent = `${dados.length} cliente${dados.length!==1?"s":""}`;
-  document.getElementById("inadimplencia-total").textContent = `Total em aberto: R$ ${formatarValor(totalAberto)}`;
+
+  container.querySelectorAll(".aging-header").forEach(h => {
+    h.addEventListener("click", () => {
+      const body = h.nextElementSibling;
+      const isOpen = body.style.display !== "none";
+      body.style.display = isOpen ? "none" : "";
+      h.querySelector(".bi-chevron-down").style.transform = isOpen ? "" : "rotate(180deg)";
+    });
+  });
+
+  container.querySelectorAll(".checkbox-aging-all").forEach(cb => {
+    cb.addEventListener("change", function() {
+      const section = this.closest(".aging-section");
+      section.querySelectorAll(".checkbox-inadimplencia").forEach(c => c.checked = this.checked);
+      atualizarSelecaoInadimplencia();
+    });
+  });
+
+  document.getElementById("inadimplencia-count").textContent = dados.length + " cliente" + (dados.length !== 1 ? "s" : "");
+  document.getElementById("inadimplencia-total").textContent = "Total em aberto: R$ " + formatarValor(totalAberto);
+  document.getElementById("inadimplencia-selecao-count").textContent = "0 selecionados";
+  document.getElementById("btn-whatsapp-lote").disabled = true;
+  document.getElementById("selecionar-todos-inadimplencia").checked = false;
   status.style.display = "none"; wrap.style.display = "";
+}
+function atualizarSelecaoInadimplencia() {
+  const checks = document.querySelectorAll(".checkbox-inadimplencia");
+  const selecionados = Array.from(checks).filter(c => c.checked).map(c => _inadimplenciaDados[parseInt(c.dataset.idx)]);
+  document.getElementById("inadimplencia-selecao-count").textContent = selecionados.length + " selecionados";
+  document.getElementById("btn-whatsapp-lote").disabled = selecionados.length === 0;
+  return selecionados;
+}
+
+function abrirModalWhatsAppLote() {
+  const selecionados = atualizarSelecaoInadimplencia();
+  if (!selecionados.length) return;
+  document.getElementById("whatsapp-lote-info").textContent = `${selecionados.length} cliente(s) selecionado(s)`;
+  document.getElementById("whatsapp-lote-lista").innerHTML = selecionados.map(c => {
+    const tel = c.telefone || "sem telefone";
+    const valor = `R$ ${formatarValor(c.valor_em_aberto || 0)}`;
+    return `<tr><td style="padding:4px 8px">${esc(c.nome)}</td><td style="padding:4px 8px">${esc(tel)}</td><td style="padding:4px 8px">${valor}</td></tr>`;
+  }).join("");
+  document.getElementById("whatsapp-lote-contagem").textContent = `${selecionados.length} cliente(s)`;
+  usarMensagemPadraoWhatsApp();
+  document.getElementById("modal-whatsapp-lote").classList.add("active");
+}
+
+function usarMensagemPadraoWhatsApp() {
+  document.getElementById("whatsapp-lote-msg").value = "Ol\u00E1 {nome}, tudo bem? Passando para lembrar que h\u00E1 {parcelas} parcela(s) em aberto no valor total de R$ {valor}. Se puder regularizar, agradecemos! Qualquer d\u00FAvida, estamos \u00E0 disposi\u00E7\u00E3o.";
+}
+
+function usarMensagemCobrancaWhatsApp() {
+  document.getElementById("whatsapp-lote-msg").value = "Ol\u00E1 {nome}, identificamos que sua(s) parcela(s) est\u00E1(\u00E3o) com {dias} dia(s) de atraso, totalizando R$ {valor} em aberto. Pedimos, por gentileza, que regularize o quanto antes para evitar contratempos. Atenciosamente, Araujo Prev.";
+}
+
+function usarMensagemAcordoWhatsApp() {
+  document.getElementById("whatsapp-lote-msg").value = "Ol\u00E1 {nome}, tudo bem? Verificamos um saldo de R$ {valor} em aberto. Gostaria de oferecer uma proposta de acordo com condi\u00E7\u00F5es especiais. Podemos conversar? Estamos \u00E0 disposi\u00E7\u00E3o. Araujo Prev.";
 }
 

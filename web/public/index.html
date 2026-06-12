@@ -994,14 +994,18 @@
         <div id="admin-inadimplencia" class="admin-panel">
           <div id="inadimplencia-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
           <div class="table-wrap" id="inadimplencia-wrap" style="display:none">
-            <table>
-              <thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Parcelas Atrasadas</th><th>Valor em Aberto</th><th>Maior Atraso (dias)</th></tr></thead>
-              <tbody id="tabela-inadimplencia"></tbody>
-            </table>
-            <div class="table-footer">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+              <button class="btn-gold btn-sm" id="btn-whatsapp-lote" disabled>WhatsApp Lote</button>
+              <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="selecionar-todos-inadimplencia"> Selecionar todos
+              </label>
+              <span id="inadimplencia-selecao-count" style="font-size:11px;color:var(--muted);margin-left:auto">0 selecionados</span>
+            </div>
+            <div class="table-footer" style="border:0;background:transparent;padding:0;margin-bottom:12px">
               <span id="inadimplencia-count">0 clientes</span>
               <span id="inadimplencia-total" style="color:var(--error)">Total: R$ 0,00</span>
             </div>
+            <div id="inadimplencia-aging-container"></div>
           </div>
         </div>
 
@@ -1369,6 +1373,11 @@
         </div>
         <div id="cliente-parcela-preview" style="font-size:13px;color:var(--success);font-weight:600;margin-top:4px;margin-bottom:8px"></div>
 
+        <div class="secao-label" style="margin-top:18px">Configurações</div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-bottom:6px">
+          <input type="checkbox" id="cliente-auto-recibo"> Gerar recibos automáticos mensais (dia 1 de cada mês)
+        </label>
+
         <div class="secao-label" style="margin-top:18px">Observações</div>
         <div id="cliente-observacoes-lista" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
         <div id="cliente-obs-add" style="display:none;margin-bottom:12px">
@@ -1505,6 +1514,36 @@
     </div>
   </div>
 
+  <!-- ---- MODAL WHATSAPP LOTE ------------------------------------ -->
+  <div id="modal-whatsapp-lote" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-whatsapp-titulo">
+    <div class="modal-content" style="max-width:600px">
+      <div class="modal-header">
+        <h2 id="modal-whatsapp-titulo">WhatsApp Lote</h2>
+        <button class="modal-close" aria-label="Fechar" id="btn-fechar-modal-whatsapp"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px" id="whatsapp-lote-info"></div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Mensagem</label>
+        <textarea id="whatsapp-lote-msg" style="width:100%;min-height:100px;padding:10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;resize:vertical" placeholder="Digite a mensagem... Use {nome}, {valor}, {dias} como placeholders."></textarea>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn-secondary btn-sm" id="whatsapp-msg-padrao">Mensagem Padrão</button>
+        <button class="btn-secondary btn-sm" id="whatsapp-msg-cobranca">Cobrança</button>
+        <button class="btn-secondary btn-sm" id="whatsapp-msg-acordo">Proposta de Acordo</button>
+      </div>
+      <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;margin-bottom:12px">
+        <table style="width:100%;font-size:12px">
+          <thead><tr><th style="text-align:left;padding:4px 8px">Cliente</th><th style="text-align:left;padding:4px 8px">Telefone</th><th style="text-align:left;padding:4px 8px">Valor</th></tr></thead>
+          <tbody id="whatsapp-lote-lista"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn-gold" id="btn-whatsapp-enviar-lote" style="flex:1">Abrir WhatsApp</button>
+        <button class="btn-secondary" id="btn-cancelar-whatsapp-lote">Cancelar</button>
+        <span id="whatsapp-lote-contagem" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+  </div>
   <!-- Toast -->
   <div id="toast" role="status" aria-live="polite" aria-atomic="true">
     <span id="toast-msg" style="flex:1"></span>

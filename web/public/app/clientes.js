@@ -228,6 +228,7 @@ async function renderClientes() {
             <span>${(c.recibos||[]).length} recibo${(c.recibos||[]).length !== 1 ? "s" : ""}</span>
             <span>Â·</span><span>Ãšltimo: ${esc(ultimo?.data || "-")}</span>
             ${cadastro && cadastro.firma ? `<span>Â·</span><span style="color:var(--gold);font-weight:600">${esc(cadastro.firma)}</span>` : ""}
+            ${cadastro && cadastro.auto_recibo ? `<span>·</span><span style="color:var(--success);font-size:11px"><i class="bi bi-arrow-repeat"></i> Auto</span>` : ""}
             ${cadastro && cadastro.referencia ? `<span>Â·</span><span>Ref: ${esc(cadastro.referencia)}</span>` : (ultimo?.referencia ? `<span>Â·</span><span>Ref: ${esc(ultimo.referencia)}</span>` : "")}
             ${cadastro && cadastro.telefone ? `<span>Â·</span><span><a href="https://wa.me/55${cadastro.telefone.replace(/\D/g,'')}" target="_blank" rel="noopener" class="wa-link" style="color:var(--success);text-decoration:none" title="Abrir WhatsApp"><i class="bi bi-whatsapp"></i> ${esc(cadastro.telefone)}</a></span>` : ""}
           </div>

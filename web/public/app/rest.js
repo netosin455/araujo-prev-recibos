@@ -852,7 +852,7 @@ function bindStaticHandlers() {
   });
 
   // Clientes
-  document.getElementById("busca-clientes").addEventListener("input", renderClientes);
+  document.getElementById("busca-clientes").addEventListener("input", debounce(renderClientes, 300));
   document.getElementById("btn-cadastrar-cliente").addEventListener("click", () => abrirModalCliente());
 
   // Admin tabs
@@ -965,6 +965,44 @@ function bindStaticHandlers() {
     _renderAuditoria();
   });
 
+  // WhatsApp Lote (inadimpl\u00EAncia)
+  document.getElementById("tabela-inadimplencia")?.addEventListener("change", function(e) {
+    if (e.target.classList.contains("checkbox-inadimplencia")) atualizarSelecaoInadimplencia();
+  });
+  document.getElementById("selecionar-todos-inadimplencia")?.addEventListener("change", function() {
+    const checked = this.checked;
+    document.querySelectorAll(".checkbox-inadimplencia").forEach(cb => cb.checked = checked);
+    document.querySelectorAll(".checkbox-aging-all").forEach(cb => cb.checked = checked);
+    atualizarSelecaoInadimplencia();
+  });
+  document.getElementById("btn-whatsapp-lote")?.addEventListener("click", abrirModalWhatsAppLote);
+  document.getElementById("btn-fechar-modal-whatsapp")?.addEventListener("click", () => fecharModal("modal-whatsapp-lote"));
+  document.getElementById("btn-cancelar-whatsapp-lote")?.addEventListener("click", () => fecharModal("modal-whatsapp-lote"));
+  document.getElementById("whatsapp-msg-padrao")?.addEventListener("click", usarMensagemPadraoWhatsApp);
+  document.getElementById("whatsapp-msg-cobranca")?.addEventListener("click", usarMensagemCobrancaWhatsApp);
+  document.getElementById("whatsapp-msg-acordo")?.addEventListener("click", usarMensagemAcordoWhatsApp);
+  document.getElementById("btn-whatsapp-enviar-lote")?.addEventListener("click", function() {
+    const selecionados = atualizarSelecaoInadimplencia();
+    if (!selecionados.length) return;
+    const template = document.getElementById("whatsapp-lote-msg").value;
+    if (!template.trim()) { alert("Digite uma mensagem antes de enviar."); return; }
+    const clientesSemTel = [];
+    selecionados.forEach(c => {
+      const tel = (c.telefone || "").replace(/\D/g, "");
+      if (!tel) { clientesSemTel.push(c.nome); return; }
+      const msg = template
+        .replace(/\{nome\}/g, c.nome.split(" ")[0])
+        .replace(/\{valor\}/g, `R$ ${formatarValor(c.valor_em_aberto || 0)}`)
+        .replace(/\{parcelas\}/g, c.parcelas_atrasadas || 0)
+        .replace(/\{dias\}/g, c.parcelas?.reduce((mx, p) => Math.max(mx, p.dias_atraso || 0), 0) || 0);
+      window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, "_blank");
+    });
+    if (clientesSemTel.length) {
+      alert("Clientes sem telefone: " + clientesSemTel.join(", ") + "\n\nOs demais foram abertos no WhatsApp.");
+    }
+    fecharModal("modal-whatsapp-lote");
+  });
+
   // Modal busca global
   const buscaModalInp = document.getElementById("busca-modal-input");
   const buscaModal    = document.getElementById("modal-busca-global");
@@ -1004,7 +1042,7 @@ function bindStaticHandlers() {
 
   // Fechar qualquer modal ao clicar no backdrop
   ["modal-editar-usuario","modal-cliente","modal-pagamento-parcela",
-   "modal-detalhe","modal-govbr","modal-upload-comprovante","modal-comprovante"
+   "modal-detalhe","modal-govbr","modal-upload-comprovante","modal-comprovante","modal-whatsapp-lote"
   ].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("click", e => { if (e.target === el) fecharModal(id); });
@@ -1014,7 +1052,7 @@ function bindStaticHandlers() {
   const buscaGlobal = document.getElementById("busca-global");
   const dropdown = document.getElementById("busca-global-dropdown");
   if (buscaGlobal) {
-    buscaGlobal.addEventListener("input", () => renderBuscaGlobal(buscaGlobal.value.trim()));
+    buscaGlobal.addEventListener("input", debounce(() => renderBuscaGlobal(buscaGlobal.value.trim()), 300));
     buscaGlobal.addEventListener("keydown", e => {
       if (e.key === "Escape") { dropdown.style.display = "none"; buscaGlobal.blur(); _buscaGlobalIdx = -1; return; }
       const itens = dropdown.querySelectorAll(".global-dropdown-item");

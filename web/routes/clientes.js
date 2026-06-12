@@ -51,6 +51,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       valor_parcela: nParcelas > 0 ? vContrato / nParcelas : 0,
       parcelas,
       ...resumo,
+      auto_recibo: false,
       created_at: new Date().toISOString(),
     });
     res.json(await deps.enriquecerCliente(doc));
@@ -59,7 +60,7 @@ module.exports = function registerClienteRoutes(app, deps) {
   app.put("/api/clientes/:id", deps.auth, deps.semPrecatorios, async (req, res) => {
     const {
       nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
-      valor_beneficio, num_beneficios, valor_contrato, num_parcelas, parcelas,
+      valor_beneficio, num_beneficios, valor_contrato, num_parcelas, parcelas, auto_recibo,
     } = req.body;
     if (!nome || !cpf || !municipio_uf) return res.status(400).json({ erro: "Nome, CPF e Município são obrigatórios." });
     if (!num_parcelas || Number(num_parcelas) <= 0) return res.status(400).json({ erro: "Número de parcelas deve ser maior que zero." });
@@ -113,9 +114,18 @@ module.exports = function registerClienteRoutes(app, deps) {
       valor_parcela: nParcelas > 0 ? vContrato / nParcelas : 0,
       parcelas: novasParcelas,
       ...resumo,
+      auto_recibo: auto_recibo === true,
     });
     const atualizado = await deps.findOne(deps.dbClientes, { _id: req.params.id });
     res.json(await deps.enriquecerCliente(atualizado));
+  });
+
+  app.patch("/api/clientes/:id/auto-recibo", deps.auth, async (req, res) => {
+    const { auto_recibo } = req.body;
+    const cliente = await deps.findOne(deps.dbClientes, { _id: req.params.id });
+    if (!cliente) return res.status(404).json({ erro: "Cliente n\u00E3o encontrado." });
+    await deps.update(deps.dbClientes, { _id: req.params.id }, { auto_recibo: auto_recibo === true });
+    res.json({ auto_recibo: auto_recibo === true });
   });
 
   app.delete("/api/clientes/:id", deps.auth, deps.financeiroOnly, async (req, res) => {
