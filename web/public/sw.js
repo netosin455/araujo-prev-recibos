@@ -1,6 +1,6 @@
 // Service Worker — Araujo Prev PWA
-const CACHE = "araujo-prev-v1";
-const STATIC = ["/", "/index.html", "/app.js", "/manifest.json", "/logo.png"];
+const CACHE = "araujo-prev-v2";
+const STATIC = ["/", "/index.html", "/manifest.json", "/logo.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).catch(() => {}));

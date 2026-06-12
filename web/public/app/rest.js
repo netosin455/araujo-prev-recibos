@@ -1104,3 +1104,5 @@ function bindStaticHandlers() {
     }
   });
 }
+
+bindStaticHandlers();

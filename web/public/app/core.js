@@ -216,8 +216,6 @@ if (usuarioLogado) {
   }).catch(() => fazerLogout());
 }
 
-bindStaticHandlers();
-
 // ── CARREGAR RECIBOS ───────────────────────────────────────
 async function carregarRecibos(){
   const res = await api("GET","/api/recibos?limit=5000");
