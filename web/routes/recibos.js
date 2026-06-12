@@ -128,9 +128,8 @@ module.exports = function registerReciboRoutes(app, deps) {
     res.json({ recibos, total, pagina: page, totalPaginas });
   });
 
-  app.post("/api/recibos", deps.auth, async (req, res) => {
+  app.post("/api/recibos", deps.auth, deps.semRecepcao, async (req, res) => {
     try {
-      if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
       const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, motivo_pagamento, link_comprovante, timestamp } = req.body;
       const escritorio = req.user.role === "recepcao"
         ? (req.user.escritorio || "")
