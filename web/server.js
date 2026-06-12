@@ -364,6 +364,7 @@ async function initDb() {
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_cpf       ON recibos (cpf)`);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_num       ON recibos (num)`);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_timestamp ON recibos (timestamp DESC)`);
+  await pgPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_recibos_num_unique ON recibos (num) WHERE deletado_em IS NULL`);
 
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS clientes (
@@ -676,17 +677,25 @@ function parseBRL(str) {
 
 function gerarParcelas(numParcelas, valorContrato) {
   const valorParcela = numParcelas > 0 ? valorContrato / numParcelas : 0;
-  return Array.from({ length: numParcelas }, (_, i) => ({
-    num: i + 1,
-    valor: valorParcela,
-    status: "pendente",
-    data_vencimento: "",
-    data_recebimento: "",
-    data_deposito: "",
-    recibo_id: "",
-    recibo_num: "",
-    observacao: "",
-  }));
+  const hoje = new Date();
+  const diaVencto = String(hoje.getDate()).padStart(2, "0");
+  return Array.from({ length: numParcelas }, (_, i) => {
+    let mesVencto = hoje.getMonth() + 1 + i + 1;
+    let anoVencto = hoje.getFullYear();
+    while (mesVencto > 12) { mesVencto -= 12; anoVencto++; }
+    const dataVenc = `${diaVencto}/${String(mesVencto).padStart(2, "0")}/${anoVencto}`;
+    return {
+      num: i + 1,
+      valor: valorParcela,
+      status: "pendente",
+      data_vencimento: dataVenc,
+      data_recebimento: "",
+      data_deposito: "",
+      recibo_id: "",
+      recibo_num: "",
+      observacao: "",
+    };
+  });
 }
 
 function recalcularResumo(parcelas) {
@@ -832,6 +841,11 @@ app.post("/api/recibos", auth, async (req, res) => {
     const digsCPF = (cpf || "").replace(/\D/g, "");
     if (digsCPF.length === 11 && !validarCPF(cpf)) return res.status(400).json({ erro: "CPF inválido." });
     if (digsCPF.length === 14 && !validarCNPJ(cpf)) return res.status(400).json({ erro: "CNPJ inválido." });
+    // Unicidade de num_recibo
+    if (num) {
+      const { rows: dup } = await pgPool.query("SELECT id FROM recibos WHERE num=$1 AND deletado_em IS NULL LIMIT 1", [num]);
+      if (dup.length > 0) return res.status(409).json({ erro: `Já existe um recibo com o número ${num}.` });
+    }
     // Se CPF já existe, usa o nome já cadastrado (CPF é identidade única do cliente)
     const existente = await findOne(dbRecibos, { cpf });
     const nome = existente
@@ -2935,6 +2949,56 @@ cron.schedule("0 6 * * 0", () => {
   console.log(`[${new Date().toISOString()}] 🕗 Cron disparado: renovação de presigned URLs no Sheets...`);
   renovarPresignedUrlsSheets(s3SignerClient);
 }, { timezone: "UTC" });
+
+// ── CRON — INADIMPLÊNCIA + EMAIL DIÁRIO ─────────────────────
+// Executa todo dia às 8h no horário de Brasília: marca parcelas vencidas como atrasadas
+// e envia e-mail ao admin se houver inadimplentes.
+cron.schedule("0 8 * * *", async () => {
+  console.log("[CRON] Verificando parcelas inadimplentes...");
+  try {
+    const clientes = await find(dbClientes, NAO_DELETADO);
+    const hoje = new Date().toISOString().slice(0, 10);
+    let totalCount = 0;
+    for (const c of clientes) {
+      let count = 0;
+      const parcelas = (c.parcelas || []).map(p => {
+        if (p.status === "pendente" && p.data_vencimento) {
+          const [d, m, y] = p.data_vencimento.split("/");
+          if (d && m && y) {
+            const vencFormatado = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+            if (vencFormatado < hoje) {
+              count++;
+              return { ...p, status: "atrasado" };
+            }
+          }
+        }
+        return p;
+      });
+      if (count > 0) {
+        await update(dbClientes, { _id: c._id }, { parcelas });
+        totalCount += count;
+      }
+    }
+    console.log(`[CRON] ${totalCount} parcela(s) marcada(s) como atrasada(s).`);
+    if (totalCount > 0 && smtpConfigurado()) {
+      const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_ADMIN || process.env.SMTP_USER;
+      if (adminEmail) {
+        try {
+          await enviarEmail({
+            to: adminEmail,
+            subject: `[Araujo Prev] ${totalCount} parcela(s) inadimplente(s)`,
+            html: `<p>Olá,</p><p>${totalCount} parcela(s) estão vencidas e foram marcadas como atrasadas automaticamente.</p><p>Acesse o sistema para mais detalhes.</p>`,
+          });
+          console.log(`[CRON] Email de inadimplência enviado para ${adminEmail}`);
+        } catch(e) {
+          console.error("[CRON] Erro ao enviar email:", e.message);
+        }
+      }
+    }
+  } catch(e) {
+    console.error("[CRON] Erro na verificação:", e.message);
+  }
+}, { timezone: "America/Sao_Paulo" });
 
 // ── INICIAR ────────────────────────────────────────────────
 app.listen(PORT, async () => {

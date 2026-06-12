@@ -8,6 +8,14 @@ function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,
 function valorParaNumero(v){ return parseFloat((v||"0").replace(/\./g,"").replace(",","."))||0; }
 function formatarValor(n){ return n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
+function debounce(fn, ms) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
 // ── AUTH ───────────────────────────────────────────────────
 let token = "";
 
@@ -229,21 +237,39 @@ function aplicarTema(t){
 function alternarTema(){ aplicarTema(localStorage.getItem("tema")==="dark"?"light":"dark"); }
 
 // ── TOAST ──────────────────────────────────────────────────
-let _toastTimer=null;
-function mostrarToast(msg,onAbrir=null,tipo="default"){
-  const el=document.getElementById("toast");
-  const btnAbrir=document.getElementById("toast-btn-abrir");
-  document.getElementById("toast-msg").textContent=msg;
-  if(onAbrir){btnAbrir.style.display="block";btnAbrir.onclick=()=>{onAbrir();fecharToast();};}
-  else{btnAbrir.style.display="none";}
-  el.classList.remove("success","error");
-  if(tipo==="success") el.classList.add("success");
-  else if(tipo==="error") el.classList.add("error");
+let _toastQueue = [];
+let _toastShowing = false;
+
+function _showNextToast() {
+  if (_toastQueue.length === 0) { _toastShowing = false; return; }
+  _toastShowing = true;
+  const { msg, onAbrir, tipo } = _toastQueue.shift();
+  const el = document.getElementById("toast");
+  const btnAbrir = document.getElementById("toast-btn-abrir");
+  document.getElementById("toast-msg").textContent = msg;
+  if (onAbrir) {
+    btnAbrir.style.display = "block";
+    btnAbrir.onclick = () => { onAbrir(); _toastQueue = []; fecharToast(); };
+  } else {
+    btnAbrir.style.display = "none";
+  }
+  el.classList.remove("success", "error");
+  if (tipo === "success") el.classList.add("success");
+  else if (tipo === "error") el.classList.add("error");
   el.classList.add("show");
-  clearTimeout(_toastTimer);
-  _toastTimer=setTimeout(fecharToast,6000);
+  setTimeout(() => fecharToast(), 6000);
 }
-function fecharToast(){document.getElementById("toast").classList.remove("show");}
+
+function mostrarToast(msg, onAbrir = null, tipo = "default") {
+  _toastQueue.push({ msg, onAbrir, tipo });
+  if (!_toastShowing) _showNextToast();
+}
+
+function fecharToast() {
+  document.getElementById("toast").classList.remove("show");
+  _toastShowing = false;
+  _showNextToast();
+}
 
 // ── STATUS ─────────────────────────────────────────────────
 function setStatus(msg,tipo){
