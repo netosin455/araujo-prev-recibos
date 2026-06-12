@@ -13,13 +13,13 @@ module.exports = function registerAuthRoutes(app, deps) {
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.status(401).json({ erro: "Usuário ou senha incorretos" });
     }
-    const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" }, JWT_SECRET, { expiresIn: "8h" });
+    const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" }, JWT_SECRET, { expiresIn: "30d" });
     const isSecure = req.headers["x-forwarded-proto"] === "https" || req.protocol === "https";
     res.cookie("token", token, {
       httpOnly: true,
       secure: isSecure,
       sameSite: "strict",
-      maxAge: 8 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
     res.json({ username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" });
   });

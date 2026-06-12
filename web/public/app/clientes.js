@@ -41,7 +41,7 @@ function _btnWhatsApp(telefone, nomeCliente, p) {
   const valor = `R$ ${parseFloat(p.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   const texto = `OlÃ¡ ${nomeCliente}, passando para lembrar sobre a parcela ${p.num} no valor de ${valor}${venc}. Em caso de dÃºvidas, entre em contato conosco. Att, Araujo Prev.`;
   const url = `https://wa.me/55${fone}?text=${encodeURIComponent(texto)}`;
-  return `<a href="${url}" target="_blank" rel="noopener" class="btn-secondary btn-sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px">ðŸ’¬ WhatsApp</a>`;
+  return `<a href="${url}" target="_blank" rel="noopener" class="btn-secondary btn-sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px"><i class="bi bi-whatsapp"></i> WhatsApp</a>`;
 }
 
 function _buildBlocoContrato(cadastro) {
@@ -80,9 +80,9 @@ function _buildTabelaRecibos(c) {
               <button class="btn-secondary btn-sm" data-action="detalhe-recibo" data-recibo="${rd}">Detalhes</button>
               <button class="btn-gold btn-sm" data-action="pdf-recibo" data-recibo="${rd}"><i class="bi bi-eye"></i> Ver</button>
               ${roleLogado !== "recepcao" ? `<button class="btn-secondary btn-sm" data-action="editar-recibo" data-recibo="${rd}">Editar</button>` : ""}
-              <button class="btn-secondary btn-sm" data-action="baixar-recibo" data-recibo="${rd}">ðŸ“„ Baixar</button>
-              ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" data-action="upload-comprovante" data-id="${rid}">ðŸ“Ž Comprovante</button>` : ""}
-              ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" data-action="excluir-recibo" data-id="${rid}">ðŸ—‘</button>` : ""}
+              <button class="btn-secondary btn-sm" data-action="baixar-recibo" data-recibo="${rd}"><i class="bi bi-download"></i> Baixar</button>
+              ${roleLogado === "recepcao" ? `<button class="btn-secondary btn-sm" data-action="upload-comprovante" data-id="${rid}"><i class="bi bi-paperclip"></i> Comprovante</button>` : ""}
+              ${roleLogado !== "recepcao" ? `<button class="btn-danger btn-sm" data-action="excluir-recibo" data-id="${rid}"><i class="bi bi-trash"></i></button>` : ""}
             </td>
           </tr>`;
         }).join("")}
@@ -198,7 +198,7 @@ async function renderClientes() {
   atualizarBadgeClientes();
 
   if (!clientes.length) {
-    grid.innerHTML = `<div class="empty-state"><div class="icon">ðŸ“‹</div><p>${busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado."}</p>${!busca ? '<button class="btn-gold" style="margin-top:12px" id="btn-empty-cadastrar">+ Cadastrar Cliente</button>' : ""}</div>`;
+    grid.innerHTML = `<div class="empty-state"><i class="bi bi-people" style="font-size:2rem;display:block;margin-bottom:8px"></i><p>${busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado."}</p>${!busca ? '<button class="btn-gold" style="margin-top:12px" id="btn-empty-cadastrar">+ Cadastrar Cliente</button>' : ""}</div>`;
     if (!busca) {
       const btnEmpty = document.getElementById("btn-empty-cadastrar");
       if (btnEmpty) btnEmpty.addEventListener("click", () => abrirModalCliente());
@@ -240,7 +240,7 @@ async function renderClientes() {
             <div style="font-size:11px;color:var(--muted);margin-top:2px">total pago</div>
           </div>
           <button class="btn-sm btn-secondary cadastro-btn">${cadastro ? "Editar cadastro" : "Cadastrar"}</button>
-          ${roleLogado !== "recepcao" && cadastro ? `<button class="btn-danger btn-sm excluir-cliente-btn" title="Excluir cliente">ðŸ—‘</button>` : ""}
+          ${roleLogado !== "recepcao" && cadastro ? `<button class="btn-danger btn-sm excluir-cliente-btn" title="Excluir cliente"><i class="bi bi-trash"></i></button>` : ""}
           <button class="btn-gold btn-sm novo-recibo-btn">+ Recibo</button>
         </div>
       </div>

@@ -306,7 +306,7 @@ function renderHistorico(maisItens=false){
     resumoHist.style.display = "";
   }
   if(!lista.length){
-    grid.innerHTML=`<div class="empty-state"><div class="icon">ðŸ§¾</div><p>${busca?"Nenhum recibo encontrado.":"Nenhum recibo gerado ainda."}</p></div>`;
+    grid.innerHTML=`<div class="empty-state"><i class="bi bi-file-earmark" style="font-size:2rem;display:block;margin-bottom:8px"></i><p>${busca?"Nenhum recibo encontrado.":"Nenhum recibo gerado ainda."}</p></div>`;
     return;
   }
   _selecionadosZip.clear();
@@ -334,9 +334,9 @@ function renderHistorico(maisItens=false){
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="editar">Editar</button>`:""}
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="duplicar">Duplicar</button>`:""}
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="recorrente"><i class="bi bi-arrow-repeat"></i> Recorrente</button>`:""}
-        <button class="btn-secondary btn-sm" data-action="reimprimir">ðŸ“„ Baixar</button>
-        ${roleLogado==="recepcao"?`<button class="btn-secondary btn-sm" data-action="upload-comp">ðŸ“Ž Comprovante</button>`:""}
-        ${roleLogado!=="recepcao"?`<button class="btn-danger btn-sm" data-action="excluir">ðŸ—‘</button>`:""}
+        <button class="btn-secondary btn-sm" data-action="reimprimir"><i class="bi bi-download"></i> Baixar</button>
+        ${roleLogado==="recepcao"?`<button class="btn-secondary btn-sm" data-action="upload-comp"><i class="bi bi-paperclip"></i> Comprovante</button>`:""}
+        ${roleLogado!=="recepcao"?`<button class="btn-danger btn-sm" data-action="excluir"><i class="bi bi-trash"></i></button>`:""}
       </div>`;
     item.querySelectorAll("button").forEach(btn=>{
       btn.addEventListener("click",async()=>{
@@ -519,7 +519,7 @@ function abrirDetalhe(r){
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-secondary" id="btn-imprimir-modal"><i class="bi bi-printer"></i> Imprimir</button>
-      <button class="btn-primary" id="btn-reimprimir-modal">ðŸ“„ Baixar .docx</button>
+      <button class="btn-primary" id="btn-reimprimir-modal"><i class="bi bi-download"></i> Baixar .docx</button>
       ${!r.assinatura_govbr ? `<button class="btn-success" id="btn-assinar-modal" style="display:none"><i class="bi bi-shield-check"></i> Assinar Gov.br</button>` : ""}
       ${roleLogado!=="recepcao"?`<button class="btn-secondary" id="btn-recorrente-modal"><i class="bi bi-arrow-repeat"></i> Recorrente</button>`:""}
     </div>`;

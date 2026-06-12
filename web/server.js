@@ -608,9 +608,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, "public")));
-
-// Headers de seguranÃ§a
+// Headers de seguranÃ§a (antes do express.static para cobrir arquivos estÃ¡ticos)
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
@@ -627,6 +625,8 @@ app.use((req, res, next) => {
   );
   next();
 });
+
+app.use(express.static(path.join(__dirname, "public")));
 
 const mw = require("./middleware/auth")({ jwt, JWT_SECRET, ADMIN_USER, pgPool });
 const { auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios } = mw;

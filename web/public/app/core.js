@@ -63,6 +63,7 @@ function fazerLogout(){
 
 document.getElementById("login-senha").addEventListener("keydown", e=>{ if(e.key==="Enter") fazerLogin(); });
 document.getElementById("login-usuario").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("login-senha").focus(); });
+document.getElementById("btn-login").addEventListener("click", fazerLogin);
 
 // ── ESTADO ─────────────────────────────────────────────────
 let historicoRecibos = [];
@@ -136,6 +137,8 @@ async function iniciarApp(){
   verificarParcelasVencendo();
   initNotifPolling();
   if(roleLogado === "precatorios") navegarPara("admin");
+  // Carrega o restante dos recibos em background (nÃ£o bloqueia a UI)
+  setTimeout(carregarRecibosRestantes, 500);
 }
 
 async function carregarReferenciaPadrao() {
@@ -217,12 +220,39 @@ if (usuarioLogado) {
 }
 
 // ── CARREGAR RECIBOS ───────────────────────────────────────
+let _recibosTotal = 0;
+
 async function carregarRecibos(){
+  const res = await api("GET","/api/recibos?limit=200");
+  if(!res) return;
+  const data = await res.json();
+  _recibosTotal = data.total || 0;
+  historicoRecibos = (data.recibos || data) || [];
+  if(!Array.isArray(historicoRecibos)) historicoRecibos = [];
+  preencherFiltrosAvancados();
+  return historicoRecibos.length < _recibosTotal;
+}
+
+async function carregarRecibosRestantes(){
+  if(!_recibosTotal || historicoRecibos.length >= _recibosTotal) return;
+  document.getElementById("resumo-historico").textContent = "Carregando mais...";
   const res = await api("GET","/api/recibos?limit=5000");
   if(!res) return;
   const data = await res.json();
-  historicoRecibos = Array.isArray(data) ? data : (data.recibos || []);
+  const todos = (data.recibos || data) || [];
+  historicoRecibos = Array.isArray(todos) ? todos : [];
+  // Atualiza contadores
+  const resumoHist = document.getElementById("resumo-historico");
+  if(resumoHist){
+    const totalGeral = historicoRecibos.reduce((s, r) => s + valorParaNumero(r.valor), 0);
+    resumoHist.textContent = `${historicoRecibos.length} recibos Â· R$ ${formatarValor(totalGeral)} total`;
+  }
   preencherFiltrosAvancados();
+  // Re-renderiza abas que dependem dos dados completos
+  if(document.getElementById("screen-admin")?.classList.contains("active")){
+    atualizarDashboard();
+    if(document.getElementById("admin-analytics")?.classList.contains("active")) carregarAnalytics();
+  }
 }
 
 // ── TEMA ───────────────────────────────────────────────────
