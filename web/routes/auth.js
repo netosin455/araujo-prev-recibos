@@ -2,9 +2,9 @@
 // routes/auth.js — Login, logout, me, preferências do usuário
 // ============================================================
 module.exports = function registerAuthRoutes(app, deps) {
-  const { pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter } = deps;
+  const { pgPool, jwt, JWT_SECRET, bcrypt } = deps;
 
-  app.post("/api/login", loginLimiter, async (req, res) => {
+  app.post("/api/login", async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
     if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ erro: "Dados inválidos" });
