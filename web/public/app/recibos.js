@@ -150,6 +150,7 @@ async function gerarRecibo(){
   await atualizarNumRecibo();
   atualizarSugestoesNomes();
   verificarClientesInativos();
+  navegarPara("historico");
   setStatus("Recibo gerado com sucesso!","success");
   mostrarToast(`Recibo ${num} gerado! Baixando...`, null, "success");
 
