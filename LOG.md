@@ -2,6 +2,14 @@
 
 ## 2026-06-14
 
+### fix(proximo-num): número do recibo não avançava entre gerações
+- **Causa raiz:** `GET /api/proximo-num` usava `ORDER BY num DESC` em ordenação textual. Recibos com número não-padded (`"1/2026"`) ficam maiores que `"0999/2026"` em ASCII (`"9" > "0"`), então a query sempre retornava o mesmo número máximo falso, gerando sempre o mesmo próximo número e causando conflito 409 em toda tentativa de salvar.
+- **Fix (`web/routes/recibos.js`):** Remove `ORDER BY num DESC LIMIT 1`. Busca todos os nums do ano com LIKE e faz o `Math.max` numericamente em JS (mesmo padrão da rota `/recorrente`), imune a qualquer variação de padding.
+
+---
+
+## 2026-06-14 (1)
+
 ### fix(recepcao): recibo gerado não aparecia no histórico
 - **Causa raiz:** commit `fa31aa1` adicionou middleware `semRecepcao` no `POST /api/recibos`, bloqueando usuários com role `recepcao` de salvar o recibo no banco (retornava 403). O documento era gerado e baixado normalmente, mas o save falhava silenciosamente — o frontend antigo só checava `sheets_ok === false` e nunca detectava o 403, navegando para o histórico sem o recibo ter sido salvo.
 - **Fix backend (`web/routes/recibos.js`):** Remove `deps.semRecepcao` do middleware (recepcao agora pode salvar). Adiciona check explícito para role `precatorios`. `registrarNoSheets` e `dispararWebhook` viram non-blocking (`.catch()`) — evita timeout se Google Sheets estiver lento.

@@ -250,13 +250,16 @@ module.exports = function registerReciboRoutes(app, deps) {
   app.get("/api/proximo-num", deps.auth, async (req, res) => {
     const ano = String(new Date().getFullYear());
     const { rows } = await deps.pgPool.query(
-      `SELECT num FROM ${deps.dbRecibos} WHERE num LIKE $1 ORDER BY num DESC LIMIT 1`,
+      `SELECT num FROM ${deps.dbRecibos} WHERE num LIKE $1`,
       [`%/${ano}`]
     );
     let maior = 0;
-    if (rows[0]) {
-      const match = (rows[0].num || "").match(/^(\d+)\/(\d{4})$/);
-      if (match) maior = parseInt(match[1], 10);
+    for (const row of rows) {
+      const match = (row.num || "").match(/^(\d+)\/(\d{4})$/);
+      if (match && match[2] === ano) {
+        const seq = parseInt(match[1], 10);
+        if (seq > maior) maior = seq;
+      }
     }
     res.json({ num: `${String(maior + 1).padStart(4, "0")}/${ano}` });
   });
