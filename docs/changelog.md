@@ -2,6 +2,15 @@
 
 ---
 
+## [2026-06-14] — Agente 1/2 (Backend + Frontend): fix recepcao não conseguia salvar recibo
+
+### Corrigido
+- **Recibo não aparecia no histórico após geração (role recepcao):** middleware `semRecepcao` no `POST /api/recibos` bloqueava o save com 403; frontend não detectava o erro e navegava para o histórico sem o recibo salvo
+- **Backend:** removido `semRecepcao` do `POST /api/recibos`; adicionado check explícito para `precatorios`; `registrarNoSheets` e `dispararWebhook` agora non-blocking
+- **Frontend:** adicionada verificação `!salvarRes.ok` com `return` early — erros HTTP agora exibem toast e interrompem o fluxo corretamente
+
+---
+
 ## [2026-05-28] — Agente 2 (Frontend): Rodada 6 — Calendário, busca global modal, paginação histórico, recibo recorrente, timeline cliente, auditoria
 
 ### Adicionado

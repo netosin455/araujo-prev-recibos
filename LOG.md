@@ -1,5 +1,14 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-06-14
+
+### fix(recepcao): recibo gerado não aparecia no histórico
+- **Causa raiz:** commit `fa31aa1` adicionou middleware `semRecepcao` no `POST /api/recibos`, bloqueando usuários com role `recepcao` de salvar o recibo no banco (retornava 403). O documento era gerado e baixado normalmente, mas o save falhava silenciosamente — o frontend antigo só checava `sheets_ok === false` e nunca detectava o 403, navegando para o histórico sem o recibo ter sido salvo.
+- **Fix backend (`web/routes/recibos.js`):** Remove `deps.semRecepcao` do middleware (recepcao agora pode salvar). Adiciona check explícito para role `precatorios`. `registrarNoSheets` e `dispararWebhook` viram non-blocking (`.catch()`) — evita timeout se Google Sheets estiver lento.
+- **Fix frontend (`web/public/app/recibos.js`):** Adiciona verificação `!salvarRes.ok` com `return` early — agora erros HTTP (403, 500) são detectados e exibem toast, sem navegar para o histórico com o recibo ausente.
+
+---
+
 ## 2026-05-29
 
 ### feat(gerar-recibo): preencher valor da parcela automaticamente pelo nome
