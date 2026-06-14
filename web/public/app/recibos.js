@@ -135,11 +135,12 @@ async function gerarRecibo(){
   if (salvarRes) {
     try {
       const salvarJson = await salvarRes.json();
-      if (salvarJson.sheets_ok === false) {
-        mostrarToast("Recibo salvo! Aviso: Google Sheets fora de sincronia. Execute 'Reescrever planilha' no painel admin.", null, "error");
+      if (!salvarRes.ok) {
+        mostrarToast(salvarJson.erro || "Erro ao salvar recibo.", null, "error");
+        return;
       }
     } catch (e) {
-      mostrarToast("Erro ao processar resposta do servidor: " + e.message + ". Recarregue a pÃ¡gina.", null, "error");
+      mostrarToast("Erro ao processar resposta do servidor: " + e.message + ". Recarregue a página.", null, "error");
       console.error("Erro parse resposta /api/recibos:", e);
     }
   } else {

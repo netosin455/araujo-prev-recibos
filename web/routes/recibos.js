@@ -128,8 +128,9 @@ module.exports = function registerReciboRoutes(app, deps) {
     res.json({ recibos, total, pagina: page, totalPaginas });
   });
 
-  app.post("/api/recibos", deps.auth, deps.semRecepcao, async (req, res) => {
+  app.post("/api/recibos", deps.auth, async (req, res) => {
     try {
+      if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
       const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, motivo_pagamento, link_comprovante, timestamp } = req.body;
       const escritorio = req.user.role === "recepcao"
         ? (req.user.escritorio || "")
@@ -148,9 +149,9 @@ module.exports = function registerReciboRoutes(app, deps) {
       const ts = typeof timestamp === "number" ? timestamp : (Date.now());
       const doc = await deps.insert(deps.dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio, motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp: ts });
       deps.registrarAuditoria(req, "criar_recibo", doc._id, { num, nome, escritorio, valor, cpf: deps.maskCPF(cpf) });
-      const sheets_result = await registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante });
-      dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia });
-      res.json({ id: doc._id, sheets_ok: sheets_result === true, sheets_erro: sheets_result !== true ? sheets_result : null });
+      registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante }).catch(e => console.error("Erro sheets (ignorado):", e));
+      dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia }).catch(e => console.error("Erro webhook (ignorado):", e));
+      res.json({ id: doc._id });
     } catch (err) {
       console.error("Erro em POST /api/recibos:", err);
       res.status(500).json({ erro: "Erro interno ao salvar recibo: " + err.message });
