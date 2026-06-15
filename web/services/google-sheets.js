@@ -69,6 +69,13 @@ async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
   }
 }
 
+function formatarCPFCNPJ(cpf) {
+  const digits = (cpf || "").replace(/\D/g, "");
+  if (digits.length === 11) return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  if (digits.length === 14) return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  return cpf || "";
+}
+
 function sanitizarLinkParaSheets(link) {
   if (!link) return "";
   const s3Match = link.match(/amazonaws\.com\/(.+?)(?:\?|$)/);
@@ -80,19 +87,20 @@ async function registrarNoSheets(dados) {
   const sheets = getSheetsClient();
   if (!sheets) return false;
   try {
-    const agora = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const horaFormatada = agora.toLocaleTimeString("pt-BR");
-    const carimbo = `${agora.toLocaleDateString("pt-BR")} ${horaFormatada}`;
-    const dataPagamento = dados.data || agora.toLocaleDateString("pt-BR");
+    const agora = new Date();
+    const fmtBR = (opts) => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", ...opts }).format(agora);
+    const carimbo = fmtBR({ day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const mesAtual = parseInt(fmtBR({ month: "numeric" }), 10) - 1;
+    const dataPagamento = dados.data || fmtBR({ day: "2-digit", month: "2-digit", year: "numeric" });
     const [dp, mp] = dataPagamento.split("/");
     const mesPagamento = (dp && mp && mp.length <= 2)
-      ? MESES[parseInt(mp, 10) - 1] || MESES[agora.getMonth()]
-      : MESES[agora.getMonth()];
+      ? MESES[parseInt(mp, 10) - 1] || MESES[mesAtual]
+      : MESES[mesAtual];
 
     const linha = [
       carimbo,
       dados.nome || "",
-      dados.cpf || "",
+      formatarCPFCNPJ(dados.cpf),
       dados.valor ? `R$ ${dados.valor}` : "",
       dataPagamento,
       dataPagamento,
@@ -143,7 +151,7 @@ async function atualizarNoSheets(num, dados) {
     const linha = [
       undefined,
       dados.nome || "",
-      dados.cpf || "",
+      formatarCPFCNPJ(dados.cpf),
       dados.valor ? `R$ ${dados.valor}` : "",
       dados.data || "",
       dados.data || "",

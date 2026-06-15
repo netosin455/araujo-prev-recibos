@@ -1,6 +1,14 @@
 # LOG de Alterações — Araujo Prev
 
-## 2026-06-14
+## 2026-06-14 (3)
+
+### fix(sheets): Invalid Date no carimbo e CPF sem formatação na planilha
+- **Invalid Date:** `new Date(new Date().toLocaleString("en-US", { timeZone: ... }))` é anti-pattern — o formato de `toLocaleString` não é parseável de forma confiável pelo `Date()` no Node.js do AWS. Substituído por `Intl.DateTimeFormat` diretamente, que é o caminho correto para formatar datas em fuso horário.
+- **CPF sem pontos:** o frontend envia CPF como dígitos puros (`14648799909`). `registrarNoSheets` e `atualizarNoSheets` agora formatam via `formatarCPFCNPJ()` antes de gravar na planilha (`146.487.999-09` / CNPJ com máscara).
+
+---
+
+## 2026-06-14 (2)
 
 ### fix(proximo-num): número do recibo não avançava entre gerações
 - **Causa raiz:** `GET /api/proximo-num` usava `ORDER BY num DESC` em ordenação textual. Recibos com número não-padded (`"1/2026"`) ficam maiores que `"0999/2026"` em ASCII (`"9" > "0"`), então a query sempre retornava o mesmo número máximo falso, gerando sempre o mesmo próximo número e causando conflito 409 em toda tentativa de salvar.
