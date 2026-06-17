@@ -231,6 +231,7 @@ async function carregarRecibos(){
   historicoRecibos = (data.recibos || data) || [];
   if(!Array.isArray(historicoRecibos)) historicoRecibos = [];
   preencherFiltrosAvancados();
+  preencherFiltrosSalvos();
   return historicoRecibos.length < _recibosTotal;
 }
 

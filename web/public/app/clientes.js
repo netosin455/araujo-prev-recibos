@@ -198,7 +198,7 @@ async function renderClientes() {
   atualizarBadgeClientes();
 
   if (!clientes.length) {
-    grid.innerHTML = `<div class="empty-state"><i class="bi bi-people" style="font-size:2rem;display:block;margin-bottom:8px"></i><p>${busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado."}</p>${!busca ? '<button class="btn-gold" style="margin-top:12px" id="btn-empty-cadastrar">+ Cadastrar Cliente</button>' : ""}</div>`;
+    grid.innerHTML = `<div class="empty-state"><i class="bi bi-people empty-state-icon"></i><p>${busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado."}</p><span>${busca ? "Tente ajustar sua busca." : "Cadastre clientes para acompanhar contratos e parcelas."}</span>${!busca ? '<button class="btn-gold" style="margin-top:16px" id="btn-empty-cadastrar">+ Cadastrar Cliente</button>' : ""}</div>`;
     if (!busca) {
       const btnEmpty = document.getElementById("btn-empty-cadastrar");
       if (btnEmpty) btnEmpty.addEventListener("click", () => abrirModalCliente());

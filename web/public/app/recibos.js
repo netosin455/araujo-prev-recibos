@@ -157,7 +157,8 @@ async function gerarRecibo(){
 
   // Oferece vinculaÃ§Ã£o com parcela se o recibo foi para um cliente cadastrado
   const emailCliente = (document.getElementById("email-cliente")?.value || "").trim();
-  _lastReciboGerado = { nome: dados.nome, num, valor: dados.valor, data: dados.data, cpf: dados.cpf, emitido_por: dados.emitido_por, email: emailCliente };
+  const telCliente = (document.getElementById("tel-cliente")?.value || "").trim();
+  _lastReciboGerado = { nome: dados.nome, num, valor: dados.valor, data: dados.data, cpf: dados.cpf, emitido_por: dados.emitido_por, email: emailCliente, tel: telCliente };
   const ctx = _clienteContexto;
   limparCampos();
   btn.disabled=false; btn.innerHTML=btnTextoOriginal;
@@ -166,6 +167,13 @@ async function gerarRecibo(){
     if (areaEmail) areaEmail.style.display = "";
     const statusEmail = document.getElementById("email-envio-status");
     if (statusEmail) statusEmail.textContent = `Enviar para: ${emailCliente}`;
+  }
+  const telsDigits = telCliente.replace(/\D/g, "");
+  if (telsDigits.length >= 10) {
+    const areaWpp = document.getElementById("area-enviar-whatsapp");
+    if (areaWpp) areaWpp.style.display = "";
+    const statusWpp = document.getElementById("whatsapp-envio-status");
+    if (statusWpp) statusWpp.textContent = `Enviar para: ${telCliente}`;
   }
   if (ctx && ctx.id) {
     const parcelasPendentes = (ctx.parcelas || []).filter(p => p.status !== "pago");
@@ -209,7 +217,18 @@ async function enviarReciboEmail() {
   }
 }
 
-// â”€â”€ HISTÃ“RICO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function enviarWhatsAppRecibo() {
+  if (!_lastReciboGerado) return;
+  const tel = _lastReciboGerado.tel || "";
+  const digits = tel.replace(/\D/g, "");
+  if (digits.length < 10) return;
+  const msg = `Ol\xE1 ${_lastReciboGerado.nome}, tudo bem? Segue o recibo n\xBA ${_lastReciboGerado.num} no valor de R$ ${_lastReciboGerado.valor}, gerado em ${_lastReciboGerado.data}. Qualquer d\xFAvida, estamos \xE0 disposi\xE7\xE3o. Att, Araujo Prev.`;
+  const url = `https://wa.me/55${digits}?text=${encodeURIComponent(msg)}`;
+  window.open(url, "_blank", "noopener");
+  const statusEl = document.getElementById("whatsapp-envio-status");
+  if (statusEl) { statusEl.style.color = "var(--success)"; statusEl.textContent = "WhatsApp enviado!"; }
+}
+
 function dataParaISO(ddmmyyyy){
   if(!ddmmyyyy) return null;
   const [d,m,y]=ddmmyyyy.split("/");
@@ -267,6 +286,61 @@ function renderBuscaGlobal(termo) {
   });
 }
 
+// ---- FILTROS SALVOS ------------------------------------------------
+function salvarFiltroAtual() {
+  const nome = prompt("Nome para este filtro:");
+  if (!nome || !nome.trim()) return;
+  const filtro = {
+    nome: nome.trim(),
+    busca: document.getElementById("busca-historico")?.value || "",
+    dataIni: document.getElementById("filtro-data-ini")?.value || "",
+    dataFim: document.getElementById("filtro-data-fim")?.value || "",
+    escritorio: document.getElementById("filtro-avancado-escritorio")?.value || "",
+    forma: document.getElementById("filtro-avancado-forma")?.value || "",
+    responsavel: document.getElementById("filtro-avancado-responsavel")?.value || "",
+    min: document.getElementById("filtro-avancado-min")?.value || "",
+    max: document.getElementById("filtro-avancado-max")?.value || ""
+  };
+  let salvos = JSON.parse(localStorage.getItem("filtrosSalvos") || "[]");
+  salvos.push(filtro);
+  localStorage.setItem("filtrosSalvos", JSON.stringify(salvos));
+  preencherFiltrosSalvos();
+  mostrarToast(`Filtro "${filtro.nome}" salvo!`, null, "success");
+}
+
+function carregarFiltroSalvo(id) {
+  const salvos = JSON.parse(localStorage.getItem("filtrosSalvos") || "[]");
+  const filtro = salvos[id];
+  if (!filtro) return;
+  document.getElementById("busca-historico").value = filtro.busca || "";
+  document.getElementById("filtro-data-ini").value = filtro.dataIni || "";
+  document.getElementById("filtro-data-fim").value = filtro.dataFim || "";
+  document.getElementById("filtro-avancado-escritorio").value = filtro.escritorio || "";
+  document.getElementById("filtro-avancado-forma").value = filtro.forma || "";
+  document.getElementById("filtro-avancado-responsavel").value = filtro.responsavel || "";
+  document.getElementById("filtro-avancado-min").value = filtro.min || "";
+  document.getElementById("filtro-avancado-max").value = filtro.max || "";
+  renderHistorico();
+}
+
+function deletarFiltroSalvo(id) {
+  let salvos = JSON.parse(localStorage.getItem("filtrosSalvos") || "[]");
+  if (!salvos[id]) return;
+  if (!confirm(`Excluir filtro "${salvos[id].nome}"?`)) return;
+  salvos.splice(id, 1);
+  localStorage.setItem("filtrosSalvos", JSON.stringify(salvos));
+  preencherFiltrosSalvos();
+}
+
+function preencherFiltrosSalvos() {
+  const sel = document.getElementById("filtros-salvos-select");
+  if (!sel) return;
+  const salvos = JSON.parse(localStorage.getItem("filtrosSalvos") || "[]");
+  sel.innerHTML = '<option value="">Filtros salvos...</option>' + salvos.map((f, i) => `<option value="${i}">${esc(f.nome)}</option>`).join("");
+  const btnDel = document.getElementById("btn-deletar-filtro-salvo");
+  if (btnDel) btnDel.style.display = salvos.length ? "" : "none";
+}
+
 function renderHistorico(maisItens=false){
   if(!maisItens) _historicoVisiveis=50;
   const busca=(document.getElementById("busca-historico").value||"").toLowerCase();
@@ -308,7 +382,7 @@ function renderHistorico(maisItens=false){
     resumoHist.style.display = "";
   }
   if(!lista.length){
-    grid.innerHTML=`<div class="empty-state"><i class="bi bi-file-earmark" style="font-size:2rem;display:block;margin-bottom:8px"></i><p>${busca?"Nenhum recibo encontrado.":"Nenhum recibo gerado ainda."}</p></div>`;
+    grid.innerHTML=`<div class="empty-state"><i class="bi bi-file-earmark empty-state-icon"></i><p>${busca?"Nenhum recibo encontrado.":"Nenhum recibo gerado ainda."}</p><span>${busca?"Tente ajustar sua busca.":"Os recibos aparecer\u00E3o aqui ap\u00F3s serem gerados."}</span></div>`;
     return;
   }
   _selecionadosZip.clear();

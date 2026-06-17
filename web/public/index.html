@@ -136,6 +136,11 @@
 
     /* ── TELAS ── */
 
+    /* ── FORM SECTION ── */
+    .form-section-title{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin:24px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--gold-pale);display:flex;align-items:center;gap:6px}
+    .form-section-title i{font-size:14px;color:var(--gold-light)}
+    [data-theme="dark"] .form-section-title{border-bottom-color:rgba(184,151,58,0.2)}
+
     /* ── CARD ── */
     .card{background:var(--card);border-radius:var(--radius);padding:28px 32px;box-shadow:var(--shadow);border:1px solid var(--border);max-width:640px}
     .card-title{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--dark);margin-bottom:24px;padding-bottom:14px;border-bottom:1px solid var(--border)}
@@ -161,6 +166,11 @@
     .btn-success{background:#edf7f2;color:var(--success);border:1.5px solid #c0e0d0}
     .btn-success:hover{background:#d0f0e0}
     .btn-sm{padding:5px 12px;font-size:11px}
+    .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+    .empty-state-icon{font-size:3rem;display:block;margin-bottom:16px;color:var(--border-strong);transition:transform 0.3s var(--ease)}
+    .empty-state:hover .empty-state-icon{transform:scale(1.05)}
+    .empty-state p{font-size:14px;margin-bottom:4px;color:var(--mid)}
+    .empty-state span{font-size:12px;color:var(--muted)}
     .status{margin-top:16px;padding:11px 16px;border-radius:var(--radius-sm);font-size:12px;text-align:center;display:none}
     .status.success{background:#edf7f2;color:var(--success);display:block;border-left:3px solid var(--success)}
     .status.error{background:#fdf0f0;color:var(--error);display:block;border-left:3px solid var(--error)}
@@ -630,6 +640,8 @@
             <button class="btn-danger btn-sm" id="btn-cancelar-edicao">Cancelar</button>
           </div>
           <div class="card-title">Novo Recibo de Honorários</div>
+
+          <div class="form-section-title"><i class="bi bi-person-badge"></i> Dados do Cliente</div>
           <div class="form-group">
             <label for="nome">Nome do(a) Cliente</label>
             <input id="nome" type="text" style="text-transform:uppercase" list="nome-sugestoes" autocomplete="off" placeholder="Nome do(a) cliente..." />
@@ -645,6 +657,18 @@
               <input id="municipio_uf" type="text" style="text-transform:uppercase" placeholder="Ex: Terra Rica - PR" />
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>E-mail <span style="font-weight:400;color:var(--muted)">(opcional)</span></label>
+              <input id="email-cliente" type="email" placeholder="cliente@exemplo.com" />
+            </div>
+            <div class="form-group">
+              <label>WhatsApp <span style="font-weight:400;color:var(--muted)">(opcional)</span></label>
+              <input id="tel-cliente" type="tel" placeholder="(99) 99999-9999" />
+            </div>
+          </div>
+
+          <div class="form-section-title"><i class="bi bi-cash-coin"></i> Valores e Referência</div>
           <div class="form-group">
             <label for="valor">Valor Recebido (R$)</label>
             <input id="valor" type="text" placeholder="0,00" />
@@ -671,6 +695,8 @@
               <input id="referencia" type="text" style="text-transform:uppercase" placeholder="Ex: MAI/2026..." maxlength="20" />
             </div>
           </div>
+
+          <div class="form-section-title"><i class="bi bi-calendar-event"></i> Data e Pagamento</div>
           <div class="form-group">
             <label>Data</label>
             <div class="form-row three">
@@ -718,10 +744,8 @@
             <label for="emitido_por">Emitido por</label>
             <input id="emitido_por" type="text" style="text-transform:uppercase" placeholder="Nome do responsável" />
           </div>
-          <div class="form-group">
-            <label>E-mail do cliente <span style="font-weight:400;color:var(--muted)">(opcional — para envio do recibo)</span></label>
-            <input id="email-cliente" type="email" placeholder="cliente@exemplo.com" />
-          </div>
+
+          <div class="form-section-title"><i class="bi bi-file-earmark-text"></i> Documento</div>
           <div class="form-group">
             <label>Comprovante de depósito <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
             <label for="comprovante" class="comprovante-label" id="comprovante-label">
@@ -751,6 +775,14 @@
               <button class="btn-secondary btn-sm" id="btn-fechar-area-email">Fechar</button>
             </div>
             <div id="email-envio-status" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
+          </div>
+          <div id="area-enviar-whatsapp" style="display:none;margin-top:12px;padding:14px 16px;background:rgba(37,211,102,0.1);border:1px solid #25D366;border-radius:var(--radius-sm)">
+            <div style="font-size:12px;font-weight:600;color:var(--mid);margin-bottom:10px"><i class="bi bi-whatsapp" style="color:#25D366"></i> Recibo gerado! Deseja enviar por WhatsApp?</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-success btn-sm" id="btn-enviar-whatsapp-recibo" style="background:#25D366;border-color:#25D366"><i class="bi bi-whatsapp"></i> Enviar WhatsApp</button>
+              <button class="btn-secondary btn-sm" id="btn-fechar-area-whatsapp">Fechar</button>
+            </div>
+            <div id="whatsapp-envio-status" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
           </div>
         </div>
       </div>
@@ -796,7 +828,14 @@
               <div class="form-group"><label>Responsável</label><select id="filtro-avancado-responsavel"><option value="">Todos</option></select></div>
               <div class="form-group"><label>Valor mínimo</label><input id="filtro-avancado-min" type="text" placeholder="0,00" style="width:100px" /></div>
               <div class="form-group"><label>Valor máximo</label><input id="filtro-avancado-max" type="text" placeholder="0,00" style="width:100px" /></div>
-              <button class="btn-secondary btn-sm" id="btn-limpar-filtros-avancados" style="margin-top:18px"><i class="bi bi-x-circle"></i> Limpar</button>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:18px;flex-wrap:wrap">
+                <button class="btn-gold btn-sm" id="btn-salvar-filtro"><i class="bi bi-bookmark-plus"></i> Salvar filtro</button>
+                <button class="btn-secondary btn-sm" id="btn-limpar-filtros-avancados"><i class="bi bi-x-circle"></i> Limpar</button>
+                <select id="filtros-salvos-select" style="width:auto;min-width:140px;flex:1">
+                  <option value="">Filtros salvos...</option>
+                </select>
+                <button class="btn-danger btn-sm" id="btn-deletar-filtro-salvo" style="display:none" title="Excluir filtro salvo"><i class="bi bi-trash"></i></button>
+              </div>
             </div>
           </div>
         </div>

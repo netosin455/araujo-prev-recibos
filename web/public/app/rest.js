@@ -843,12 +843,32 @@ function bindStaticHandlers() {
   document.getElementById("filtro-avancado-min")?.addEventListener("input", renderHistorico);
   document.getElementById("filtro-avancado-max")?.addEventListener("input", renderHistorico);
 
+  // Filtros salvos
+  document.getElementById("btn-salvar-filtro")?.addEventListener("click", salvarFiltroAtual);
+  document.getElementById("filtros-salvos-select")?.addEventListener("change", (e) => {
+    const val = e.target.value;
+    if (val !== "") carregarFiltroSalvo(parseInt(val));
+    e.target.value = "";
+  });
+  document.getElementById("btn-deletar-filtro-salvo")?.addEventListener("click", () => {
+    const sel = document.getElementById("filtros-salvos-select");
+    const val = sel?.value;
+    if (val !== "") deletarFiltroSalvo(parseInt(val));
+  });
+
   // Email recibo
   document.getElementById("btn-enviar-email-recibo")?.addEventListener("click", enviarReciboEmail);
   document.getElementById("btn-fechar-area-email")?.addEventListener("click", () => {
     const area = document.getElementById("area-enviar-email");
     if (area) area.style.display = "none";
     _lastReciboGerado = null;
+  });
+
+  // WhatsApp recibo
+  document.getElementById("btn-enviar-whatsapp-recibo")?.addEventListener("click", enviarWhatsAppRecibo);
+  document.getElementById("btn-fechar-area-whatsapp")?.addEventListener("click", () => {
+    const area = document.getElementById("area-enviar-whatsapp");
+    if (area) area.style.display = "none";
   });
 
   // Clientes
