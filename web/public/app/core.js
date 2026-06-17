@@ -48,6 +48,7 @@ async function fazerLogin(){
   localStorage.setItem("roleLogado", roleLogado);
   localStorage.setItem("escritorioLogado", escritorioLogado);
   document.getElementById("tela-login").classList.add("hide");
+  document.body.classList.remove("login-open");
   document.getElementById("nome-usuario").textContent = usuarioLogado;
   iniciarApp();
 }
