@@ -245,6 +245,7 @@ async function carregarRecibosRestantes(total){
     resumoHist.textContent = `${historicoRecibos.length} recibos \u00B7 R$ ${formatarValor(totalGeral)} total`;
   }
   preencherFiltrosAvancados();
+  if(document.getElementById("screen-historico")?.classList.contains("active")) renderHistorico();
   if(document.getElementById("screen-admin")?.classList.contains("active")){
     atualizarDashboard();
     if(document.getElementById("admin-analytics")?.classList.contains("active")) carregarAnalytics();
