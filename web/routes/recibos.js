@@ -122,7 +122,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       : todos;
     const total = filtrados.length;
     const page  = Math.max(1, parseInt(req.query.page)  || 1);
-    const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit) || 50));
+    const limit = Math.min(50000, Math.max(1, parseInt(req.query.limit) || 50));
     const totalPaginas = Math.ceil(total / limit) || 1;
     const recibos = filtrados.slice((page - 1) * limit, page * limit).map(r => ({ ...r, id: r._id }));
     res.json({ recibos, total, pagina: page, totalPaginas });

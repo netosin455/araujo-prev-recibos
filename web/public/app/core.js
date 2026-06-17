@@ -234,7 +234,7 @@ async function carregarRecibos(){
 }
 
 async function carregarRecibosRestantes(total){
-  const res = await api("GET","/api/recibos?limit=10000");
+  const res = await api("GET","/api/recibos?limit=50000");
   if(!res) return;
   const data = await res.json();
   const todos = (data.recibos || data) || [];
