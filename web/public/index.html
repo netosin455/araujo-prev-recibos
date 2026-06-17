@@ -644,34 +644,34 @@
           <div class="form-section-title"><i class="bi bi-person-badge"></i> Dados do Cliente</div>
           <div class="form-group">
             <label for="nome">Nome do(a) Cliente</label>
-            <input id="nome" type="text" style="text-transform:uppercase" list="nome-sugestoes" autocomplete="off" placeholder="Nome do(a) cliente..." />
+<input id="nome" type="text" style="text-transform:uppercase" list="nome-sugestoes" autocomplete="off" />
             <datalist id="nome-sugestoes"></datalist>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label id="label-cpf" for="cpf">CPF / CNPJ</label>
-              <input id="cpf" type="text" maxlength="18" placeholder="000.000.000-00" />
+              <input id="cpf" type="text" maxlength="18" />
             </div>
             <div class="form-group">
               <label for="municipio_uf">Município / UF</label>
-              <input id="municipio_uf" type="text" style="text-transform:uppercase" placeholder="Ex: Terra Rica - PR" />
+              <input id="municipio_uf" type="text" style="text-transform:uppercase" />
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label>E-mail <span style="font-weight:400;color:var(--muted)">(opcional)</span></label>
-              <input id="email-cliente" type="email" placeholder="cliente@exemplo.com" />
+              <input id="email-cliente" type="email" />
             </div>
             <div class="form-group">
               <label>WhatsApp <span style="font-weight:400;color:var(--muted)">(opcional)</span></label>
-              <input id="tel-cliente" type="tel" placeholder="(99) 99999-9999" />
+              <input id="tel-cliente" type="tel" />
             </div>
           </div>
 
           <div class="form-section-title"><i class="bi bi-cash-coin"></i> Valores e Referência</div>
           <div class="form-group">
             <label for="valor">Valor Recebido (R$)</label>
-            <input id="valor" type="text" placeholder="0,00" />
+            <input id="valor" type="text" />
           </div>
           <div class="form-group">
             <label for="motivo_pagamento">Motivo de Pagamento</label>
@@ -686,13 +686,13 @@
           <div class="form-row">
             <div class="form-group" style="flex:2">
               <label>Complemento <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
-              <input id="complemento" type="text" placeholder="Ex: Aposentadoria por Invalidez..." />
+              <input id="complemento" type="text" />
             </div>
             <div class="form-group" style="flex:1">
               <label>Referência <span style="font-weight:400;text-transform:none;letter-spacing:0">(gaveta)</span>
                 <button type="button" id="btn-ref-padrao-recibo" title="Salvar como minha referência padrão" style="display:none;background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
               </label>
-              <input id="referencia" type="text" style="text-transform:uppercase" placeholder="Ex: MAI/2026..." maxlength="20" />
+              <input id="referencia" type="text" style="text-transform:uppercase" maxlength="20" />
             </div>
           </div>
 
@@ -700,7 +700,7 @@
           <div class="form-group">
             <label>Data</label>
             <div class="form-row three">
-              <input id="dia" type="number" min="1" max="31" placeholder="Dia" />
+              <input id="dia" type="number" min="1" max="31" />
               <select id="mes">
                 <option value="">Mês</option>
                 <option value="01">Janeiro</option><option value="02">Fevereiro</option>
@@ -710,7 +710,7 @@
                 <option value="09">Setembro</option><option value="10">Outubro</option>
                 <option value="11">Novembro</option><option value="12">Dezembro</option>
               </select>
-              <input id="ano" type="number" min="2024" max="2099" placeholder="Ano" />
+              <input id="ano" type="number" min="2024" max="2099" />
             </div>
           </div>
           <div class="form-row">
@@ -742,7 +742,7 @@
           </div>
           <div class="form-group">
             <label for="emitido_por">Emitido por</label>
-            <input id="emitido_por" type="text" style="text-transform:uppercase" placeholder="Nome do responsável" />
+            <input id="emitido_por" type="text" style="text-transform:uppercase" />
           </div>
 
           <div class="form-section-title"><i class="bi bi-file-earmark-text"></i> Documento</div>
