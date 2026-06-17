@@ -221,19 +221,34 @@ if (usuarioLogado) {
 // ── CARREGAR RECIBOS ───────────────────────────────────────
 
 async function carregarRecibos(){
-  const res = await api("GET","/api/recibos?limit=10000");
+  const res = await api("GET","/api/recibos?limit=200");
   if(!res) return [];
+  const data = await res.json();
+  historicoRecibos = (data.recibos || data) || [];
+  if(!Array.isArray(historicoRecibos)) historicoRecibos = [];
+  preencherFiltrosAvancados();
+  preencherFiltrosSalvos();
+  const total = data.total || 0;
+  if(total > 200) setTimeout(() => carregarRecibosRestantes(total), 100);
+  return historicoRecibos;
+}
+
+async function carregarRecibosRestantes(total){
+  const res = await api("GET","/api/recibos?limit=10000");
+  if(!res) return;
   const data = await res.json();
   const todos = (data.recibos || data) || [];
   historicoRecibos = Array.isArray(todos) ? todos : [];
-  preencherFiltrosAvancados();
-  preencherFiltrosSalvos();
   const resumoHist = document.getElementById("resumo-historico");
   if(resumoHist && historicoRecibos.length){
     const totalGeral = historicoRecibos.reduce((s, r) => s + valorParaNumero(r.valor), 0);
     resumoHist.textContent = `${historicoRecibos.length} recibos \u00B7 R$ ${formatarValor(totalGeral)} total`;
   }
-  return historicoRecibos;
+  preencherFiltrosAvancados();
+  if(document.getElementById("screen-admin")?.classList.contains("active")){
+    atualizarDashboard();
+    if(document.getElementById("admin-analytics")?.classList.contains("active")) carregarAnalytics();
+  }
 }
 
 // ── TEMA ───────────────────────────────────────────────────
