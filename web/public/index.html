@@ -897,26 +897,21 @@
               <div class="sub" id="card-total-qtd">0 recibos</div>
             </div>
           </div>
-            <div class="cards-grid" style="margin-bottom:20px">
+          <div class="cards-grid" style="margin-bottom:20px">
             <div class="dash-card" id="kpi-variacao-card">
               <div class="label">Variação do Mês</div>
               <div class="value" id="card-variacao" style="font-size:20px">—</div>
               <div class="sub" id="card-variacao-sub">vs mês anterior</div>
             </div>
-            <div class="dash-card" style="border-top-color:var(--muted)">
-              <div class="label">vs Ano Anterior</div>
-              <div class="value" id="card-yoy" style="font-size:20px">—</div>
-              <div class="sub">mesmo mês ano passado</div>
-            </div>
             <div class="dash-card red">
               <div class="label">Clientes Inadimplentes</div>
               <div class="value" id="card-inadimplentes">—</div>
-              <div class="sub" id="card-inadimplentes-sub">parcelas em atraso</div>
+              <div class="sub">parcelas em atraso</div>
             </div>
             <div class="dash-card" style="border-top-color:#c07a2a">
               <div class="label">Parcelas Vencendo</div>
               <div class="value" id="card-parcelas-vencendo">—</div>
-              <div class="sub" id="card-parcelas-vencendo-sub">próximos 7 dias</div>
+              <div class="sub">próximos 7 dias</div>
             </div>
             <div class="dash-card" style="border-top-color:var(--muted)">
               <div class="label">Clientes Novos</div>
@@ -924,62 +919,12 @@
               <div class="sub">este mês</div>
             </div>
           </div>
-
-          <!-- META + RECEITA + FLUXO + TOP -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-            <!-- Meta do Mês -->
-            <div class="table-wrap" style="padding:20px" id="card-meta">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px"><i class="bi bi-bullseye"></i> Meta do Mês</div>
-              <div style="display:flex;gap:8px;margin-bottom:10px">
-                <input id="meta-input" type="text" placeholder="Definir meta (R$)" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px">
-                <button id="meta-salvar" class="btn-gold btn-sm">Salvar</button>
-              </div>
-              <div id="meta-progresso" style="height:12px;background:var(--border);border-radius:6px;overflow:hidden;margin-bottom:6px"><div style="width:0%;height:100%;background:linear-gradient(90deg,#b8973a,#d4a843);border-radius:6px"></div></div>
-              <div id="meta-texto" style="font-size:12px;color:var(--muted)">Defina uma meta para acompanhar o progresso.</div>
-            </div>
-            <!-- Fluxo de Caixa -->
-            <div class="table-wrap" style="padding:20px">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px"><i class="bi bi-cash-stack"></i> Fluxo de Caixa Previsto</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
-                <div style="background:var(--bg);border-radius:8px;padding:12px 8px;border:1px solid var(--border)">
-                  <div style="font-size:10px;color:var(--muted);margin-bottom:4px">30 dias</div>
-                  <div id="fluxo-30" style="font-size:14px;font-weight:700;color:var(--success)">R$ 0,00</div>
-                </div>
-                <div style="background:var(--bg);border-radius:8px;padding:12px 8px;border:1px solid var(--border)">
-                  <div style="font-size:10px;color:var(--muted);margin-bottom:4px">60 dias</div>
-                  <div id="fluxo-60" style="font-size:14px;font-weight:700;color:var(--gold)">R$ 0,00</div>
-                </div>
-                <div style="background:var(--bg);border-radius:8px;padding:12px 8px;border:1px solid var(--border)">
-                  <div style="font-size:10px;color:var(--muted);margin-bottom:4px">90 dias</div>
-                  <div id="fluxo-90" style="font-size:14px;font-weight:700;color:var(--muted)">R$ 0,00</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Receita Recorrente + Top Clientes -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-            <div class="table-wrap" style="padding:20px">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px"><i class="bi bi-arrow-repeat"></i> Receita do Mês</div>
-              <div style="display:flex;gap:16px;margin-bottom:10px">
-                <div style="flex:1"><span style="font-size:11px;color:var(--muted)">Recorrente</span><br><span id="card-rec-corrente" style="font-size:16px;font-weight:700;color:var(--success)">R$ 0,00</span></div>
-                <div style="flex:1"><span style="font-size:11px;color:var(--muted)">Avulsa</span><br><span id="card-rec-avulsa" style="font-size:16px;font-weight:700;color:var(--gold)">R$ 0,00</span></div>
-              </div>
-              <div id="barra-rec-corrente" style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:0%;height:100%;background:linear-gradient(90deg,#059669,#10b981);border-radius:4px"></div></div>
-              <div style="font-size:10px;color:var(--muted);margin-top:4px">% receita recorrente</div>
-            </div>
-            <div class="table-wrap" style="padding:20px">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px"><i class="bi bi-trophy"></i> Top Clientes (ano)</div>
-              <div id="top-clientes"></div>
-            </div>
-          </div>
-
           <div class="table-wrap" style="padding:24px;margin-bottom:20px">
             <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">Faturamento por Mês</div>
             <canvas id="grafico-mensal" height="100"></canvas>
           </div>
           <div class="table-wrap">
-            <table><thead><tr><th>Período</th><th>Qtd</th><th>Total</th><th>Ticket Médio</th><th>YoY</th></tr></thead>
+            <table><thead><tr><th>Período</th><th>Qtd</th><th>Total</th><th>Ticket Médio</th></tr></thead>
             <tbody id="tabela-mensal"></tbody></table>
           </div>
         </div>

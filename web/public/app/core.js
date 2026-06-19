@@ -23,12 +23,19 @@ let usuarioLogado = localStorage.getItem("usuarioLogado") || "";
 let roleLogado = localStorage.getItem("roleLogado") || "financeiro";
 let escritorioLogado = localStorage.getItem("escritorioLogado") || "";
 
-async function api(method, path, body){
-  const opts = { method, headers: { "Content-Type":"application/json" }, credentials: "include" };
-  if(body) opts.body = JSON.stringify(body);
-  const res = await fetch(path, opts);
-  if(res.status===401){ fazerLogout(); return null; }
-  return res;
+async function api(method, path, body, timeoutMs = 30000){
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const opts = { method, headers: { "Content-Type":"application/json" }, credentials: "include", signal: ctrl.signal };
+    if(body) opts.body = JSON.stringify(body);
+    const res = await fetch(path, opts);
+    if(res.status===401){ fazerLogout(); return null; }
+    return res;
+  } catch(e){
+    if(e.name==="AbortError") console.error("API timeout:", path);
+    return null;
+  } finally { clearTimeout(t); }
 }
 
 async function fazerLogin(){
@@ -327,7 +334,7 @@ async function navegarPara(tela){
   if(bn) bn.classList.add("active");
   document.getElementById("topbar-title").textContent=titulos[tela]||tela;
   if(tela==="historico"){
-    await carregarRecibos();
+    if(!historicoRecibos.length) await carregarRecibos();
     renderHistorico();
   }
   if(tela==="clientes"){

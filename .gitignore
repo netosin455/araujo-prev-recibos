@@ -14,3 +14,11 @@ capacitor-app/
 deploy.zip
 pipeline-update.json
 planejamento2.md
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+
+# Log files
+*.log

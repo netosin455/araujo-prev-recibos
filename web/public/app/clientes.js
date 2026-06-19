@@ -152,7 +152,7 @@ function _buildTabelasParcelamento(cadastro) {
 
 async function renderClientes() {
   mostrarSkeleton("clientes-grid");
-  await Promise.all([carregarClientes(), carregarRecibos()]);
+  if(!listaClientes.length || !historicoRecibos.length) await Promise.all([carregarClientes(), carregarRecibos()]);
   const busca        = (document.getElementById("busca-clientes").value || "").toLowerCase();
   const buscaDigitos = busca.replace(/\D/g, "");
   const grid         = document.getElementById("clientes-grid");
