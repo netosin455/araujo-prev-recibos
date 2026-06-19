@@ -906,17 +906,69 @@
             <div class="dash-card red">
               <div class="label">Clientes Inadimplentes</div>
               <div class="value" id="card-inadimplentes">—</div>
-              <div class="sub">parcelas em atraso</div>
+              <div class="sub" id="card-inadimplentes-sub">parcelas em atraso</div>
             </div>
             <div class="dash-card" style="border-top-color:#c07a2a">
               <div class="label">Parcelas Vencendo</div>
               <div class="value" id="card-parcelas-vencendo">—</div>
-              <div class="sub">próximos 7 dias</div>
+              <div class="sub" id="card-parcelas-vencendo-sub">próximos 7 dias</div>
             </div>
             <div class="dash-card" style="border-top-color:var(--muted)">
               <div class="label">Clientes Novos</div>
               <div class="value" id="card-clientes-novos">—</div>
               <div class="sub">este mês</div>
+            </div>
+            <div class="dash-card" style="border-top-color:#6b7280">
+              <div class="label">Crescimento YoY</div>
+              <div class="value" id="card-yoy" style="font-size:20px">—</div>
+              <div class="sub">vs ano anterior</div>
+            </div>
+          </div>
+          <!-- META DO MÊS + RECEITA RECORRENTE/AVULSA -->
+          <div class="cards-grid" style="margin-bottom:20px">
+            <div class="dash-card" id="card-meta" style="grid-column:span 2">
+              <div class="label"><i class="bi bi-bullseye"></i> Meta do Mês</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                <input type="text" id="meta-input" placeholder="R$ 0,00" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px">
+                <button class="btn-gold btn-sm" id="meta-salvar"><i class="bi bi-check"></i></button>
+              </div>
+              <div id="meta-progresso" style="height:8px;background:var(--border);border-radius:6px;overflow:hidden;margin-bottom:4px"></div>
+              <div id="meta-texto" style="font-size:11px;color:var(--muted)"></div>
+            </div>
+            <div class="dash-card" style="border-top-color:#059669">
+              <div class="label"><i class="bi bi-arrow-repeat"></i> Recorrente</div>
+              <div class="value" id="card-rec-corrente" style="font-size:16px">R$ 0,00</div>
+              <div class="sub" style="font-size:10px">do mês</div>
+            </div>
+            <div class="dash-card" style="border-top-color:#94a3b8">
+              <div class="label"><i class="bi bi-lightning"></i> Avulsa</div>
+              <div class="value" id="card-rec-avulsa" style="font-size:16px">R$ 0,00</div>
+              <div class="sub" style="font-size:10px">do mês</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+            <!-- FLUXO DE CAIXA -->
+            <div class="table-wrap" style="padding:20px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px"><i class="bi bi-cash-stack"></i> Fluxo de Caixa (a receber)</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+                  <span style="font-size:12px;color:var(--muted)">Até 30 dias</span>
+                  <span class="value" id="fluxo-30" style="color:var(--success);font-weight:700">R$ 0,00</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+                  <span style="font-size:12px;color:var(--muted)">31 a 60 dias</span>
+                  <span class="value" id="fluxo-60" style="color:#F59E0B;font-weight:700">R$ 0,00</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:6px 0">
+                  <span style="font-size:12px;color:var(--muted)">61 a 90 dias</span>
+                  <span class="value" id="fluxo-90" style="color:#EF4444;font-weight:700">R$ 0,00</span>
+                </div>
+              </div>
+            </div>
+            <!-- TOP 5 CLIENTES -->
+            <div class="table-wrap" style="padding:20px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px"><i class="bi bi-trophy"></i> Top 5 Clientes do Ano</div>
+              <div id="top-clientes"></div>
             </div>
           </div>
           <div class="table-wrap" style="padding:24px;margin-bottom:20px">
@@ -924,7 +976,7 @@
             <canvas id="grafico-mensal" height="100"></canvas>
           </div>
           <div class="table-wrap">
-            <table><thead><tr><th>Período</th><th>Qtd</th><th>Total</th><th>Ticket Médio</th></tr></thead>
+            <table><thead><tr><th>Período</th><th>Qtd</th><th>Total</th><th>Ticket Médio</th><th>YoY</th></tr></thead>
             <tbody id="tabela-mensal"></tbody></table>
           </div>
         </div>
