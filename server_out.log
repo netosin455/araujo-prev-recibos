@@ -1,1 +1,6 @@
 [dotenv@17.3.1] injecting env (14) from .env -- tip: 🛡️ auth for agents: https://vestauth.com
+âœ… Araujo Prev rodando em http://localhost:3000
+âœ… Tabela govbr_states pronta.
+✅ Conexão com Google Sheets OK.
+âœ… UsuÃ¡rio admin configurado (Neon).
+[DB] 11 índices verificados/criados.

@@ -194,66 +194,123 @@ function atualizarDashboard(){
   const mesAtual=String(agora.getMonth()+1).padStart(2,"0");
   const anoSel=document.getElementById("dash-ano")?.value||String(agora.getFullYear());
   const anoAtual=anoSel||String(agora.getFullYear());
+  const anoAnterior=String(parseInt(anoAtual)-1);
   const doMes=historicoRecibos.filter(r=>r.data?.split("/")[1]===mesAtual&&r.data?.split("/")[2]===anoAtual);
   const doAno=historicoRecibos.filter(r=>r.data?.split("/")[2]===anoAtual);
+  const doAnoAnt=historicoRecibos.filter(r=>r.data?.split("/")[2]===anoAnterior);
+  const recorrentes=doMes.filter(r=>r.auto_recibo||r.recorrente);
+  const avulsos=doMes.filter(r=>!(r.auto_recibo||r.recorrente));
   const todos=historicoRecibos;
   const soma=arr=>arr.reduce((s,r)=>s+valorParaNumero(r.valor),0);
-  document.getElementById("card-mes").textContent=`R$ ${formatarValor(soma(doMes))}`;
-  document.getElementById("card-mes-qtd").textContent=`${doMes.length} recibo${doMes.length!==1?"s":""}`;
-  document.getElementById("card-ano").textContent=`R$ ${formatarValor(soma(doAno))}`;
-  document.getElementById("card-ano-qtd").textContent=`${doAno.length} recibos`;
-  document.getElementById("card-total").textContent=`R$ ${formatarValor(soma(todos))}`;
-  document.getElementById("card-total-qtd").textContent=`${todos.length} recibos`;
-  document.getElementById("card-ticket").textContent=todos.length?`R$ ${formatarValor(soma(todos)/todos.length)}`:"R$ 0,00";
-  // KPI cards â€” calculados localmente, enriquecidos pela API se disponÃ­vel
-  const mesAnt = agora.getMonth()===0 ? "12" : String(agora.getMonth()).padStart(2,"0");
-  const anoAnt = agora.getMonth()===0 ? String(agora.getFullYear()-1) : anoAtual;
-  const doMesAnt = historicoRecibos.filter(r=>r.data?.split("/")[1]===mesAnt&&r.data?.split("/")[2]===anoAnt);
-  const somaAnt = soma(doMesAnt);
-  const somaMes = soma(doMes);
-  const varPct = somaAnt>0 ? ((somaMes-somaAnt)/somaAnt*100) : null;
-  const cardVar = document.getElementById("card-variacao");
-  const cardVarSub = document.getElementById("card-variacao-sub");
-  const kpiCard = document.getElementById("kpi-variacao-card");
-  if (varPct===null) { cardVar.textContent="â€”"; cardVar.style.color=""; }
-  else {
-    cardVar.textContent=(varPct>=0?"+":"")+varPct.toFixed(1)+"%";
-    cardVar.style.color = varPct>=0 ? "var(--success)" : "var(--error)";
-    if(kpiCard){ kpiCard.style.borderTopColor = varPct>=0 ? "var(--success)" : "var(--error)"; }
-  }
-  if(cardVarSub) cardVarSub.textContent=`vs ${mesAnt}/${anoAnt}`;
-  // inadimplentes e vencendo â€” de listaClientes (jÃ¡ carregado)
-  const hoje=new Date().toISOString().slice(0,10);
-  const em7=new Date(Date.now()+7*24*60*60*1000).toISOString().slice(0,10);
-  const inadimplentes=listaClientes.filter(c=>Array.isArray(c.parcelas)&&c.parcelas.some(p=>p.status==="atrasado")).length;
-  let vencendo=0;
-  listaClientes.forEach(c=>{(c.parcelas||[]).forEach(p=>{if(p.status!=="pago"&&p.data_vencimento&&p.data_vencimento>=hoje&&p.data_vencimento<=em7)vencendo++;});});
+  document.getElementById("card-mes").textContent="R$ "+formatarValor(soma(doMes));
+  document.getElementById("card-mes-qtd").textContent=doMes.length+" recibo"+(doMes.length!==1?"s":"");
+  document.getElementById("card-ano").textContent="R$ "+formatarValor(soma(doAno));
+  document.getElementById("card-ano-qtd").textContent=doAno.length+" recibos";
+  document.getElementById("card-total").textContent="R$ "+formatarValor(soma(todos));
+  document.getElementById("card-total-qtd").textContent=todos.length+" recibos";
+  document.getElementById("card-ticket").textContent=todos.length?"R$ "+formatarValor(soma(todos)/todos.length):"R$ 0,00";
+  // META DO MES
+  const metaKey="meta_mes_"+anoAtual+"_"+mesAtual;
+  const metaInput=document.getElementById("meta-input");
+  const metaSalvar=document.getElementById("meta-salvar");
+  const metaProgresso=document.getElementById("meta-progresso");
+  const metaTexto=document.getElementById("meta-texto");
+  const metaCard=document.getElementById("card-meta");
+  let metaAtual=parseFloat(localStorage.getItem(metaKey))||0;
+  if(metaInput&&!metaInput.value)metaInput.value=metaAtual||"";
+  if(metaSalvar)metaSalvar.onclick=function(){
+    var val=parseFloat((metaInput?.value||"").replace(/\./g,"").replace(",","."))||0;
+    if(val>0){localStorage.setItem(metaKey,val);metaAtual=val;atualizarDashboard();}
+  };
+  if(metaAtual>0&&metaProgresso){
+    var realizado=soma(doMes),pct=Math.min(100,(realizado/metaAtual)*100),restante=Math.max(0,metaAtual-realizado);
+    metaProgresso.innerHTML="<div style=\"width:"+pct+"%;height:100%;background:linear-gradient(90deg,#b8973a,#d4a843);border-radius:6px;transition:width .6s ease\"></div>";
+    if(metaTexto)metaTexto.textContent=pct.toFixed(0)+"% \u00b7 R$ "+formatarValor(realizado)+" de R$ "+formatarValor(metaAtual)+(restante>0?" \u00b7 faltam R$ "+formatarValor(restante):"");
+    if(metaCard)metaCard.style.display="";
+  }else if(metaCard){metaCard.style.display="";if(metaTexto)metaTexto.textContent="Defina uma meta para o mes.";}
+  // RECEITA RECORRENTE VS AVULSA
+  var somaRec=soma(recorrentes),somaAvu=soma(avulsos),totalMes=soma(doMes),recPct=totalMes>0?(somaRec/totalMes*100):0;
+  document.getElementById("card-rec-corrente").textContent="R$ "+formatarValor(somaRec);
+  document.getElementById("card-rec-avulsa").textContent="R$ "+formatarValor(somaAvu);
+  var barraRec=document.getElementById("barra-rec-corrente");
+  if(barraRec)barraRec.innerHTML="<div style=\"width:"+recPct+"%;height:100%;background:linear-gradient(90deg,#059669,#10b981);border-radius:4px\"></div>";
+  // VARIACAO
+  var mesAnt=agora.getMonth()===0?"12":String(agora.getMonth()).padStart(2,"0");
+  var anoAntNum=agora.getMonth()===0?parseInt(anoAtual)-1:parseInt(anoAtual);
+  var doMesAnt=historicoRecibos.filter(function(r){var p=r.data?.split("/");return p&&p[1]===mesAnt&&p[2]===String(anoAntNum);});
+  var somaAnt=soma(doMesAnt),somaMes=soma(doMes),varPct=somaAnt>0?((somaMes-somaAnt)/somaAnt*100):null;
+  var cardVar=document.getElementById("card-variacao");
+  var cardVarSub=document.getElementById("card-variacao-sub");
+  var kpiCard=document.getElementById("kpi-variacao-card");
+  if(varPct===null){cardVar.textContent="\u2014";cardVar.style.color="";}
+  else{cardVar.textContent=(varPct>=0?"+":"")+varPct.toFixed(1)+"%";cardVar.style.color=varPct>=0?"var(--success)":"var(--error)";if(kpiCard)kpiCard.style.borderTopColor=varPct>=0?"var(--success)":"var(--error)";}
+  if(cardVarSub)cardVarSub.textContent="vs "+mesAnt+"/"+anoAntNum;
+  // CRESCIMENTO YOY
+  var doMesYoyAnt=historicoRecibos.filter(function(r){var p=r.data?.split("/");return p&&p[1]===mesAtual&&p[2]===anoAnterior;});
+  var yoyPct=soma(doMesYoyAnt)>0?((somaMes-soma(doMesYoyAnt))/soma(doMesYoyAnt)*100):null;
+  var cardYoy=document.getElementById("card-yoy");
+  if(cardYoy){if(yoyPct===null){cardYoy.textContent="\u2014";cardYoy.style.color="";}else{cardYoy.textContent=(yoyPct>=0?"+":"")+yoyPct.toFixed(1)+"%";cardYoy.style.color=yoyPct>=0?"var(--success)":"var(--error)";}}
+  // INADIMPLENTES
+  var hoje=new Date().toISOString().slice(0,10),em7=new Date(Date.now()+7*24*60*60*1000).toISOString().slice(0,10);
+  var inadimplentes=listaClientes.filter(function(c){return Array.isArray(c.parcelas)&&c.parcelas.some(function(p){return p.status==="atrasado"});}).length;
+  var vencendo=0,valorVencendo=0;
+  listaClientes.forEach(function(c){(c.parcelas||[]).forEach(function(p){if(p.status!=="pago"&&p.data_vencimento&&p.data_vencimento>=hoje&&p.data_vencimento<=em7){vencendo++;valorVencendo+=p.valor_parcela||0;}});});
+  var totalClientes=listaClientes.length||1;
   document.getElementById("card-inadimplentes").textContent=inadimplentes||"0";
+  document.getElementById("card-inadimplentes-sub").textContent=(totalClientes>0?(inadimplentes/totalClientes*100).toFixed(1):"0")+"% dos clientes";
   document.getElementById("card-parcelas-vencendo").textContent=vencendo||"0";
-  // clientes novos â€” cpfs que aparecem pela 1Âª vez em recibos do mÃªs atual
-  const cpfsMesAtual=new Set(doMes.map(r=>r.cpf||r.nome).filter(Boolean));
-  const cpfsAnteriores=new Set(historicoRecibos.filter(r=>{const p=r.data?.split("/");return p&&!(p[1]===mesAtual&&p[2]===anoAtual);}).map(r=>r.cpf||r.nome).filter(Boolean));
-  const novos=[...cpfsMesAtual].filter(k=>!cpfsAnteriores.has(k)).length;
+  document.getElementById("card-parcelas-vencendo-sub").textContent=vencendo?"R$ "+formatarValor(valorVencendo)+" em recibos":"nenhuma";
+  // CLIENTES NOVOS
+  var cpfsMesAtual=new Set(doMes.map(function(r){return r.cpf||r.nome;}).filter(Boolean));
+  var cpfsAnteriores=new Set(historicoRecibos.filter(function(r){var p=r.data?.split("/");return p&&!(p[1]===mesAtual&&p[2]===anoAtual);}).map(function(r){return r.cpf||r.nome;}).filter(Boolean));
+  var novos=0;cpfsMesAtual.forEach(function(k){if(!cpfsAnteriores.has(k))novos++;});
   document.getElementById("card-clientes-novos").textContent=novos||"0";
-  const mesesLabels=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  const totaisMes=Array.from({length:12},(_,i)=>{
-    const m=String(i+1).padStart(2,"0");
-    return historicoRecibos.filter(r=>r.data?.split("/")[1]===m&&r.data?.split("/")[2]===anoAtual).reduce((s,r)=>s+valorParaNumero(r.valor),0);
-  });
-  if(graficoMensal){ try{ graficoMensal.destroy(); }catch(e){} graficoMensal=null; }
-  requestAnimationFrame(()=>{
+  // FLUXO DE CAIXA
+  var em30=new Date(Date.now()+30*24*60*60*1000).toISOString().slice(0,10);
+  var em60=new Date(Date.now()+60*24*60*60*1000).toISOString().slice(0,10);
+  var em90=new Date(Date.now()+90*24*60*60*1000).toISOString().slice(0,10);
+  var fluxo30=0,fluxo60=0,fluxo90=0;
+  listaClientes.forEach(function(c){(c.parcelas||[]).forEach(function(p){if(p.status!=="pago"&&p.data_vencimento){var v=p.valor_parcela||0;if(p.data_vencimento<=em30)fluxo30+=v;if(p.data_vencimento<=em60)fluxo60+=v;if(p.data_vencimento<=em90)fluxo90+=v;}});});
+  document.getElementById("fluxo-30").textContent="R$ "+formatarValor(fluxo30);
+  document.getElementById("fluxo-60").textContent="R$ "+formatarValor(fluxo60);
+  document.getElementById("fluxo-90").textContent="R$ "+formatarValor(fluxo90);
+  // TOP 5 CLIENTES
+  var rank={};doAno.forEach(function(r){var n=r.cliente||r.nome||"\u2014";rank[n]=(rank[n]||0)+valorParaNumero(r.valor);});
+  var top5=Object.entries(rank).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+  var topEl=document.getElementById("top-clientes");
+  if(topEl){
+    if(!top5.length)topEl.innerHTML="<div style=\"color:var(--muted);font-size:12px;text-align:center;padding:20px\">Nenhum cliente no periodo</div>";
+    else topEl.innerHTML=top5.map(function(item,i){
+      var nome=item[0],val=item[1];
+      var bg=i===0?"var(--gold)":i<3?"var(--success)":"var(--border)";
+      var fg=i<3?"white":"var(--muted)";
+      return "<div style=\"display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)\"><span style=\"width:18px;height:18px;border-radius:50%;background:"+bg+";color:"+fg+";font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center\">"+(i+1)+"</span><span style=\"flex:1;font-size:12px;font-weight:500\">"+esc(nome)+"</span><span style=\"font-size:12px;font-weight:700;color:var(--success)\">R$ "+formatarValor(val)+"</span></div>";
+    }).join("");
+  }
+  // GRAFICO MENSAL COM YOY
+  var mesesLabels=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  var totaisMes=Array.from({length:12},function(_,i){var m=String(i+1).padStart(2,"0");return historicoRecibos.filter(function(r){var p=r.data?.split("/");return p&&p[1]===m&&p[2]===anoAtual;}).reduce(function(s,r){return s+valorParaNumero(r.valor);},0);});
+  var totaisMesAnt=Array.from({length:12},function(_,i){var m=String(i+1).padStart(2,"0");return historicoRecibos.filter(function(r){var p=r.data?.split("/");return p&&p[1]===m&&p[2]===anoAnterior;}).reduce(function(s,r){return s+valorParaNumero(r.valor);},0);});
+  if(graficoMensal){try{graficoMensal.destroy();}catch(e){}graficoMensal=null;}
+  requestAnimationFrame(function(){
     try{
-      const ctx=document.getElementById("grafico-mensal")?.getContext("2d");
-      if(ctx) graficoMensal=new Chart(ctx,{type:"bar",data:{labels:mesesLabels,datasets:[{label:"Faturamento",data:totaisMes,backgroundColor:"rgba(184,151,58,0.7)",borderColor:"#b8973a",borderWidth:1,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>"R$ "+formatarValor(v)}}}}});
-    }catch(e){ console.error("Dashboard chart error:", e); }
+      var ctx=document.getElementById("grafico-mensal")?.getContext("2d");
+      if(ctx)graficoMensal=new Chart(ctx,{type:"bar",data:{labels:mesesLabels,datasets:[{label:anoAtual,data:totaisMes,backgroundColor:"rgba(184,151,58,0.85)",borderColor:"#b8973a",borderWidth:1,borderRadius:4,order:2},{label:anoAnterior,data:totaisMesAnt,backgroundColor:"rgba(148,163,184,0.4)",borderColor:"#94a3b8",borderWidth:1,borderRadius:4,borderDash:[3,3],order:3}]},options:{responsive:true,plugins:{legend:{position:"top",labels:{boxWidth:12,font:{size:11},color:"var(--muted)"}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+": R$ "+formatarValor(ctx.parsed.y);}}}},scales:{y:{ticks:{callback:function(v){return"R$ "+formatarValor(v);}}},x:{grid:{display:false}}}}});
+    }catch(e){console.error("Dashboard chart error:",e);}
   });
-  const tbody=document.getElementById("tabela-mensal");
+  // TABELA MENSAL
+  var tbody=document.getElementById("tabela-mensal");
   if(tbody){
-    tbody.innerHTML=mesesLabels.map((m,i)=>{
-      const qtd=doAno.filter(r=>r.data?.split("/")[1]===String(i+1).padStart(2,"0")).length;
-      const tot=doAno.filter(r=>r.data?.split("/")[1]===String(i+1).padStart(2,"0")).reduce((s,r)=>s+valorParaNumero(r.valor),0);
-      if(!qtd) return "";
-      return `<tr><td>${m}/${anoAtual}</td><td>${qtd}</td><td style="color:var(--success);font-weight:700">R$ ${formatarValor(tot)}</td><td>R$ ${formatarValor(qtd?tot/qtd:0)}</td></tr>`;
+    tbody.innerHTML=mesesLabels.map(function(m,i){
+      var mi=String(i+1).padStart(2,"0");
+      var qtd=doAno.filter(function(r){var p=r.data?.split("/");return p&&p[1]===mi;}).length;
+      var tot=doAno.filter(function(r){var p=r.data?.split("/");return p&&p[1]===mi;}).reduce(function(s,r){return s+valorParaNumero(r.valor);},0);
+      var qtdAnt=doAnoAnt.filter(function(r){var p=r.data?.split("/");return p&&p[1]===mi;}).length;
+      var totAnt=doAnoAnt.filter(function(r){var p=r.data?.split("/");return p&&p[1]===mi;}).reduce(function(s,r){return s+valorParaNumero(r.valor);},0);
+      if(!qtd&&!qtdAnt)return"";
+      var yoy=totAnt>0?((tot-totAnt)/totAnt*100):null;
+      var yoyStr=yoy!==null?"<span style=\"color:"+(yoy>=0?"var(--success)":"var(--error)")+";font-size:11px\">"+(yoy>=0?"+":"")+yoy.toFixed(1)+"%</span>":"";
+      return"<tr><td>"+m+"</td><td>"+qtd+"</td><td style=\"color:var(--success);font-weight:700\">R$ "+formatarValor(tot)+"</td><td>R$ "+formatarValor(qtd?tot/qtd:0)+"</td><td>"+yoyStr+"</td></tr>";
     }).join("");
   }
 }
@@ -484,4 +541,3 @@ function usarMensagemCobrancaWhatsApp() {
 function usarMensagemAcordoWhatsApp() {
   document.getElementById("whatsapp-lote-msg").value = "Ol\u00E1 {nome}, tudo bem? Verificamos um saldo de R$ {valor} em aberto. Gostaria de oferecer uma proposta de acordo com condi\u00E7\u00F5es especiais. Podemos conversar? Estamos \u00E0 disposi\u00E7\u00E3o. Araujo Prev.";
 }
-
