@@ -22,3 +22,12 @@ planejamento2.md
 
 # Log files
 *.log
+# Temp deploy folders
+deploy_temp*/
+deploy_temp/
+deploy_temp_check/
+current_working/
+current_working.zip
+deploy.zip
+deploy2.zip
+
