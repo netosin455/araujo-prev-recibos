@@ -109,42 +109,43 @@ function mostrarSkeleton(containerId, rows = 4) {
 
 // ── INICIAR ────────────────────────────────────────────────
 async function iniciarApp(){
-  document.getElementById("nome-usuario").textContent = usuarioLogado;
-  const labelPerfil = { recepcao: "Recepção", precatorios: "Precatórios" };
-  document.getElementById("perfil-usuario").textContent = labelPerfil[roleLogado] || "Financeiro";
-  aplicarTema(localStorage.getItem("tema")||"light");
-  mostrarSkeleton("historico-grid");
-  mostrarSkeleton("clientes-grid");
-  // Mostra menu de usuários só para admin
-  const res = await api("GET", "/api/users");
-  if(res && res.ok) {
-    document.getElementById("nav-usuarios").style.display = "";
-    document.getElementById("bn-usuarios").style.display = "";
-    document.querySelectorAll(".admin-tab-auditoria").forEach(el => el.style.display = "");
+  try {
+    document.getElementById("nome-usuario").textContent = usuarioLogado;
+    const labelPerfil = { recepcao: "Recepção", precatorios: "Precatórios" };
+    document.getElementById("perfil-usuario").textContent = labelPerfil[roleLogado] || "Financeiro";
+    aplicarTema(localStorage.getItem("tema")||"light");
+    mostrarSkeleton("historico-grid");
+    mostrarSkeleton("clientes-grid");
+    const res = await api("GET", "/api/users");
+    if(res && res.ok) {
+      document.getElementById("nav-usuarios").style.display = "";
+      document.getElementById("bn-usuarios").style.display = "";
+      document.querySelectorAll(".admin-tab-auditoria").forEach(el => el.style.display = "");
+    }
+    if(roleLogado === "recepcao"){
+      document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
+      document.getElementById("nav-admin").style.display = "none";
+      document.getElementById("bn-admin").style.display = "none";
+    }
+    if(roleLogado === "precatorios"){
+      ["nav-gerar","nav-historico","nav-clientes","bn-gerar","bn-historico","bn-clientes"].forEach(id => {
+        const el = document.getElementById(id); if(el) el.style.display = "none";
+      });
+      document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
+    }
+    await Promise.all([carregarRecibos(), carregarClientes()]);
+    await atualizarNumRecibo();
+    await carregarReferenciaPadrao();
+    atualizarSugestoesNomes();
+    preencherFiltrosAnos();
+    verificarClientesInativos();
+    atualizarBadgeClientes();
+    verificarParcelasVencendo();
+    initNotifPolling();
+    if(roleLogado === "precatorios") navegarPara("admin");
+  } catch(e) {
+    console.error("iniciarApp:", e);
   }
-  // Esconde ações e menus restritos para recepção
-  if(roleLogado === "recepcao"){
-    document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
-    document.getElementById("nav-admin").style.display = "none";
-    document.getElementById("bn-admin").style.display = "none";
-  }
-  // Precatórios: só vê o painel administrativo (sem gerar recibo, histórico, clientes)
-  if(roleLogado === "precatorios"){
-    ["nav-gerar","nav-historico","nav-clientes","bn-gerar","bn-historico","bn-clientes"].forEach(id => {
-      const el = document.getElementById(id); if(el) el.style.display = "none";
-    });
-    document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
-  }
-  await Promise.all([carregarRecibos(), carregarClientes()]);
-  await atualizarNumRecibo();
-  await carregarReferenciaPadrao();
-  atualizarSugestoesNomes();
-  preencherFiltrosAnos();
-  verificarClientesInativos();
-  atualizarBadgeClientes();
-  verificarParcelasVencendo();
-  initNotifPolling();
-  if(roleLogado === "precatorios") navegarPara("admin");
 }
 
 async function carregarReferenciaPadrao() {
@@ -228,34 +229,43 @@ if (usuarioLogado) {
 // ── CARREGAR RECIBOS ───────────────────────────────────────
 
 async function carregarRecibos(){
-  const res = await api("GET","/api/recibos?limit=200");
-  if(!res) return [];
-  const data = await res.json();
-  historicoRecibos = (data.recibos || data) || [];
-  if(!Array.isArray(historicoRecibos)) historicoRecibos = [];
-  preencherFiltrosAvancados();
-  preencherFiltrosSalvos();
-  const total = data.total || 0;
-  if(total > 200) setTimeout(() => carregarRecibosRestantes(total), 100);
+  try {
+    const res = await api("GET","/api/recibos?limit=200");
+    if(!res) return [];
+    const data = await res.json();
+    historicoRecibos = (data.recibos || data) || [];
+    if(!Array.isArray(historicoRecibos)) historicoRecibos = [];
+    try { preencherFiltrosAvancados(); } catch(e) { console.error("filtros avancados:", e); }
+    try { preencherFiltrosSalvos(); } catch(e) { console.error("filtros salvos:", e); }
+    const total = data.total || 0;
+    if(total > 200) setTimeout(() => carregarRecibosRestantes(total), 100);
+  } catch(e) {
+    console.error("carregarRecibos:", e);
+    if(!Array.isArray(historicoRecibos)) historicoRecibos = [];
+  }
   return historicoRecibos;
 }
 
 async function carregarRecibosRestantes(total){
-  const res = await api("GET","/api/recibos?limit=50000");
-  if(!res) return;
-  const data = await res.json();
-  const todos = (data.recibos || data) || [];
-  historicoRecibos = Array.isArray(todos) ? todos : [];
-  const resumoHist = document.getElementById("resumo-historico");
-  if(resumoHist && historicoRecibos.length){
-    const totalGeral = historicoRecibos.reduce((s, r) => s + valorParaNumero(r.valor), 0);
-    resumoHist.textContent = `${historicoRecibos.length} recibos \u00B7 R$ ${formatarValor(totalGeral)} total`;
-  }
-  preencherFiltrosAvancados();
-  if(document.getElementById("screen-historico")?.classList.contains("active")) renderHistorico();
-  if(document.getElementById("screen-admin")?.classList.contains("active")){
-    atualizarDashboard();
-    if(document.getElementById("admin-analytics")?.classList.contains("active")) carregarAnalytics();
+  try {
+    const res = await api("GET","/api/recibos?limit=50000");
+    if(!res) return;
+    const data = await res.json();
+    const todos = (data.recibos || data) || [];
+    historicoRecibos = Array.isArray(todos) ? todos : [];
+    const resumoHist = document.getElementById("resumo-historico");
+    if(resumoHist && historicoRecibos.length){
+      const totalGeral = historicoRecibos.reduce((s, r) => s + valorParaNumero(r.valor), 0);
+      resumoHist.textContent = `${historicoRecibos.length} recibos \u00B7 R$ ${formatarValor(totalGeral)} total`;
+    }
+    try { preencherFiltrosAvancados(); } catch(e) { console.error("filtros avancados rest:", e); }
+    if(document.getElementById("screen-historico")?.classList.contains("active")) renderHistorico();
+    if(document.getElementById("screen-admin")?.classList.contains("active")){
+      atualizarDashboard();
+      if(document.getElementById("admin-analytics")?.classList.contains("active")) carregarAnalytics();
+    }
+  } catch(e) {
+    console.error("carregarRecibosRestantes:", e);
   }
 }
 
@@ -323,38 +333,41 @@ const telas=["gerar","historico","clientes","admin","usuarios"];
 const titulos={gerar:"Gerar Recibo",historico:"Histórico de Recibos",clientes:"Clientes",admin:"Administrativo",usuarios:"Usuários"};
 
 async function navegarPara(tela){
-  telas.forEach(t=>document.getElementById("screen-"+t)?.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
-  document.getElementById("screen-"+tela)?.classList.add("active");
-  const idx=["gerar","historico","clientes","admin"].indexOf(tela);
-  if(idx>=0) document.querySelectorAll(".nav-item")[idx]?.classList.add("active");
-  // Atualiza bottom nav mobile
-  document.querySelectorAll(".bn-item").forEach(n=>n.classList.remove("active"));
-  const bn=document.getElementById("bn-"+tela);
-  if(bn) bn.classList.add("active");
-  document.getElementById("topbar-title").textContent=titulos[tela]||tela;
-  if(tela==="historico"){
-    if(!historicoRecibos.length) await carregarRecibos();
-    renderHistorico();
+  try {
+    telas.forEach(t=>document.getElementById("screen-"+t)?.classList.remove("active"));
+    document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+    document.getElementById("screen-"+tela)?.classList.add("active");
+    const idx=["gerar","historico","clientes","admin"].indexOf(tela);
+    if(idx>=0) document.querySelectorAll(".nav-item")[idx]?.classList.add("active");
+    document.querySelectorAll(".bn-item").forEach(n=>n.classList.remove("active"));
+    const bn=document.getElementById("bn-"+tela);
+    if(bn) bn.classList.add("active");
+    document.getElementById("topbar-title").textContent=titulos[tela]||tela;
+    if(tela==="historico"){
+      if(!historicoRecibos.length) await carregarRecibos();
+      renderHistorico();
+    }
+    if(tela==="clientes"){
+      const buscaCli = document.getElementById("busca-clientes");
+      if(buscaCli) buscaCli.value = "";
+      renderClientes();
+    }
+    if(tela==="admin"){
+      await carregarRecibos();
+      atualizarDashboard();
+      if(document.getElementById("admin-financeiro")?.classList.contains("active")){preencherFiltrosAnos();aplicarFiltros();}
+      if(document.getElementById("admin-inadimplencia")?.classList.contains("active")) carregarInadimplencia();
+      if(document.getElementById("admin-analytics")?.classList.contains("active")) carregarAnalytics();
+      if(document.getElementById("admin-projecao")?.classList.contains("active")) carregarProjecao();
+      if(document.getElementById("admin-escritorios")?.classList.contains("active")) carregarPorEscritorio();
+      if(document.getElementById("admin-responsaveis")?.classList.contains("active")) carregarPorResponsavel();
+      if(document.getElementById("admin-calendario")?.classList.contains("active")) carregarCalendario(_calAno, _calMes);
+      if(document.getElementById("admin-auditoria")?.classList.contains("active")) carregarAuditoria();
+    }
+    if(tela==="usuarios") renderUsuarios();
+  } catch(e) {
+    console.error("navegarPara:", tela, e);
   }
-  if(tela==="clientes"){
-    const buscaCli = document.getElementById("busca-clientes");
-    if(buscaCli) buscaCli.value = "";
-    renderClientes();
-  }
-  if(tela==="admin"){
-    await carregarRecibos();
-    atualizarDashboard();
-    if(document.getElementById("admin-financeiro")?.classList.contains("active")){preencherFiltrosAnos();aplicarFiltros();}
-    if(document.getElementById("admin-inadimplencia")?.classList.contains("active")) carregarInadimplencia();
-    if(document.getElementById("admin-analytics")?.classList.contains("active")) carregarAnalytics();
-    if(document.getElementById("admin-projecao")?.classList.contains("active")) carregarProjecao();
-    if(document.getElementById("admin-escritorios")?.classList.contains("active")) carregarPorEscritorio();
-    if(document.getElementById("admin-responsaveis")?.classList.contains("active")) carregarPorResponsavel();
-    if(document.getElementById("admin-calendario")?.classList.contains("active")) carregarCalendario(_calAno, _calMes);
-    if(document.getElementById("admin-auditoria")?.classList.contains("active")) carregarAuditoria();
-  }
-  if(tela==="usuarios") renderUsuarios();
 }
 
 // ── NÚMERO RECIBO ──────────────────────────────────────────
