@@ -322,6 +322,10 @@ module.exports = function registerReciboRoutes(app, deps) {
 
       const logoPath = deps.path.join(__dirname, "public", "logo.png");
       const logoExists = deps.fs.existsSync(logoPath);
+      let assinaturaBuffer = null;
+      if (dados.assinatura && typeof dados.assinatura === "string" && dados.assinatura.startsWith("data:image/png;base64,")) {
+        assinaturaBuffer = Buffer.from(dados.assinatura.split(",")[1], "base64");
+      }
 
       function p(text, opts = {}) {
         return new Paragraph({
@@ -369,6 +373,7 @@ module.exports = function registerReciboRoutes(app, deps) {
         p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
         linha(),
         p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 3600 }),
+        ...(assinaturaBuffer ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 20 }, children: [new ImageRun({ data: assinaturaBuffer, transformation: { width: 160, height: 40 }, type: "png" })] })] : []),
         p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 40 }),
         p(dados.nome, { align: AlignmentType.CENTER, size: 10, spaceAfter: 20 }),
         p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: 2800 }),
@@ -421,6 +426,9 @@ module.exports = function registerReciboRoutes(app, deps) {
 
           pdf.text(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: "left" }).moveDown(6);
 
+          if (assinaturaBuffer) {
+            pdf.image(assinaturaBuffer, { fit: [160, 40], align: "center" }).moveDown(0.1);
+          }
           const cx = pdf.page.width / 2;
           pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
           pdf.fontSize(10).text(dados.nome, { align: "center" }).moveDown(0.1);

@@ -599,7 +599,8 @@ async function reimprimirRecibo(r){
   const res=await api("POST","/api/gerar-recibo",{
     num_recibo:r.num,nome:r.nome,cpf:r.cpf,municipio_uf:r.municipio_uf,
     valor:r.valor,data:r.data,data_extenso,emitido_por:r.emitido_por||"",
-    complemento:r.complemento||"",referencia:r.referencia||""
+    complemento:r.complemento||"",referencia:r.referencia||"",
+    assinatura: r.assinatura_govbr?.imagem || ""
   });
   if(!res||!res.ok){setStatus("Erro ao gerar.","error");return;}
   const blob=await res.blob();
