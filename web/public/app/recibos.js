@@ -605,29 +605,33 @@ async function abrirPDFRecibo(r, print=false){
   const [dia,mes,ano]=(r.data||"").split("/");
   const data_extenso=`${parseInt(dia)} de ${meses[parseInt(mes)-1]} de ${ano}`;
   doc.text(`${r.municipio_uf}, ${data_extenso}`,ML,y);
-  y += 40; // moveDown(6) ~ 36mm
+  // Espaço generoso pra centralizar a assinatura do cliente na folha
+  y += 55;
 
   // Assinatura digital (imagem)
   const assinatura = r.assinatura_govbr;
   if (assinatura && assinatura.imagem) {
     try {
-      doc.addImage(assinatura.imagem, "PNG", W/2-80, y, 160, 40);
+      doc.addImage(assinatura.imagem, "PNG", W/2-80, y-2, 160, 40);
       y += 42;
     } catch(e) {}
   }
 
-  // Linha de assinatura do cliente
-  doc.text("________________________________________",W/2,y,{align:"center"});
+  // Linha de assinatura do cliente — centralizada
+  doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
+  doc.line(ML+30, y, W-ML-30, y);
   y += 5;
   doc.setFontSize(10); doc.setFont("helvetica","bold");
   doc.text(r.nome,W/2,y,{align:"center"});
   y += 5;
   doc.setFontSize(9); doc.setFont("helvetica","normal");
   doc.text(`${labelDoc}: ${r.cpf}`,W/2,y,{align:"center"});
-  y += 35; // moveDown(5) ~ 30mm
+  // Espaço pro final da página
+  y += 45;
 
-  // Linha de assinatura do responsável
-  doc.text("________________________",ML,y);
+  // Linha de assinatura do responsável — esquerda no final
+  doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
+  doc.line(ML, y, ML+60, y);
   y += 5;
   doc.setFontSize(10); doc.setFont("helvetica","normal");
   doc.text(r.emitido_por||"A ARAUJO PREV",ML,y);
