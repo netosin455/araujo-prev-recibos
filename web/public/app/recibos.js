@@ -536,47 +536,113 @@ async function abrirPDFRecibo(r, print=false){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
   const W=doc.internal.pageSize.getWidth();
-  doc.setFillColor(26,26,26);doc.rect(0,0,W,24,"F");
-  doc.setTextColor(184,151,58);doc.setFontSize(14);doc.setFont("helvetica","bold");
-  doc.text("A ARAUJO SERVIÃ‡OS LTDA ME",W/2,11,{align:"center"});
-  doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(200,200,200);
-  doc.text("A ARAUJO PREV",W/2,18,{align:"center"});
-  doc.setDrawColor(184,151,58);doc.setLineWidth(0.5);
-  doc.line(20,28,W-20,28);
-  doc.setTextColor(26,26,26);doc.setFontSize(11);doc.setFont("helvetica","bold");
-  const numRef=r.referencia?`Recibo NÂº ${r.num}   |   Ref: ${r.referencia}`:`Recibo NÂº ${r.num}`;
-  doc.text(numRef,W/2,36,{align:"center"});
-  doc.setFontSize(13);
-  doc.text("RECIBO DE HONORÃRIOS ADVOCATÃCIOS",W/2,43,{align:"center"});
-  doc.setDrawColor(220,220,220);doc.setLineWidth(0.3);
-  doc.line(20,47,W-20,47);
+  const ML=20, MR=20, LW=W-ML-MR;
+  let y=20;
+
+  // Tenta carregar logo
+  let logoData = null;
+  try {
+    const lr = await fetch("/logo.png");
+    if (lr.ok) {
+      const lb = await lr.blob();
+      logoData = await new Promise(res => { const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(lb); });
+    }
+  } catch(e) {}
+
+  if (logoData) {
+    doc.addImage(logoData, "PNG", W/2-80, y, 160, 61);
+    y += 76;
+  }
+
+  // "A ARAUJO SERVIÇOS LTDA ME" azul escuro bold
+  doc.setTextColor(30,64,175);
+  doc.setFontSize(14); doc.setFont("helvetica","bold");
+  doc.text("A ARAUJO SERVIÇOS LTDA ME",W/2,y,{align:"center"});
+  y += 6;
+
+  // "A ARAUJO PREV"
+  doc.setTextColor(0,0,0);
+  doc.setFontSize(12); doc.setFont("helvetica","bold");
+  doc.text("A ARAUJO PREV",W/2,y,{align:"center"});
+  y += 8;
+
+  // Linha horizontal
+  doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
+  doc.line(ML, y, W-MR, y);
+  y += 7;
+
+  // Recibo Nº
+  doc.setFontSize(12); doc.setFont("helvetica","bold"); doc.setTextColor(0,0,0);
+  const numRef=r.referencia?`Recibo Nº ${r.num}   |   Ref: ${r.referencia}`:`Recibo Nº ${r.num}`;
+  doc.text(numRef,W/2,y,{align:"center"});
+  y += 6;
+
+  // RECIBO DE HONORÁRIOS ADVOCATÍCIOS
+  doc.setFontSize(14); doc.setFont("helvetica","bold");
+  doc.text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS",W/2,y,{align:"center"});
+  y += 10;
+
+  // Corpo do texto
   const digits=(r.cpf||"").replace(/\D/g,"");
   const labelDoc=digits.length>11?"CNPJ":"CPF";
   const compl=r.complemento?` - ${r.complemento}`:"";
-  const corpo=`Recebemos do (a) senhor (a) ${r.nome}, residente e domiciliado(a) no MunicÃ­pio de ${r.municipio_uf}, a importÃ¢ncia de R$ ${r.valor} referentes aos honorÃ¡rios advocatÃ­cios relacionados Ã  AÃ§Ã£o PrevidenciÃ¡ria${compl}.`;
-  doc.setFontSize(10);doc.setFont("helvetica","normal");doc.setTextColor(26,26,26);
-  const linhas=doc.splitTextToSize(corpo,W-40);
-  doc.text(linhas,20,57);
-  const yApos=57+linhas.length*5+8;
-  doc.text("Por ser verdade, firmo o presente que segue datado e assinado.",20,yApos);
-  const yData=yApos+18;
-  doc.text(`${r.municipio_uf}, ${r.data}`,20,yData);
-  const yAssin=yData+36;
+  const corpo=`Recebemos do (a) senhor (a) ${r.nome}, residente e domiciliado(a) no Município de ${r.municipio_uf}, a importância de R$ ${r.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${compl}.`;
+  doc.setFontSize(11); doc.setFont("helvetica","normal");
+  const linhas=doc.splitTextToSize(corpo,LW);
+  doc.text(linhas,ML,y);
+  y += linhas.length*5.5 + 4;
+
+  // "Por ser verdade..."
+  doc.text("Por ser verdade, firmo o presente que segue datado e assinado.",ML,y);
+  y += 8;
+
+  // Linha horizontal
+  doc.line(ML, y, W-MR, y);
+  y += 8;
+
+  // Data por extenso
+  const meses=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  const [dia,mes,ano]=(r.data||"").split("/");
+  const data_extenso=`${parseInt(dia)} de ${meses[parseInt(mes)-1]} de ${ano}`;
+  doc.text(`${r.municipio_uf}, ${data_extenso}`,ML,y);
+  y += 40; // moveDown(6) ~ 36mm
+
+  // Assinatura digital (imagem)
   const assinatura = r.assinatura_govbr;
   if (assinatura && assinatura.imagem) {
     try {
-      const imgData = assinatura.imagem;
-      const imgW = 60;
-      const imgH = 20;
-      const imgX = 20;
-      const imgY = yAssin - imgH - 2;
-      doc.addImage(imgData, "PNG", imgX, imgY, imgW, imgH);
-      doc.setDrawColor(184,151,58);
-      doc.setLineWidth(0.5);
-      doc.line(20, yAssin, W/2-10, yAssin);
-    } catch(e) {
-      doc.line(20,yAssin,W/2-10,yAssin);
-    }
+      doc.addImage(assinatura.imagem, "PNG", W/2-80, y, 160, 40);
+      y += 42;
+    } catch(e) {}
+  }
+
+  // Linha de assinatura do cliente
+  doc.text("________________________________________",W/2,y,{align:"center"});
+  y += 5;
+  doc.setFontSize(10); doc.setFont("helvetica","bold");
+  doc.text(r.nome,W/2,y,{align:"center"});
+  y += 5;
+  doc.setFontSize(9); doc.setFont("helvetica","normal");
+  doc.text(`${labelDoc}: ${r.cpf}`,W/2,y,{align:"center"});
+  y += 35; // moveDown(5) ~ 30mm
+
+  // Linha de assinatura do responsável
+  doc.text("________________________",ML,y);
+  y += 5;
+  doc.setFontSize(10); doc.setFont("helvetica","normal");
+  doc.text(r.emitido_por||"A ARAUJO PREV",ML,y);
+  y += 12;
+
+  // Logo no rodapé
+  if (logoData) {
+    doc.addImage(logoData, "PNG", W/2-70, y, 140, 53);
+  }
+
+  if (print) doc.autoPrint();
+  const blob=doc.output("blob");
+  const url=URL.createObjectURL(blob);
+  window.open(url,"_blank");
+}
   } else {
     doc.line(20,yAssin,W/2-10,yAssin);
   }
