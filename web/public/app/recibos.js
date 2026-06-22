@@ -623,8 +623,7 @@ function abrirDetalhe(r){
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-secondary" id="btn-imprimir-modal"><i class="bi bi-printer"></i> Imprimir</button>
       <button class="btn-primary" id="btn-reimprimir-modal"><i class="bi bi-download"></i> Baixar .docx</button>
-      ${!r.assinatura_govbr?.imagem ? `<button class="btn-gold" id="btn-assinar-canvas-modal" style="display:none"><i class="bi bi-pen"></i> Assinar Agora</button>` : ""}
-      ${!r.assinatura_govbr ? `<button class="btn-success" id="btn-assinar-modal" style="display:none"><i class="bi bi-shield-check"></i> Assinar Gov.br</button>` : ""}
+      ${!r.assinatura_govbr?.imagem ? `<button class="btn-gold" id="btn-assinar-canvas-modal"><i class="bi bi-pen"></i> Assinar Agora</button>` : ""}
       ${roleLogado!=="recepcao"?`<button class="btn-secondary" id="btn-recorrente-modal"><i class="bi bi-arrow-repeat"></i> Recorrente</button>`:""}
     </div>`;
   if (r.link_comprovante) {
@@ -639,7 +638,6 @@ function abrirDetalhe(r){
   // BotÃ£o de assinatura canvas â€” mobile e desktop
   const btnAssinarCanvas = document.getElementById("btn-assinar-canvas-modal");
   if(btnAssinarCanvas) {
-    btnAssinarCanvas.style.display = "";
     btnAssinarCanvas.onclick = async () => {
       fecharModal("modal-detalhe");
       const assDataUrl = await mostrarTelaAssinatura(r.nome);
@@ -653,12 +651,6 @@ function abrirDetalhe(r){
         }
       }
     };
-  }
-  // BotÃ£o de assinatura Gov.br â€” sÃ³ aparece no mobile/app
-  const btnAssinar = document.getElementById("btn-assinar-modal");
-  if(btnAssinar){
-    if(window.innerWidth <= 768) btnAssinar.style.display = "";
-    btnAssinar.onclick = () => abrirModalGovBr(r);
   }
   if (Array.isArray(r.historico_edicoes) && r.historico_edicoes.length > 0) {
     const rows = r.historico_edicoes.map(h => {
