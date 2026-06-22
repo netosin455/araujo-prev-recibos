@@ -66,7 +66,15 @@ function initAssinaturaCanvas() {
   };
 
   document.getElementById("btn-assinatura-confirmar").onclick = () => {
-    const dataUrl = canvas.toDataURL("image/png");
+    // Redimensiona pra no mÃ¡ximo 400x150 pra comprimir
+    const maxW = 400, maxH = 150;
+    const tmp = document.createElement("canvas");
+    tmp.width = maxW; tmp.height = maxH;
+    const tctx = tmp.getContext("2d");
+    tctx.fillStyle = "#fff";
+    tctx.fillRect(0, 0, maxW, maxH);
+    tctx.drawImage(canvas, 0, 0, maxW, maxH);
+    const dataUrl = tmp.toDataURL("image/png");
     document.getElementById("tela-assinatura").classList.remove("active");
     document.getElementById("tela-assinatura").style.display = "none";
     if (_assinaturaResolve) _assinaturaResolve(dataUrl);

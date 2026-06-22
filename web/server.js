@@ -599,7 +599,7 @@ async function corrigirLinksComprovante() {
 corrigirLinksComprovante();
 
 // â”€â”€ MIDDLEWARE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.use(express.json({ limit: "100kb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
 // ForÃ§a HTTPS quando atrÃ¡s de proxy reverso (ELB)
