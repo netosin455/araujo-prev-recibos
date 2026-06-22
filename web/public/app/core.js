@@ -24,18 +24,18 @@ let roleLogado = localStorage.getItem("roleLogado") || "financeiro";
 let escritorioLogado = localStorage.getItem("escritorioLogado") || "";
 
 async function api(method, path, body, timeoutMs = 30000){
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const opts = { method, headers: { "Content-Type":"application/json" }, credentials: "include", signal: ctrl.signal };
+    const opts = { method, headers: { "Content-Type":"application/json" }, credentials: "include" };
     if(body) opts.body = JSON.stringify(body);
-    const res = await fetch(path, opts);
+    const res = await Promise.race([
+      fetch(path, opts),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
+    ]);
     if(res.status===401){ fazerLogout(); return null; }
     return res;
   } catch(e){
-    if(e.name==="AbortError") console.error("API timeout:", path);
     return null;
-  } finally { clearTimeout(t); }
+  }
 }
 
 async function fazerLogin(){
