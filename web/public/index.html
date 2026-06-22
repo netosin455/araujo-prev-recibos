@@ -1643,11 +1643,52 @@
     <button id="btn-fechar-toast" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer;padding:0;line-height:1;flex-shrink:0"><i class="bi bi-x-lg"></i></button>
   </div>
 
+  <!-- ASSINATURA DIGITAL -->
+  <div id="tela-assinatura" class="modal-full" style="display:none">
+    <div class="assinatura-container">
+      <div class="assinatura-header">
+        <span class="assinatura-titulo">Assinatura Digital</span>
+        <span class="assinatura-cliente" id="assinatura-cliente-nome"></span>
+      </div>
+      <div class="assinatura-orientacao" id="assinatura-orientacao">
+        <i class="bi bi-phone-landscape"></i>
+        <span>Vire o celular na horizontal para assinar</span>
+      </div>
+      <div class="assinatura-canvas-wrap">
+        <canvas id="assinatura-canvas"></canvas>
+      </div>
+      <div class="assinatura-footer">
+        <button class="btn-secondary" id="btn-assinatura-limpar"><i class="bi bi-eraser"></i> Limpar</button>
+        <button class="btn-gold" id="btn-assinatura-confirmar"><i class="bi bi-check-lg"></i> Confirmar Assinatura</button>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    #tela-assinatura{position:fixed;inset:0;z-index:99999;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center}
+    #tela-assinatura.active{display:flex}
+    .assinatura-container{width:100%;height:100%;display:flex;flex-direction:column;padding:8px;box-sizing:border-box;max-width:1000px}
+    .assinatura-header{display:flex;justify-content:space-between;align-items:center;padding:8px 4px 12px}
+    .assinatura-titulo{font-size:14px;font-weight:700;color:var(--gold)}
+    .assinatura-cliente{font-size:12px;color:var(--muted)}
+    .assinatura-orientacao{text-align:center;padding:16px;color:var(--muted);font-size:13px;display:none}
+    .assinatura-orientacao i{font-size:32px;display:block;margin-bottom:8px}
+    .assinatura-canvas-wrap{flex:1;background:#fff;border:2px dashed var(--gold);border-radius:8px;overflow:hidden;min-height:0;position:relative;touch-action:none}
+    #assinatura-canvas{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+    .assinatura-footer{display:flex;gap:10px;justify-content:center;padding:12px 4px}
+    .assinatura-footer button{flex:1;max-width:250px;padding:14px;font-size:15px}
+    /* landscape detection */
+    @media (orientation:portrait){.assinatura-orientacao{display:block}}
+    @media (orientation:landscape){.assinatura-orientacao{display:none}}
+  </style>
+
   <script src="libs/chart.min.js" defer></script>
   <script src="libs/xlsx.min.js" defer></script>
   <script src="app/core.js" defer></script>
   <script src="app/recibos.js" defer></script>
   <script src="app/recibos-extra.js" defer></script>
+  <script src="app/assinatura.js" defer></script>
+  <script src="app/assinatura.js" defer></script>
   <script src="app/clientes.js" defer></script>
   <script src="app/admin.js" defer></script>
   <script src="app/analytics.js" defer></script>

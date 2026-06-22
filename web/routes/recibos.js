@@ -193,6 +193,21 @@ module.exports = function registerReciboRoutes(app, deps) {
     res.json({ ok: true });
   });
 
+  // ── SALVAR ASSINATURA DIGITAL ──────────────────────────────
+  app.put("/api/recibos/:id/assinatura", deps.auth, async (req, res) => {
+    try {
+      const { assinatura } = req.body;
+      if (!assinatura || typeof assinatura !== "string" || !assinatura.startsWith("data:image/png;base64,")) {
+        return res.status(400).json({ erro: "Assinatura inválida." });
+      }
+      await deps.update(deps.dbRecibos, { _id: req.params.id }, { assinatura_govbr: { nome_assinante: req.user.username, assinado_em: new Date().toLocaleString("pt-BR"), imagem: assinatura } });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Erro ao salvar assinatura:", err);
+      res.status(500).json({ erro: "Erro ao salvar assinatura." });
+    }
+  });
+
   // ── RECIBO RECORRENTE — clona pro mês seguinte ──────────────
   app.post("/api/recibos/:id/recorrente", deps.auth, deps.financeiroOnly, async (req, res) => {
     try {

@@ -123,6 +123,7 @@ async function gerarRecibo(){
   }
 
   // Salvar no banco
+  let _reciboGeradoId = null;
   const salvarRes = await api("POST","/api/recibos",{
     num:dados.num_recibo,nome:dados.nome,cpf:dados.cpf.replace(/\D/g,""),
     municipio_uf:dados.municipio_uf,valor:dados.valor,
@@ -139,12 +140,21 @@ async function gerarRecibo(){
         mostrarToast(salvarJson.erro || "Erro ao salvar recibo.", null, "error");
         return;
       }
+      _reciboGeradoId = salvarJson.id;
     } catch (e) {
       mostrarToast("Erro ao processar resposta do servidor: " + e.message + ". Recarregue a página.", null, "error");
       console.error("Erro parse resposta /api/recibos:", e);
     }
   } else {
     mostrarToast("Falha ao salvar recibo no banco. Verifique o console.", null, "error");
+  }
+
+  // Assinatura digital no celular
+  if (window.innerWidth <= 768 && _reciboGeradoId && typeof mostrarTelaAssinatura === "function") {
+    const assDataUrl = await mostrarTelaAssinatura(dados.nome);
+    if (assDataUrl) {
+      await salvarAssinatura(_reciboGeradoId, assDataUrl).catch(()=>{});
+    }
   }
 
   await carregarRecibos();
@@ -545,7 +555,24 @@ async function abrirPDFRecibo(r, print=false){
   const yData=yApos+18;
   doc.text(`${r.municipio_uf}, ${r.data}`,20,yData);
   const yAssin=yData+36;
-  doc.line(20,yAssin,W/2-10,yAssin);
+  const assinatura = r.assinatura_govbr;
+  if (assinatura && assinatura.imagem) {
+    try {
+      const imgData = assinatura.imagem;
+      const imgW = 60;
+      const imgH = 20;
+      const imgX = 20;
+      const imgY = yAssin - imgH - 2;
+      doc.addImage(imgData, "PNG", imgX, imgY, imgW, imgH);
+      doc.setDrawColor(184,151,58);
+      doc.setLineWidth(0.5);
+      doc.line(20, yAssin, W/2-10, yAssin);
+    } catch(e) {
+      doc.line(20,yAssin,W/2-10,yAssin);
+    }
+  } else {
+    doc.line(20,yAssin,W/2-10,yAssin);
+  }
   doc.setFontSize(9);
   doc.text(`${labelDoc}: ${r.cpf}`,20,yAssin+5);
   const yAssin2=yAssin+28;
@@ -591,7 +618,7 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">ReferÃªncia</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value">${r.link_comprovante ? `<button class="btn-gold btn-sm" id="btn-ver-comprovante-modal"><i class="bi bi-paperclip"></i> Ver comprovante</button>` : `<span style="color:var(--muted);font-size:13px;font-style:italic">Nenhum comprovante adicionado</span>`}</div></div>
-    ${r.assinatura_govbr ? `<div class="detail-row"><div class="detail-label">Assinatura</div><div class="detail-value" style="color:var(--success)"><i class="bi bi-shield-check"></i> Assinado por ${esc(r.assinatura_govbr.nome_assinante)} em ${esc(r.assinatura_govbr.assinado_em)}</div></div>` : ""}
+    ${r.assinatura_govbr ? `<div class="detail-row"><div class="detail-label">Assinatura</div><div class="detail-value" style="color:var(--success)"><i class="bi bi-shield-check"></i> Assinado por ${esc(r.assinatura_govbr.nome_assinante)} em ${esc(r.assinatura_govbr.assinado_em)}${r.assinatura_govbr.imagem ? `<br><img src="${r.assinatura_govbr.imagem}" style="max-width:180px;max-height:50px;margin-top:6px;border:1px solid var(--border);border-radius:4px;background:#fff">` : ""}</div></div>` : ""}
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-secondary" id="btn-imprimir-modal"><i class="bi bi-printer"></i> Imprimir</button>
