@@ -344,8 +344,15 @@ async function navegarPara(tela){
     if(bn) bn.classList.add("active");
     document.getElementById("topbar-title").textContent=titulos[tela]||tela;
     if(tela==="historico"){
+      const gridHist = document.getElementById("historico-grid");
+      if (gridHist && gridHist.querySelector(".skeleton-card")) {
+        gridHist.innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split pulse"></i><p>Carregando...</p></div>';
+      }
       if(!historicoRecibos.length) await carregarRecibos();
-      renderHistorico();
+      try { renderHistorico(); } catch(e) {
+        console.error("renderHistorico:", e);
+        if (gridHist) gridHist.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle" style="color:var(--error)"></i><p>Erro ao carregar histórico.</p><button class="btn-secondary btn-sm" onclick="navegarPara(\'historico\')">Tentar novamente</button></div>';
+      }
     }
     if(tela==="clientes"){
       const buscaCli = document.getElementById("busca-clientes");
