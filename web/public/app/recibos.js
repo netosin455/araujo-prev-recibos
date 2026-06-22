@@ -149,12 +149,19 @@ async function gerarRecibo(){
     mostrarToast("Falha ao salvar recibo no banco. Verifique o console.", null, "error");
   }
 
-  // Assinatura digital no celular
-  if (window.innerWidth <= 768 && _reciboGeradoId && typeof mostrarTelaAssinatura === "function") {
-    const assDataUrl = await mostrarTelaAssinatura(dados.nome);
-    if (assDataUrl) {
-      await salvarAssinatura(_reciboGeradoId, assDataUrl).catch(()=>{});
+  // Assinatura digital
+  if (_reciboGeradoId && typeof mostrarTelaAssinatura === "function") {
+    try {
+      const assDataUrl = await mostrarTelaAssinatura(dados.nome);
+      if (assDataUrl) {
+        const ok = await salvarAssinatura(_reciboGeradoId, assDataUrl);
+        console.log("Assinatura salva:", ok);
+      }
+    } catch(e) {
+      console.error("Erro assinatura:", e);
     }
+  } else {
+    console.log("Assinatura ignorada:", { id: _reciboGeradoId, fn: typeof mostrarTelaAssinatura });
   }
 
   await carregarRecibos();
