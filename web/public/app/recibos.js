@@ -688,7 +688,7 @@ function abrirDetalhe(r){
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
       <button class="btn-secondary" id="btn-imprimir-modal"><i class="bi bi-printer"></i> Imprimir</button>
       <button class="btn-primary" id="btn-reimprimir-modal"><i class="bi bi-download"></i> Baixar .docx</button>
-      ${!r.assinatura_govbr?.imagem ? `<button class="btn-gold" id="btn-assinar-canvas-modal"><i class="bi bi-pen"></i> Assinar Agora</button>` : ""}
+      ${!r.assinatura_govbr?.imagem && window.matchMedia("(pointer:coarse)").matches ? `<button class="btn-gold" id="btn-assinar-canvas-modal"><i class="bi bi-pen"></i> Assinar Agora</button>` : ""}
       ${roleLogado!=="recepcao"?`<button class="btn-secondary" id="btn-recorrente-modal"><i class="bi bi-arrow-repeat"></i> Recorrente</button>`:""}
     </div>`;
   if (r.link_comprovante) {
