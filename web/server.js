@@ -626,6 +626,13 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use((req, res, next) => {
+  if (req.path === "/" || req.path === "/index.html") {
+    res.setHeader("Cache-Control", "no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, "public")));
 
 const mw = require("./middleware/auth")({ jwt, JWT_SECRET, ADMIN_USER, pgPool });
