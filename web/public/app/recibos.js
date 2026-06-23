@@ -647,19 +647,6 @@ async function abrirPDFRecibo(r, print=false){
   const url=URL.createObjectURL(blob);
   window.open(url,"_blank");
 }
-  } else {
-    doc.line(20,yAssin,W/2-10,yAssin);
-  }
-  doc.setFontSize(9);
-  doc.text(`${labelDoc}: ${r.cpf}`,20,yAssin+5);
-  const yAssin2=yAssin+28;
-  doc.line(20,yAssin2,W/2-10,yAssin2);
-  doc.text(r.emitido_por||"ResponsÃ¡vel",20,yAssin2+5);
-  if (print) doc.autoPrint();
-  const blob=doc.output("blob");
-  const url=URL.createObjectURL(blob);
-  window.open(url,"_blank");
-}
 
 async function reimprimirRecibo(r){
   setStatus("Gerando documento...","loading");
