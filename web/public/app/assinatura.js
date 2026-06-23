@@ -1,7 +1,5 @@
 // web/public/app/assinatura.js — assinatura digital no celular
 let _assinaturaResolve = null;
-let _reciboParaAssinar = null;
-let _assinando = false;
 
 function initAssinaturaCanvas() {
   const canvas = document.getElementById("assinatura-canvas");
@@ -79,7 +77,6 @@ function initAssinaturaCanvas() {
     document.getElementById("tela-assinatura").style.display = "none";
     if (_assinaturaResolve) _assinaturaResolve(dataUrl);
     _assinaturaResolve = null;
-    _reciboParaAssinar = null;
   };
 }
 

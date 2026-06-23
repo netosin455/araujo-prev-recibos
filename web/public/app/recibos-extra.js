@@ -1,9 +1,9 @@
 ﻿// web/public/app/recibos-extra.js — extracted from app.js
 // â”€â”€ GOV.BR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-let reciboParaAssinar = null;
+let _reciboGovBr = null;
 
 async function abrirModalGovBr(r){
-  reciboParaAssinar = r;
+  _reciboGovBr = r;
   const statusBox = document.getElementById("govbr-status-box");
   const btnAssinar = document.getElementById("btn-govbr-assinar");
   statusBox.style.display = "none";
@@ -29,11 +29,11 @@ async function abrirModalGovBr(r){
 }
 
 async function iniciarAssinaturaGovBr(){
-  if(!reciboParaAssinar) return;
+  if(!_reciboGovBr) return;
   const btn = document.getElementById("btn-govbr-assinar");
   btn.disabled = true;
   btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Aguarde...';
-  const res = await api("GET", `/api/govbr/iniciar?recibo_id=${reciboParaAssinar.id||reciboParaAssinar._id}`);
+  const res = await api("GET", `/api/govbr/iniciar?recibo_id=${_reciboGovBr.id||_reciboGovBr._id}`);
   if(!res || !res.ok){
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-shield-check"></i> Assinar com Gov.br';
