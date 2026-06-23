@@ -344,14 +344,15 @@ async function navegarPara(tela){
     if(bn) bn.classList.add("active");
     document.getElementById("topbar-title").textContent=titulos[tela]||tela;
     if(tela==="historico"){
-      const gridHist = document.getElementById("historico-grid");
-      if (gridHist && gridHist.querySelector(".skeleton-card")) {
-        gridHist.innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split pulse"></i><p>Carregando...</p></div>';
-      }
-      if(!historicoRecibos.length) await carregarRecibos();
-      try { renderHistorico(); } catch(e) {
+      var _gridH = document.getElementById("historico-grid");
+      if(_gridH) _gridH.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)"><i class="bi bi-hourglass-split pulse"></i><p style="margin-top:8px">Carregando...</p></div>';
+      try {
+        if(!historicoRecibos.length) await carregarRecibos();
+        renderHistorico();
+      } catch(e) {
         console.error("renderHistorico:", e);
-        if (gridHist) gridHist.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle" style="color:var(--error)"></i><p>Erro ao carregar hist\u00F3rico.</p><p style="font-size:11px;color:var(--muted);margin-top:8px">' + esc(e.message || e) + '</p><button class="btn-secondary btn-sm" onclick="navegarPara(\'historico\')">Tentar novamente</button></div>';
+        var _m = "Erro: " + (typeof e==="object"?(e.message||e.name||JSON.stringify(e)):String(e));
+        if(_gridH) _gridH.innerHTML = '<div style="text-align:center;padding:30px;color:var(--error)"><i class="bi bi-exclamation-triangle"></i><p style="margin-top:8px">Erro ao carregar hist\u00F3rico.</p><p style="font-size:12px;margin-top:6px;color:var(--muted)">'+_m+'</p></div>';
       }
     }
     if(tela==="clientes"){
