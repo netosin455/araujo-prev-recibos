@@ -163,7 +163,7 @@ async function gerarRecibo(){
       console.error("Erro assinatura:", e);
     }
   } else {
-    console.log("Assinatura ignorada:", { id: _reciboGeradoId, ehTouch: _ehTouch, fn: typeof mostrarTelaAssinatura });
+    console.log("Assinatura ignorada desktop");
   }
 
   await carregarRecibos();
