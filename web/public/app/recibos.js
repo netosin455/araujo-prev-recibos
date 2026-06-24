@@ -48,7 +48,8 @@ async function gerarRecibo(){
       const fd = new FormData();
       fd.append("comprovante", compInputEdicao.files[0]);
       try {
-        const r = await fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd });
+        const _ac1 = new AbortController(); setTimeout(() => _ac1.abort(), 30000);
+        const r = await fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd, signal: _ac1.signal });
         const j = await r.json();
         if(j.link){ link_comprovante_edicao = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
         else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; mostrarToast(j.erro || "Erro ao enviar comprovante.", null, "error"); }
@@ -115,7 +116,8 @@ async function gerarRecibo(){
     const fd = new FormData();
     fd.append("comprovante", compInput.files[0]);
     try {
-      const r = await fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd });
+      const _ac2 = new AbortController(); setTimeout(() => _ac2.abort(), 30000);
+      const r = await fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd, signal: _ac2.signal });
       const j = await r.json();
       if(j.link){ link_comprovante = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
       else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; mostrarToast(j.erro || "Erro ao enviar comprovante.", null, "error"); }
