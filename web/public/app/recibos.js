@@ -709,7 +709,14 @@ function abrirDetalhe(r){
     </div>`;
   if (r.link_comprovante) {
     const btnComp = document.getElementById("btn-ver-comprovante-modal");
-    if (btnComp) btnComp.onclick = () => abrirComprovante(r.link_comprovante);
+    if (btnComp) {
+      btnComp.onclick = null;
+      btnComp.addEventListener("click", function _verComp() {
+        fecharModal("modal-detalhe");
+        abrirComprovante(r.link_comprovante);
+        btnComp.removeEventListener("click", _verComp);
+      });
+    }
   }
   document.getElementById("btn-ver-modal").onclick=()=>{ abrirPDFRecibo(r); fecharModal("modal-detalhe"); };
   document.getElementById("btn-imprimir-modal").onclick=()=>{ abrirPDFRecibo(r, true); fecharModal("modal-detalhe"); };

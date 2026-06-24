@@ -554,12 +554,16 @@ function atualizarLabelComprovante(input){
 }
 
 function abrirComprovante(link) {
-  const body = document.getElementById("modal-comprovante-body");
-  body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Carregando...</div>`;
-  document.getElementById("modal-comprovante").classList.add("active");
+  try {
+    const body = document.getElementById("modal-comprovante-body");
+    if (!body) { alert("Erro interno: modal-comprovante-body não encontrado."); return; }
+    body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Carregando...</div>`;
+    const modal = document.getElementById("modal-comprovante");
+    if (!modal) { alert("Erro interno: modal-comprovante não encontrado."); return; }
+    modal.classList.add("active");
 
   // Drive: qualquer formato (/d/ID/, ?id=ID, open?id=ID) → preview nativo do Drive
-  const driveId = (link.match(/\/d\/([a-zA-Z0-9_-]{10,})/) || link.match(/[?&]id=([a-zA-Z0-9_-]{10,})/) || [])[1];
+  const driveId = (link && (link.match(/\/d\/([a-zA-Z0-9_-]{10,})/) || link.match(/[?&]id=([a-zA-Z0-9_-]{10,})/) || []))[1];
   if (driveId) {
     body.innerHTML = `<iframe src="https://drive.google.com/file/d/${driveId}/preview" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
     return;
@@ -593,6 +597,13 @@ function abrirComprovante(link) {
     return;
   }
   body.innerHTML = `<iframe src="${esc(link)}" width="100%" height="600" style="border:none;border-radius:8px"></iframe>`;
+  } catch (e) {
+    console.error("abrirComprovante error:", e);
+    const modal = document.getElementById("modal-comprovante");
+    if (modal) modal.classList.add("active");
+    const body = document.getElementById("modal-comprovante-body");
+    if (body) body.innerHTML = `<p style="color:red;text-align:center;padding:20px">Erro ao abrir comprovante: ${e.message}</p>`;
+  }
 }
 
 // ── FORMATAÇÃO ─────────────────────────────────────────────
