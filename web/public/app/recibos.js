@@ -698,7 +698,7 @@ function abrirDetalhe(r){
     <div class="detail-row"><div class="detail-label">ResponsÃ¡vel</div><div class="detail-value">${esc(r.emitido_por||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">Complemento</div><div class="detail-value">${esc(r.complemento||"-")}</div></div>
     <div class="detail-row"><div class="detail-label">ReferÃªncia</div><div class="detail-value">${esc(r.referencia||"-")}</div></div>
-    <div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value">${r.link_comprovante ? `<button class="btn-gold btn-sm" id="btn-ver-comprovante-modal"><i class="bi bi-paperclip"></i> Ver comprovante</button>` : `<span style="color:var(--muted);font-size:13px;font-style:italic">Nenhum comprovante adicionado</span>`}</div></div>
+    <div class="detail-row"><div class="detail-label">Comprovante</div><div class="detail-value">${r.link_comprovante ? `<button class="btn-gold btn-sm" onclick="fecharModal('modal-detalhe');abrirComprovante('${esc(r.link_comprovante)}')"><i class="bi bi-paperclip"></i> Ver comprovante</button>` : `<span style="color:var(--muted);font-size:13px;font-style:italic">Nenhum comprovante adicionado</span>`}</div></div>
     ${r.assinatura_govbr ? `<div class="detail-row"><div class="detail-label">Assinatura</div><div class="detail-value" style="color:var(--success)"><i class="bi bi-shield-check"></i> Assinado por ${esc(r.assinatura_govbr.nome_assinante)} em ${esc(r.assinatura_govbr.assinado_em)}${r.assinatura_govbr.imagem ? `<br><img src="${r.assinatura_govbr.imagem}" style="max-width:180px;max-height:50px;margin-top:6px;border:1px solid var(--border);border-radius:4px;background:#fff">` : ""}</div></div>` : ""}
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-gold" id="btn-ver-modal"><i class="bi bi-eye"></i> Ver PDF</button>
@@ -707,17 +707,6 @@ function abrirDetalhe(r){
       ${!r.assinatura_govbr?.imagem && window.innerWidth < 1024 ? `<button class="btn-gold" id="btn-assinar-canvas-modal"><i class="bi bi-pen"></i> Assinar Agora</button>` : ""}
       ${roleLogado!=="recepcao"?`<button class="btn-secondary" id="btn-recorrente-modal"><i class="bi bi-arrow-repeat"></i> Recorrente</button>`:""}
     </div>`;
-  if (r.link_comprovante) {
-    const btnComp = document.getElementById("btn-ver-comprovante-modal");
-    if (btnComp) {
-      btnComp.onclick = null;
-      btnComp.addEventListener("click", function _verComp() {
-        fecharModal("modal-detalhe");
-        abrirComprovante(r.link_comprovante);
-        btnComp.removeEventListener("click", _verComp);
-      });
-    }
-  }
   document.getElementById("btn-ver-modal").onclick=()=>{ abrirPDFRecibo(r); fecharModal("modal-detalhe"); };
   document.getElementById("btn-imprimir-modal").onclick=()=>{ abrirPDFRecibo(r, true); fecharModal("modal-detalhe"); };
   document.getElementById("btn-reimprimir-modal").onclick=()=>{ reimprimirRecibo(r); fecharModal("modal-detalhe"); };
