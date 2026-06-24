@@ -215,14 +215,19 @@ module.exports = function registerReciboRoutes(app, deps) {
   app.patch("/api/recibos/:id/comprovante", deps.auth, async (req, res) => {
     try {
       const { link_comprovante } = req.body;
+      console.log(`[DEBUG] PATCH comprovante: recibo=${req.params.id}, link=${link_comprovante?.substring(0,80)}`);
       if (!link_comprovante) return res.status(400).json({ erro: "link_comprovante eh obrigatorio." });
       await deps.update(deps.dbRecibos, { _id: req.params.id }, { link_comprovante });
-      res.json({ ok: true });
+      const verificado = await deps.findOne(deps.dbRecibos, { _id: req.params.id });
+      console.log(`[DEBUG] PATCH resultado: link_comprovante agora = ${verificado?.link_comprovante?.substring(0,80)}`);
+      res.json({ ok: true, link: verificado?.link_comprovante || "" });
     } catch (err) {
       console.error("Erro ao atualizar comprovante:", err);
       res.status(500).json({ erro: "Erro ao atualizar comprovante." });
     }
-  });app.post("/api/recibos/:id/recorrente", deps.auth, deps.financeiroOnly, async (req, res) => {
+  });
+
+  app.post("/api/recibos/:id/recorrente", deps.auth, deps.financeiroOnly, async (req, res) => {
     try {
       const original = await deps.findOne(deps.dbRecibos, { _id: req.params.id, ...deps.NAO_DELETADO });
       if (!original) return res.status(404).json({ erro: "Recibo não encontrado." });
