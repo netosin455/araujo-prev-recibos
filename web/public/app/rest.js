@@ -446,16 +446,32 @@ async function enviarUploadComprovante() {
   try {
     const fd = new FormData();
     fd.append("comprovante", input.files[0]);
-    const r1 = await fetch("/api/upload-comprovante", { method: "POST", credentials: "include", body: fd });
+    const r1 = await Promise.race([
+      fetch("/api/upload-comprovante", { method: "POST", credentials: "include", body: fd }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 30000))
+    ]);
+    const ct1 = r1.headers.get("content-type") || "";
+    if (!ct1.includes("application/json") && !ct1.includes("text/json")) {
+      const txt = await r1.text();
+      throw new Error("Erro servidor (" + r1.status + "): " + txt.slice(0, 100));
+    }
     const j1 = await r1.json();
     if (!j1.link) { status.textContent = j1.erro || "Erro ao enviar arquivo."; btn.disabled = false; return; }
     status.textContent = "Vinculando ao recibo...";
-    const r2 = await fetch(`/api/recibos/${_uploadCompReciboId}/comprovante`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ link_comprovante: j1.link })
-    });
+    const r2 = await Promise.race([
+      fetch(`/api/recibos/${_uploadCompReciboId}/comprovante`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ link_comprovante: j1.link })
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000))
+    ]);
+    const ct2 = r2.headers.get("content-type") || "";
+    if (!ct2.includes("application/json") && !ct2.includes("text/json")) {
+      const txt = await r2.text();
+      throw new Error("Erro servidor (" + r2.status + "): " + txt.slice(0, 100));
+    }
     const j2 = await r2.json();
     if (j2.ok) {
       status.textContent = "Comprovante adicionado com sucesso!";

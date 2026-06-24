@@ -48,8 +48,15 @@ async function gerarRecibo(){
       const fd = new FormData();
       fd.append("comprovante", compInputEdicao.files[0]);
       try {
-        const _ac1 = new AbortController(); setTimeout(() => _ac1.abort(), 30000);
-        const r = await fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd, signal: _ac1.signal });
+        const r = await Promise.race([
+          fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout upload comprovante")), 30000))
+        ]);
+        const ct = r.headers.get("content-type") || "";
+        if(!ct.includes("application/json") && !ct.includes("text/json")){
+          const txt = await r.text();
+          throw new Error("Servidor retornou " + r.status + " (" + txt.slice(0,60) + "...)");
+        }
         const j = await r.json();
         if(j.link){ link_comprovante_edicao = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
         else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; mostrarToast(j.erro || "Erro ao enviar comprovante.", null, "error"); }
@@ -116,8 +123,15 @@ async function gerarRecibo(){
     const fd = new FormData();
     fd.append("comprovante", compInput.files[0]);
     try {
-      const _ac2 = new AbortController(); setTimeout(() => _ac2.abort(), 30000);
-      const r = await fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd, signal: _ac2.signal });
+      const r = await Promise.race([
+        fetch("/api/upload-comprovante", { method:"POST", credentials:"include", body:fd }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout upload comprovante")), 30000))
+      ]);
+      const ct = r.headers.get("content-type") || "";
+      if(!ct.includes("application/json") && !ct.includes("text/json")){
+        const txt = await r.text();
+        throw new Error("Servidor retornou " + r.status + " (" + txt.slice(0,60) + "...)");
+      }
       const j = await r.json();
       if(j.link){ link_comprovante = j.link; if(compStatus) compStatus.textContent = "Comprovante enviado!"; }
       else { if(compStatus) compStatus.textContent = j.erro || "Erro ao enviar comprovante."; mostrarToast(j.erro || "Erro ao enviar comprovante.", null, "error"); }
