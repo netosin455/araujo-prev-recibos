@@ -702,14 +702,15 @@ async function _gerarPDFRecibo(r, print=false){
   const [dia,mes,ano]=(r.data||"").split("/");
   const data_extenso=`${parseInt(dia)} de ${meses[parseInt(mes)-1]} de ${ano}`;
   doc.text(`${r.municipio_uf}, ${data_extenso}`,ML,y);
-  // Espaço generoso pra centralizar a assinatura do cliente na folha
-  y += 55;
+  // Espaço antes do bloco de assinatura (ancorado na linha, sem flutuar)
+  y += 30;
 
-  // Assinatura digital (imagem) — desenhada mantendo a proporção, centralizada.
   const assinatura = r.assinatura_govbr;
+  const lineY = y; // posição da LINHA de assinatura
+  // Assinatura (imagem) ancorada SOBRE a linha — a base do traço encosta nela.
   if (assinatura && assinatura.imagem) {
     try {
-      const maxW = 80, maxH = 32; // mm — caixa máxima da assinatura
+      const maxW = 75, maxH = 28; // mm — caixa máxima da assinatura
       let dw = maxW, dh = maxW / 2.6; // proporção padrão (caso não dê pra medir)
       try {
         const props = doc.getImageProperties(assinatura.imagem);
@@ -718,29 +719,35 @@ async function _gerarPDFRecibo(r, print=false){
           if (dh > maxH) { dh = maxH; dw = (props.width / props.height) * maxH; }
         }
       } catch(_) { /* jsPDF sem getImageProperties — usa proporção padrão */ }
-      doc.addImage(assinatura.imagem, "PNG", W/2 - dw/2, y - dh, dw, dh);
-      y += 4;
+      doc.addImage(assinatura.imagem, "PNG", W/2 - dw/2, lineY - dh - 1, dw, dh);
     } catch(e) { console.error("assinatura PDF:", e); }
   }
 
   // Linha de assinatura do cliente — centralizada
   doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
-  doc.line(ML+30, y, W-ML-30, y);
-  y += 5;
-  doc.setFontSize(10); doc.setFont("helvetica","bold");
+  doc.line(ML+30, lineY, W-ML-30, lineY);
+  y = lineY + 5;
+  doc.setFontSize(10); doc.setFont("helvetica","bold"); doc.setTextColor(0,0,0);
   doc.text(r.nome,W/2,y,{align:"center"});
   y += 5;
   doc.setFontSize(9); doc.setFont("helvetica","normal");
   doc.text(`${labelDoc}: ${r.cpf}`,W/2,y,{align:"center"});
-  // Legenda de assinatura eletrônica
+
+  // Selo de validação eletrônica (estilo ZapSign/Autentique)
   if (assinatura && assinatura.assinado_em) {
     y += 5;
-    doc.setFontSize(7.5); doc.setFont("helvetica","italic"); doc.setTextColor(120,120,120);
-    doc.text(`Assinado eletronicamente em ${assinatura.assinado_em}`, W/2, y, {align:"center"});
+    const selo = ["Assinado eletronicamente"];
+    if (assinatura.nome_assinante) selo.push("por " + assinatura.nome_assinante);
+    selo.push("em " + assinatura.assinado_em);
+    if (assinatura.ip) selo.push("· IP " + assinatura.ip);
+    doc.setFontSize(7); doc.setFont("helvetica","italic"); doc.setTextColor(120,120,120);
+    const linhasSelo = doc.splitTextToSize(selo.join(" "), LW);
+    doc.text(linhasSelo, W/2, y, {align:"center"});
+    y += linhasSelo.length * 3.2;
     doc.setTextColor(0,0,0); doc.setFont("helvetica","normal");
   }
   // Espaço pro final da página
-  y += 45;
+  y += 28;
 
   // Linha de assinatura do responsável — esquerda no final
   doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
@@ -784,7 +791,9 @@ async function reimprimirRecibo(r){
     valor:r.valor,data:r.data,data_extenso,emitido_por:r.emitido_por||"",
     complemento:r.complemento||"",referencia:r.referencia||"",
     assinatura: r.assinatura_govbr?.imagem || "",
-    assinado_em: r.assinatura_govbr?.assinado_em || ""
+    assinado_em: r.assinatura_govbr?.assinado_em || "",
+    assinante: r.assinatura_govbr?.nome_assinante || "",
+    assinatura_ip: r.assinatura_govbr?.ip || ""
   });
   if(!res||!res.ok){setStatus("Erro ao gerar.","error");return;}
   const blob=await res.blob();

@@ -411,7 +411,14 @@ module.exports = function registerReciboRoutes(app, deps) {
         p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 40 }),
         p(dados.nome, { align: AlignmentType.CENTER, size: 10, spaceAfter: 20 }),
         p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: (assinaturaBuffer && dados.assinado_em) ? 40 : 2800 }),
-        ...((assinaturaBuffer && dados.assinado_em) ? [p(`Assinado eletronicamente em ${dados.assinado_em}`, { align: AlignmentType.CENTER, size: 7, italics: true, color: "777777", spaceAfter: 2800 })] : []),
+        ...((assinaturaBuffer && dados.assinado_em) ? [p(
+          ["Assinado eletronicamente",
+            dados.assinante ? "por " + dados.assinante : "",
+            "em " + dados.assinado_em,
+            dados.assinatura_ip ? "· IP " + dados.assinatura_ip : ""
+          ].filter(Boolean).join(" "),
+          { align: AlignmentType.CENTER, size: 7, italics: true, color: "777777", spaceAfter: 2800 }
+        )] : []),
         p("________________________", { align: AlignmentType.LEFT, spaceAfter: 40 }),
         p(dados.emitido_por || "A ARAUJO PREV", { align: AlignmentType.LEFT, size: 10, spaceAfter: 0 }),
       );

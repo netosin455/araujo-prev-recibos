@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-06-26] — Assinatura ancorada na linha + selo de validação
+
+### Melhorado
+- **Assinatura não "flutua" mais:** no PDF, a imagem agora é ancorada **sobre a linha** (base do traço encosta na linha), com o espaço vazio reduzido — bloco coeso (assinatura → linha → nome → CPF), no padrão dos apps de assinatura (ZapSign/Clicksign/Autentique).
+- **Selo de validação eletrônica:** abaixo do nome/CPF aparece, em itálico discreto, "Assinado eletronicamente por NOME em DD/MM/AAAA HH:MM · IP X.X.X.X" — no PDF (`abrirPDFRecibo`) e no DOCX (`/api/gerar-recibo`). Nome e IP vêm de `assinatura_govbr` (passados também no `reimprimirRecibo`).
+
+---
+
 ## [2026-06-26] — Correção de recibos duplicados (raiz + limpeza)
 
 ### Corrigido
