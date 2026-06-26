@@ -2759,6 +2759,21 @@ cron.schedule("0 8 * * *", async () => {
     console.error("[CRON] Erro na verificaÃ§Ã£o:", e.message);
   }
 }, { timezone: "America/Sao_Paulo" });
+
+// ── CRON — LIMPEZA DE JOBS DE EXPORTAÇÃO ANTIGOS ──────────────
+// Remove registros de export_jobs com mais de 7 dias (os ZIPs no S3 já expiram
+// pelo lifecycle). Roda todo dia às 04:00 UTC. Mantém a tabela enxuta.
+cron.schedule("0 4 * * *", async () => {
+  try {
+    const { rowCount } = await pgPool.query(
+      "DELETE FROM export_jobs WHERE criado_em < NOW() - INTERVAL '7 days'"
+    );
+    if (rowCount > 0) console.log(`[CRON] ${rowCount} job(s) de exportação antigo(s) removido(s).`);
+  } catch (e) {
+    console.error("[CRON] Erro ao limpar export_jobs antigos:", e.message);
+  }
+}, { timezone: "UTC" });
+
 // ---- CRON - AUTO-RECIBOS MENSAIS: REMOVIDO ------------------------------------
 // Removido a pedido do usuário: gerava recibos automaticamente todo mês e era
 // fonte de duplicação/recibos indesejados. Não recriar sem aprovação explícita.

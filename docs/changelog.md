@@ -2,6 +2,27 @@
 
 ---
 
+## [2026-06-26] — Hardening do export assíncrono (6 pendências do opencode.md)
+
+### Adicionado
+- **`web/services/pdf-generator.js`** — fonte única de `gerarBufferPDFRecibo`, compartilhada entre o app e a Lambda. A Lambda recebe a cópia via `npm run build` (script novo no `package.json` da Lambda; arquivo no `.gitignore`).
+- **`terraform/`** — IaaC dos recursos do export (SQS + DLQ com redrive 3x, Lambda, IAM da Lambda e do produtor EB, event source mapping, S3 lifecycle de 7 dias). README com fluxo de `terraform import` dos recursos já existentes.
+- **Cron de limpeza** em `web/server.js`: remove `export_jobs` com mais de 7 dias (diário, 04:00 UTC).
+
+### Corrigido
+- **SSL do PostgreSQL na Lambda**: `rejectUnauthorized: false` → `true` (Neon usa CA pública).
+- **ZIP vazio**: a Lambda agora falha o job (e manda pra DLQ) se nenhum PDF for gerado, em vez de subir um ZIP vazio marcado como `pronto`.
+
+### Refatorado
+- Eliminada a duplicação de `gerarBufferPDFRecibo` entre `web/routes/recibos.js` e `lambda/export-worker/index.js`.
+- Pool de conexões da Lambda reduzido de `max: 2` para `max: 1` (evita estourar conexões do Neon em pico).
+
+### Pendências de deploy (ação humana)
+- Buildar/zipar a Lambda (`npm run build`) e rodar `terraform import` + `terraform apply` (ver `terraform/README.md`).
+- (Opcional) Replicar o fix de SSL em `web/server.js:58`.
+
+---
+
 ## [2026-06-26] — Exportação de ZIP em lote assíncrona (SQS + Lambda)
 
 ### Adicionado

@@ -1,0 +1,8 @@
+# Copie para terraform.tfvars e preencha. NÃO commite terraform.tfvars (tem segredo).
+database_url = "postgresql://USER:PASSWORD@HOST/neondb?sslmode=require"
+
+# Os demais têm default e só precisam ser sobrescritos se mudarem:
+# aws_region            = "us-east-1"
+# bucket_name           = "araujo-prev-comprovantes"
+# lambda_zip_path       = "../lambda/export-worker/function.zip"
+# eb_instance_role_name = "aws-elasticbeanstalk-ec2-role"

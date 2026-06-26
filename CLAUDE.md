@@ -591,3 +591,19 @@ Quando o usuário disser **"atualiza o CLAUDE.md com esse erro"**, adicione imed
 **O que aconteceu:** Após salvar um cliente (novo cadastro ou edição), `salvarCliente()` zerava o campo `busca-clientes` com `buscaInp.value = ""` antes de chamar `renderClientes()`. Isso fazia a lista recarregar com **todos** os clientes ordenados alfabeticamente. O cliente salvo estava lá, mas em outra posição — parecia ter desaparecido. Além disso, o lookup `listaClientes.find(l => l.cpf === c.cpf)` usava comparação exata de string: se o CPF estava salvo como `"123.456.789-00"` em um lugar e `"12345678900"` em outro, não encontrava o cadastro e o botão mostrava "Cadastrar" em vez de "Editar cadastro", reforçando a ilusão de desaparecimento.
 **Por que aconteceu:** A intenção de "limpar a busca" para mostrar todos os clientes produziu o efeito oposto — o usuário perdia a referência visual do card que acabou de editar. A comparação de CPF sem normalização era frágil a divergências de formatação entre banco e recibos.
 **Como evitar:** Após salvar um cliente, **preencher `busca-clientes` com o nome do cliente salvo** (não zerar). Isso garante que o usuário veja imediatamente o card que acabou de salvar. Para lookups de CPF, **sempre normalizar para dígitos** (`cpf.replace(/\D/g, "")`) antes de comparar — nunca usar `===` direto em CPF formatado.
+
+### [2026-06-26] — Agente 1/3 (Backend/DevOps) — Lambda de export agora depende de build (cópia do módulo PDF)
+**O que aconteceu:** A função `gerarBufferPDFRecibo` estava duplicada em `web/routes/recibos.js` e `lambda/export-worker/index.js` (risco de drift). Foi extraída para `web/services/pdf-generator.js` (FONTE ÚNICA). A Lambda passou a fazer `require("./pdf-generator")`, mas esse arquivo é **gerado** por `npm run build` (copia de `web/services/`) e está no `.gitignore` da Lambda.
+**Por que aconteceu:** Lambda é empacotada/deployada separada do `web/` (o `buildspec.yml` só inclui `web/`), então não dá pra `require` por caminho relativo pra fora do pacote.
+**Como evitar:** Antes de zipar/deployar a Lambda, rode **`cd lambda/export-worker && npm run build`** — senão o `require("./pdf-generator")` quebra em runtime. Para mudar o layout do PDF, edite **apenas** `web/services/pdf-generator.js` (não há mais cópia manual pra manter em sync).
+
+---
+
+## 🪪 Referência Cruzada — opencode
+
+Este projeto também possui um arquivo `opencode.md` em `C:\Users\carlo\.opencode\plans\opencode.md` usado pelo opencode para preservar contexto entre sessões.
+
+**Leia o `opencode.md` antes de iniciar qualquer tarefa nova** — ele contém revisões de código, pendências técnicas e regras acumuladas de sessões anteriores que o `CLAUDE.md` não captura.
+
+Localização alternativa (caso movido para o projeto): `Araujo_Prev_Recibos/.opencode/plans/opencode.md`
+

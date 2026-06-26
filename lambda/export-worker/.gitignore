@@ -1,2 +1,4 @@
 node_modules/
 *.zip
+# cópia gerada de web/services/pdf-generator.js (npm run build) — não versionar
+pdf-generator.js

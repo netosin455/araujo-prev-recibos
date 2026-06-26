@@ -2,53 +2,18 @@ const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderSty
 const PDFDocument = require("pdfkit");
 const archiver = require("archiver");
 const { registrarNoSheets, atualizarNoSheets } = require("../services/google-sheets");
+const { gerarBufferPDFRecibo: gerarBufferPDFReciboShared } = require("../services/pdf-generator");
 
 module.exports = function registerReciboRoutes(app, deps) {
   // deps: auth, adminOnly, financeiroOnly, semPrecatorios, pgPool, dbRecibos, dbClientes, dbAuditoria, NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited, enriquecerCliente, registrarAuditoria, maskCPF, validarCPF, validarCNPJ, getSheetsClient, s3Client, withTimeout, fetchWithTimeout, upload, crypto, fs, path, sharp, JWT_SECRET, jwt, loginLimiter, bcrypt, transporter, formatDateToBR, sincronizarUsuariosParaSheets, smtpConfigurado
   // Also available via require at top of file: PutObjectCommand, GetObjectCommand, Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderStyle, Table, TableRow, TableCell, WidthType, PDFDocument, archiver, stream, nodemailer
 
   // ── HELPER: gera buffer PDF de um recibo do banco ──────────
+  // A lógica vive em web/services/pdf-generator.js (fonte única compartilhada com o
+  // Lambda worker). Aqui apenas resolvemos o caminho da logo e delegamos.
   async function gerarBufferPDFRecibo(recibo) {
     const logoPath = deps.path.join(__dirname, "public", "logo.png");
-    const logoExists = deps.fs.existsSync(logoPath);
-    const digits = (recibo.cpf || "").replace(/\D/g, "");
-    const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
-    const complemento = recibo.complemento ? ` - ${recibo.complemento}` : "";
-    const MESES_EXT = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
-    const [dia, mes, ano] = (recibo.data || "").split("/");
-    const mesNome = MESES_EXT[parseInt(mes, 10) - 1] || "";
-    const data_extenso = dia && mes && ano ? `${parseInt(dia, 10)} de ${mesNome} de ${ano}` : (recibo.data || "");
-    const textoCorpo = `Recebemos do (a) senhor (a) ${recibo.nome}, residente e domiciliado(a) no Município de ${recibo.municipio_uf}, a importância de R$ ${recibo.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${complemento}.`;
-
-    return new Promise((resolve, reject) => {
-      const chunks = [];
-      const pdf = new PDFDocument({ margin: 60, size: "A4" });
-      pdf.on("data", c => chunks.push(c));
-      pdf.on("end", () => resolve(Buffer.concat(chunks)));
-      pdf.on("error", reject);
-
-      if (logoExists) pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
-      pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
-        .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
-      pdf.fontSize(12).fillColor("#000000").text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
-      const lx = pdf.page.margins.left;
-      const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
-      pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
-      pdf.fontSize(12).font("Helvetica-Bold")
-        .text(`Recibo Nº ${recibo.num}${recibo.referencia ? "   |   Ref: " + recibo.referencia : ""}`, { align: "center" }).moveDown(0.2);
-      pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
-      pdf.fontSize(11).font("Helvetica").text(textoCorpo, { align: "justify" }).moveDown(0.6);
-      pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
-      pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
-      pdf.text(`${recibo.municipio_uf}, ${data_extenso}`, { align: "left" }).moveDown(6);
-      pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
-      pdf.fontSize(10).text(recibo.nome, { align: "center" }).moveDown(0.1);
-      pdf.fontSize(9).text(`${labelDoc}: ${recibo.cpf}`, { align: "center" }).moveDown(5);
-      pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
-      pdf.fontSize(10).text(recibo.emitido_por || "A ARAUJO PREV", { align: "left" });
-      if (logoExists) pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
-      pdf.end();
-    });
+    return gerarBufferPDFReciboShared(recibo, logoPath);
   }
 
   // ── WEBHOOK — RECIBO GERADO ────────────────────────────────
