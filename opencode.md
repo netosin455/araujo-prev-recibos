@@ -39,10 +39,11 @@ Sempre que você (Claude) for iniciar uma sessão neste projeto:
 | 5 | **Cleanup automático de jobs antigos** | ✅ resolvido | `web/server.js`: novo `cron.schedule("0 4 * * *", ...)` que faz `DELETE FROM export_jobs WHERE criado_em < NOW() - INTERVAL '7 days'`. Reusa o `node-cron` já presente. |
 | 6 | **Ajustar pool de conexões da Lambda** | ✅ resolvido | `lambda/export-worker/index.js`: `max: 2` → `max: 1`. |
 
-### 📌 Pendências de deploy (ação humana, não-código)
-- `cd lambda/export-worker && npm run build && zip -r function.zip . -x '*.zip'`, depois `terraform import` (ver `terraform/README.md`) + `terraform apply`.
-- Definir `EXPORT_QUEUE_URL` no EB e na Lambda a partir do output `queue_url` do Terraform.
-- (Opcional) Aplicar o mesmo fix de SSL da task #2 em `web/server.js:58`.
+### 📌 Pendências de deploy — ❌ RESOLVIDAS (2026-06-26, opencode)
+- ✅ Lambda build e deploy de código (`aws lambda update-function-code`).
+- ✅ Terraform `init` → `import` (6 recursos) → `apply` — infra agora versionada.
+- ✅ `EXPORT_QUEUE_URL` já configurado no EB (`https://sqs.us-east-1.amazonaws.com/035351467585/araupo-prev-jobs`). Lambda não precisa (consome via event source mapping).
+- (Opcional) Corrigir `web/server.js:58`: `rejectUnauthorized: false` → `true`.
 
 ---
 
