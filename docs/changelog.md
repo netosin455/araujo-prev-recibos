@@ -2,6 +2,18 @@
 
 ---
 
+## [2026-06-26] — Correção de recibos duplicados (raiz + limpeza)
+
+### Corrigido
+- **Causa raiz da duplicação:** `sincronizarDeSheets()` (restauração da planilha quando o banco está vazio) inseria **todas** as linhas da planilha sem checar o número — se a planilha tinha linhas repetidas, duplicava no banco. Agora pula número já visto na planilha ou já existente, e não aborta o restore se uma linha falhar.
+- **Índice único de número criado** (`idx_recibos_num_unique` em `recibos(num) WHERE deletado_em IS NULL`). Ele nunca tinha sido criado (falhava porque já havia duplicatas). Agora **qualquer** caminho que tente inserir número repetido é bloqueado pelo banco — proteção universal.
+- **Limpeza:** 1.797 cópias duplicadas (de re-importação da planilha em 30/05 e 03/06) removidas via soft-delete, mantendo 1 de cada número. Backup completo em `backup_duplicatas_removidas.json` + relatório `duplicatas_recibos.csv`. Recibos ativos: 3.621 → 1.826.
+
+### Removido
+- **Cron de "auto-recibos mensais"** (`0 8 1 * *`) e o checkbox "Gerar recibos automáticos mensais" no cadastro de cliente — removidos a pedido do usuário. O cron referenciava colunas inexistentes (`clientes.auto_recibo`, `recibos.auto`), então estava quebrado/inerte, mas era um risco latente de duplicação. Não recriar sem aprovação explícita.
+
+---
+
 ## [2026-06-26] — Assinatura remota por link + "Não assinar agora" + bugfixes
 
 ### Adicionado
@@ -10,6 +22,16 @@
   - **Banco:** novas colunas em `recibos`: `assinatura_token`, `assinatura_status`, `assinatura_expira_em` (com `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` para tabelas já existentes) + índice único parcial em `assinatura_token`.
   - **Frontend painel:** botão "Enviar p/ assinar" no card e no modal de detalhe + badge "Assinado/Assinatura pendente" em cada card.
 - **"Não assinar agora":** botão na tela de assinatura do celular (`#btn-assinatura-pular`) que adia a assinatura — o recibo fica pendente e pode ser assinado depois pelo link remoto.
+- **Atualização automática do histórico:** enquanto a tela de histórico está aberta, o painel revê os recibos a cada 20s e ao voltar o foco à aba (ex.: depois de enviar o link no WhatsApp), re-renderizando só quando o status muda. Quando um recibo é assinado remotamente, o badge vira "Assinado" sozinho e aparece um aviso. (`atualizarHistoricoAuto` em `recibos.js`)
+- **`APP_URL`:** variável de ambiente que fixa o endereço público usado nos links de assinatura (`baseUrlDaRequisicao` em `server.js`). Sem ela, links gerados em `localhost` apontavam para `localhost` e não abriam no celular. Definida no `.env` e em `.ebextensions/03_env.config`.
+- **HTTPS via CloudFront:** o domínio `.elasticbeanstalk.com` é só HTTP, e celulares forçam HTTPS — por isso o link dava "não é possível acessar esse site" no celular (`ERR_CONNECTION_REFUSED` na porta 443). Criada distribuição CloudFront (`https://dmd9wnmdoejv4.cloudfront.net`) na frente do EB com HTTPS válido; `APP_URL` aponta para ela.
+
+### Melhorado
+- **Assinatura no documento não fica mais esticada:** a captura agora recorta a assinatura no traço real (remove o espaço vazio), mantém a proporção natural e usa fundo transparente (`recortarAssinatura` em `assinatura.js`; `capturarPNG` em `assinar.js`). Na renderização, o PDF (`abrirPDFRecibo`, via `getImageProperties`) e o DOCX (lê o tamanho real do PNG no IHDR) desenham mantendo a proporção, centralizado — inclusive assinaturas antigas deixam de aparecer esticadas.
+- **Linha-guia de assinatura:** os quadros de assinatura (celular e link remoto) agora mostram uma linha "✗ ____" indicando onde assinar. A guia é um elemento HTML/CSS sobreposto (não é desenhada no canvas), então **não entra na imagem** capturada da assinatura.
+- **Legenda "Assinado eletronicamente em \<data\>":** aparece em itálico discreto logo abaixo do nome/CPF, no PDF (`abrirPDFRecibo`) e no DOCX (`/api/gerar-recibo`), quando o recibo tem assinatura. A data vem de `assinatura_govbr.assinado_em` (passada também no payload de `reimprimirRecibo`).
+- **Qualidade do traço da assinatura:** o desenho agora usa curvas quadráticas (linha suave, sem cantos quebrados), traço de 3px, captura recortada em até 1000px e redução com `imageSmoothingQuality: "high"` — assinatura mais nítida e definida no documento. Em `assinatura.js` e `assinar.js`.
+- **Tela de assinatura no celular = tela do link remoto:** a assinatura on-device (`#tela-assinatura`, após gerar o recibo) foi reformulada para ficar idêntica à página pública `assinar.html` — card com dados do recibo (Nº, valor, data, CPF mascarado), confirmação de nome, quadro com linha-guia e a mesma declaração. `mostrarTelaAssinatura` agora recebe o recibo inteiro e devolve `{ imagem, nome_confirmado }`; o `PUT /api/recibos/:id/assinatura` grava o nome confirmado pelo cliente (não mais o usuário logado) com `metodo:"local"`.
 
 ### Corrigido
 - **Botão Excluir não funcionava:** `recibos.js` enviava `DELETE /api/recibos/undefined` ao usar `recibo.id` (vinha `undefined`); passou a usar `rid` (`recibo.id||recibo._id`).

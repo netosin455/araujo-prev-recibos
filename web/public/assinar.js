@@ -35,7 +35,7 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
     ctx.strokeStyle = "#1a1a1a";
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
   }
@@ -48,16 +48,20 @@
   function iniciar(e) {
     desenhando = true;
     var p = pos(e); ultimoX = p.x; ultimoY = p.y;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
     if (!temTraco) { temTraco = true; el("pad-hint").style.display = "none"; }
     e.preventDefault();
   }
   function mover(e) {
     if (!desenhando) return;
     var p = pos(e);
-    ctx.beginPath();
-    ctx.moveTo(ultimoX, ultimoY);
-    ctx.lineTo(p.x, p.y);
+    // Curva quadrática até o ponto médio = traço suave (sem cantos quebrados)
+    var midX = (ultimoX + p.x) / 2, midY = (ultimoY + p.y) / 2;
+    ctx.quadraticCurveTo(ultimoX, ultimoY, midX, midY);
     ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(midX, midY);
     ultimoX = p.x; ultimoY = p.y;
     e.preventDefault();
   }
@@ -78,16 +82,35 @@
     el("pad-hint").style.display = "flex";
   });
 
-  // Comprime a assinatura para no máximo 400x150 (PNG)
+  // Recorta a assinatura no traço real (tira o espaço vazio), mantém a proporção
+  // e fundo transparente — fica limpa e sem distorção no documento.
   function capturarPNG() {
-    var maxW = 400, maxH = 150;
-    var tmp = document.createElement("canvas");
-    tmp.width = maxW; tmp.height = maxH;
-    var tctx = tmp.getContext("2d");
-    tctx.fillStyle = "#fff";
-    tctx.fillRect(0, 0, maxW, maxH);
-    tctx.drawImage(canvas, 0, 0, maxW, maxH);
-    return tmp.toDataURL("image/png");
+    var w = canvas.width, h = canvas.height;
+    var d = ctx.getImageData(0, 0, w, h).data;
+    var minX = w, minY = h, maxX = 0, maxY = 0, achou = false;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (d[(y * w + x) * 4 + 3] > 10) {
+          achou = true;
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (!achou) return canvas.toDataURL("image/png");
+    var pad = Math.round(Math.max(w, h) * 0.04);
+    minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+    maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
+    var cw = maxX - minX + 1, ch = maxY - minY + 1;
+    var max = 1000, escala = Math.min(1, max / Math.max(cw, ch));
+    var out = document.createElement("canvas");
+    out.width = Math.round(cw * escala);
+    out.height = Math.round(ch * escala);
+    var octx = out.getContext("2d");
+    octx.imageSmoothingEnabled = true;
+    octx.imageSmoothingQuality = "high";
+    octx.drawImage(canvas, minX, minY, cw, ch, 0, 0, out.width, out.height);
+    return out.toDataURL("image/png");
   }
 
   // ── Envio ──────────────────────────────────────────────────

@@ -168,9 +168,9 @@ async function gerarRecibo(){
   // Assinatura digital
   if (_reciboGeradoId && window.innerWidth < 1024 && typeof mostrarTelaAssinatura === "function") {
     try {
-      const assDataUrl = await mostrarTelaAssinatura(dados.nome);
-      if (assDataUrl) {
-        const ok = await salvarAssinatura(_reciboGeradoId, assDataUrl);
+      const ass = await mostrarTelaAssinatura(dados);
+      if (ass) {
+        const ok = await salvarAssinatura(_reciboGeradoId, ass.imagem, ass.nome_confirmado);
         console.log("Assinatura salva:", ok);
       }
     } catch(e) {
@@ -400,6 +400,45 @@ function preencherFiltrosSalvos() {
   const btnDel = document.getElementById("btn-deletar-filtro-salvo");
   if (btnDel) btnDel.style.display = salvos.length ? "" : "none";
 }
+
+// ── ATUALIZAÇÃO AUTOMÁTICA DO HISTÓRICO ────────────────────
+// Enquanto a tela de histórico estiver aberta, revê os recibos a cada 20s e
+// ao voltar o foco à aba (ex.: depois de enviar o link no WhatsApp).
+// Só re-renderiza quando algo muda (status de assinatura ou nº de recibos),
+// pra não atrapalhar quem está mexendo na tela.
+let _atualizandoHistorico = false;
+
+function _snapshotAssinaturas() {
+  const assinados = historicoRecibos.filter(r => r.assinatura_govbr).map(r => r.id || r._id).sort().join(",");
+  return assinados + "|" + historicoRecibos.length;
+}
+
+async function atualizarHistoricoAuto() {
+  const tela = document.getElementById("screen-historico");
+  if (!tela || !tela.classList.contains("active")) return;
+  if (document.hidden || _atualizandoHistorico) return;
+  _atualizandoHistorico = true;
+  try {
+    const antes = _snapshotAssinaturas();
+    const assinadosAntes = antes.split("|")[0].split(",").filter(Boolean).length;
+    await carregarRecibos();
+    const depois = _snapshotAssinaturas();
+    if (antes !== depois) {
+      const assinadosDepois = depois.split("|")[0].split(",").filter(Boolean).length;
+      renderHistorico(true); // preserva a paginação atual
+      const novos = assinadosDepois - assinadosAntes;
+      if (novos > 0) mostrarToast(novos === 1 ? "1 recibo foi assinado!" : `${novos} recibos foram assinados!`, null, "success");
+    }
+  } catch (e) {
+    console.error("atualizarHistoricoAuto:", e);
+  } finally {
+    _atualizandoHistorico = false;
+  }
+}
+
+setInterval(atualizarHistoricoAuto, 20000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarHistoricoAuto(); });
+window.addEventListener("focus", atualizarHistoricoAuto);
 
 function renderHistorico(maisItens=false){
   if(!maisItens) _historicoVisiveis=50;
@@ -666,13 +705,22 @@ async function _gerarPDFRecibo(r, print=false){
   // Espaço generoso pra centralizar a assinatura do cliente na folha
   y += 55;
 
-  // Assinatura digital (imagem)
+  // Assinatura digital (imagem) — desenhada mantendo a proporção, centralizada.
   const assinatura = r.assinatura_govbr;
   if (assinatura && assinatura.imagem) {
     try {
-      doc.addImage(assinatura.imagem, "PNG", W/2-80, y-2, 160, 40);
-      y += 42;
-    } catch(e) {}
+      const maxW = 80, maxH = 32; // mm — caixa máxima da assinatura
+      let dw = maxW, dh = maxW / 2.6; // proporção padrão (caso não dê pra medir)
+      try {
+        const props = doc.getImageProperties(assinatura.imagem);
+        if (props && props.width && props.height) {
+          dh = (props.height / props.width) * maxW;
+          if (dh > maxH) { dh = maxH; dw = (props.width / props.height) * maxH; }
+        }
+      } catch(_) { /* jsPDF sem getImageProperties — usa proporção padrão */ }
+      doc.addImage(assinatura.imagem, "PNG", W/2 - dw/2, y - dh, dw, dh);
+      y += 4;
+    } catch(e) { console.error("assinatura PDF:", e); }
   }
 
   // Linha de assinatura do cliente — centralizada
@@ -684,6 +732,13 @@ async function _gerarPDFRecibo(r, print=false){
   y += 5;
   doc.setFontSize(9); doc.setFont("helvetica","normal");
   doc.text(`${labelDoc}: ${r.cpf}`,W/2,y,{align:"center"});
+  // Legenda de assinatura eletrônica
+  if (assinatura && assinatura.assinado_em) {
+    y += 5;
+    doc.setFontSize(7.5); doc.setFont("helvetica","italic"); doc.setTextColor(120,120,120);
+    doc.text(`Assinado eletronicamente em ${assinatura.assinado_em}`, W/2, y, {align:"center"});
+    doc.setTextColor(0,0,0); doc.setFont("helvetica","normal");
+  }
   // Espaço pro final da página
   y += 45;
 
@@ -728,7 +783,8 @@ async function reimprimirRecibo(r){
     num_recibo:r.num,nome:r.nome,cpf:r.cpf,municipio_uf:r.municipio_uf,
     valor:r.valor,data:r.data,data_extenso,emitido_por:r.emitido_por||"",
     complemento:r.complemento||"",referencia:r.referencia||"",
-    assinatura: r.assinatura_govbr?.imagem || ""
+    assinatura: r.assinatura_govbr?.imagem || "",
+    assinado_em: r.assinatura_govbr?.assinado_em || ""
   });
   if(!res||!res.ok){setStatus("Erro ao gerar.","error");return;}
   const blob=await res.blob();
@@ -775,9 +831,9 @@ function abrirDetalhe(r){
   if(btnAssinarCanvas) {
     btnAssinarCanvas.onclick = async () => {
       fecharModal("modal-detalhe");
-      const assDataUrl = await mostrarTelaAssinatura(r.nome);
-      if (assDataUrl) {
-        const ok = await salvarAssinatura(r._id || r.id, assDataUrl);
+      const ass = await mostrarTelaAssinatura(r);
+      if (ass) {
+        const ok = await salvarAssinatura(r._id || r.id, ass.imagem, ass.nome_confirmado);
         if (ok) {
           mostrarToast("Recibo assinado com sucesso!");
           carregarRecibos();

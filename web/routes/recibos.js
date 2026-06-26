@@ -196,11 +196,14 @@ module.exports = function registerReciboRoutes(app, deps) {
   // ── SALVAR ASSINATURA DIGITAL ──────────────────────────────
   app.put("/api/recibos/:id/assinatura", deps.auth, async (req, res) => {
     try {
-      const { assinatura } = req.body;
+      const { assinatura, nome_confirmado } = req.body;
       if (!assinatura || typeof assinatura !== "string" || !assinatura.startsWith("data:image/png;base64,")) {
         return res.status(400).json({ erro: "Assinatura inválida." });
       }
-      await deps.update(deps.dbRecibos, { _id: req.params.id }, { assinatura_govbr: { nome_assinante: req.user.username, assinado_em: new Date().toLocaleString("pt-BR"), imagem: assinatura } });
+      const nomeAssinante = (nome_confirmado && typeof nome_confirmado === "string" && nome_confirmado.trim())
+        ? nome_confirmado.trim().slice(0, 200)
+        : req.user.username;
+      await deps.update(deps.dbRecibos, { _id: req.params.id }, { assinatura_govbr: { metodo: "local", nome_assinante: nomeAssinante, assinado_em: new Date().toLocaleString("pt-BR"), imagem: assinatura }, assinatura_status: "assinado" });
       res.json({ ok: true });
     } catch (err) {
       console.error("Erro ao salvar assinatura:", err);
@@ -341,8 +344,20 @@ module.exports = function registerReciboRoutes(app, deps) {
       const logoPath = deps.path.join(__dirname, "public", "logo.png");
       const logoExists = deps.fs.existsSync(logoPath);
       let assinaturaBuffer = null;
+      let assinaturaTransform = { width: 160, height: 40 };
       if (dados.assinatura && typeof dados.assinatura === "string" && dados.assinatura.startsWith("data:image/png;base64,")) {
         assinaturaBuffer = Buffer.from(dados.assinatura.split(",")[1], "base64");
+        // Mantém a proporção real do PNG (largura/altura nos bytes 16-23 do IHDR),
+        // evitando que a assinatura fique esticada no documento.
+        if (assinaturaBuffer.length >= 24) {
+          const pw = assinaturaBuffer.readUInt32BE(16), ph = assinaturaBuffer.readUInt32BE(20);
+          if (pw > 0 && ph > 0) {
+            const maxW = 200, maxH = 80; // px
+            let dw = maxW, dh = (ph / pw) * maxW;
+            if (dh > maxH) { dh = maxH; dw = (pw / ph) * maxH; }
+            assinaturaTransform = { width: Math.round(dw), height: Math.round(dh) };
+          }
+        }
       }
 
       function p(text, opts = {}) {
@@ -351,6 +366,7 @@ module.exports = function registerReciboRoutes(app, deps) {
           spacing: { after: opts.spaceAfter ?? 80 },
           children: [new TextRun({
             text, bold: opts.bold || false,
+            italics: opts.italics || false,
             size: (opts.size || 11) * 2,
             color: opts.color || "000000",
             font: "Arial",
@@ -391,10 +407,11 @@ module.exports = function registerReciboRoutes(app, deps) {
         p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
         linha(),
         p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 3600 }),
-        ...(assinaturaBuffer ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 20 }, children: [new ImageRun({ data: assinaturaBuffer, transformation: { width: 160, height: 40 }, type: "png" })] })] : []),
+        ...(assinaturaBuffer ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 20 }, children: [new ImageRun({ data: assinaturaBuffer, transformation: assinaturaTransform, type: "png" })] })] : []),
         p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 40 }),
         p(dados.nome, { align: AlignmentType.CENTER, size: 10, spaceAfter: 20 }),
-        p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: 2800 }),
+        p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: (assinaturaBuffer && dados.assinado_em) ? 40 : 2800 }),
+        ...((assinaturaBuffer && dados.assinado_em) ? [p(`Assinado eletronicamente em ${dados.assinado_em}`, { align: AlignmentType.CENTER, size: 7, italics: true, color: "777777", spaceAfter: 2800 })] : []),
         p("________________________", { align: AlignmentType.LEFT, spaceAfter: 40 }),
         p(dados.emitido_por || "A ARAUJO PREV", { align: AlignmentType.LEFT, size: 10, spaceAfter: 0 }),
       );

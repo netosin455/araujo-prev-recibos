@@ -449,7 +449,8 @@ async function sincronizarDeSheets() {
     });
     const rows = res.data.values || [];
     if (rows.length === 0) return;
-    let importados = 0;
+    let importados = 0, ignorados = 0;
+    const numsVistos = new Set(); // evita duplicar números repetidos NA PRÓPRIA planilha
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const carimbo = row[0] || "";
@@ -474,10 +475,20 @@ async function sincronizarDeSheets() {
           if (!isNaN(t)) timestamp = t;
         }
       }
-      await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por, complemento: "", referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
-      importados++;
+      // Dedup: pula número repetido na planilha ou já existente no banco.
+      if (numsVistos.has(num)) { ignorados++; continue; }
+      numsVistos.add(num);
+      if (await findOne(dbRecibos, { num })) { ignorados++; continue; }
+      try {
+        await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por, complemento: "", referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
+        importados++;
+      } catch (errIns) {
+        // Índice único de num ou erro pontual — pula sem abortar o restore inteiro.
+        ignorados++;
+        console.warn(`sincronizarDeSheets: pulado num ${num}: ${errIns.message}`);
+      }
     }
-    console.log(`âœ… ${importados} recibos restaurados da planilha Google Sheets.`);
+    console.log(`âœ… ${importados} recibos restaurados da planilha Google Sheets (${ignorados} ignorados/duplicados).`);
   } catch (e) {
     console.error("âŒ Erro ao sincronizar recibos da planilha:", e.message);
   }
@@ -2726,40 +2737,9 @@ cron.schedule("0 8 * * *", async () => {
     console.error("[CRON] Erro na verificaÃ§Ã£o:", e.message);
   }
 }, { timezone: "America/Sao_Paulo" });
-// ---- CRON - AUTO-RECIBOS MENSAIS ------------------------------------
-cron.schedule("0 8 1 * *", async () => {
-  console.log(`[${new Date().toISOString()}] Cron auto-recibos disparado...`);
-  try {
-    const clientes = await find(dbClientes, { auto_recibo: true, ...NAO_DELETADO });
-    let gerados = 0;
-    for (const c of clientes) {
-      const enriquecido = await enriquecerCliente(c);
-      const valorRecibo = enriquecido.valor_parcela || enriquecido.valor_contrato || 0;
-      if (valorRecibo <= 0) continue;
-      const timestamp = Date.now();
-      const num = `${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}${String(gerados+1).padStart(3,"0")}`;
-      await insert(dbRecibos, {
-        num,
-        nome: enriquecido.nome,
-        cpf: enriquecido.cpf,
-        municipio_uf: enriquecido.municipio_uf || "",
-        valor: valorRecibo,
-        data: new Date().toLocaleDateString("pt-BR"),
-        emitido_por: "Sistema (auto)",
-        complemento: "Mensalidade automática",
-        referencia: enriquecido.referencia || "",
-        forma_pagamento: "",
-        escritorio: enriquecido.firma || "",
-        timestamp,
-        auto: true,
-      });
-      gerados++;
-    }
-    console.log(`[${new Date().toISOString()}] Auto-recibos: ${gerados} recibo(s) gerado(s).`);
-  } catch (e) {
-    console.error(`[${new Date().toISOString()}] Erro no auto-recibos:`, e.message);
-  }
-}, { timezone: "America/Sao_Paulo" });
+// ---- CRON - AUTO-RECIBOS MENSAIS: REMOVIDO ------------------------------------
+// Removido a pedido do usuário: gerava recibos automaticamente todo mês e era
+// fonte de duplicação/recibos indesejados. Não recriar sem aprovação explícita.
 
 
 
