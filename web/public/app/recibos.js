@@ -601,19 +601,50 @@ async function exportarZipSelecionados() {
   if (_selecionadosZip.size === 0) return;
   const btn = document.getElementById("btn-exportar-zip");
   const orig = btn.innerHTML;
+  const total = _selecionadosZip.size;
   btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Gerando...';
   try {
     const res = await api("POST", "/api/recibos/exportar-zip", { ids: [..._selecionadosZip] });
-    if (!res || res.status === 404) {
-      mostrarToast("Em breve â€” exportaÃ§Ã£o ZIP em desenvolvimento.", null, "error"); return;
+    if (!res || res.status === 404) { mostrarToast("Exportação indisponível no momento.", null, "error"); return; }
+    if (!res.ok && res.status !== 202) { mostrarToast("Erro ao iniciar a exportação.", null, "error"); return; }
+
+    // Fallback (fila não configurada): o servidor devolveu o ZIP direto.
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/zip")) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = `recibos_${new Date().toISOString().slice(0,10)}.zip`; a.click();
+      URL.revokeObjectURL(url);
+      mostrarToast(`${total} recibo(s) exportado(s)!`, null, "success");
+      return;
     }
-    if (!res.ok) { mostrarToast("Erro ao gerar ZIP.", null, "error"); return; }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url;
-    a.download = `recibos_${new Date().toISOString().slice(0,10)}.zip`; a.click();
-    URL.revokeObjectURL(url);
-    mostrarToast(`${_selecionadosZip.size} recibo(s) exportado(s) com sucesso!`, null, "success");
+
+    // Caminho assíncrono: recebe um jobId e acompanha o progresso.
+    const data = await res.json();
+    const jobId = data && data.jobId;
+    if (!jobId) { mostrarToast("Erro ao iniciar a exportação.", null, "error"); return; }
+    mostrarToast("Gerando o ZIP em segundo plano…", null, "success");
+
+    const inicio = Date.now();
+    while (Date.now() - inicio < 5 * 60 * 1000) { // até 5 min
+      await new Promise(r => setTimeout(r, 3000));
+      const st = await api("GET", `/api/recibos/exportar-zip/status/${jobId}`);
+      if (!st || !st.ok) continue;
+      const j = await st.json();
+      btn.innerHTML = `<i class="bi bi-hourglass-split"></i> Gerando ${j.prontos || 0}/${j.total || total}...`;
+      if (j.status === "pronto" && j.url) {
+        const a = document.createElement("a"); a.href = j.url; a.target = "_blank"; a.rel = "noopener";
+        document.body.appendChild(a); a.click(); a.remove();
+        mostrarToast("ZIP pronto! O download começou.", null, "success");
+        return;
+      }
+      if (j.status === "erro") { mostrarToast("Falha ao gerar o ZIP: " + (j.erro || ""), null, "error"); return; }
+    }
+    mostrarToast("A exportação está demorando mais que o normal. Tente de novo em instantes.", null, "error");
+  } catch (e) {
+    console.error("exportarZip:", e);
+    mostrarToast("Erro na exportação.", null, "error");
   } finally {
     btn.disabled = false; btn.innerHTML = orig;
   }

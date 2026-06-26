@@ -419,6 +419,23 @@ async function initDb() {
     )
   `);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_auditoria_ts ON auditoria (ts DESC)`);
+
+  // Jobs de exportação em lote (processados de forma assíncrona via SQS + Lambda)
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS export_jobs (
+      id         TEXT        PRIMARY KEY,
+      status     TEXT        NOT NULL DEFAULT 'fila',
+      total      INT         NOT NULL DEFAULT 0,
+      prontos    INT         NOT NULL DEFAULT 0,
+      formato    TEXT        NOT NULL DEFAULT 'pdf',
+      s3_key     TEXT,
+      url        TEXT,
+      erro       TEXT,
+      criado_por TEXT        NOT NULL DEFAULT '',
+      criado_em  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_export_jobs_criado ON export_jobs (criado_em DESC)`);
   console.log("âœ… Tabelas recibos, clientes e auditoria prontas.");
 
   // Auto-migraÃ§Ã£o NeDB â†’ Neon: roda uma Ãºnica vez se as tabelas estiverem vazias
@@ -702,6 +719,11 @@ const routeDeps = {
   s3Client, withTimeout, fetchWithTimeout,
   upload, crypto, fs, path,
   smtpConfigurado,
+  // Exportação assíncrona (SQS + Lambda) e geração de URL assinada de download
+  enviarJobExport: require("./services/fila").enviarJobExport,
+  filaExportConfigurada: require("./services/fila").filaConfigurada,
+  s3SignerClient, getSignedUrl, GetObjectCommand,
+  BUCKET_NAME: process.env.BUCKET_NAME,
   // transporter criado sob demanda (criarTransporter é hoisted)
   get transporter() { return criarTransporter(); },
 };

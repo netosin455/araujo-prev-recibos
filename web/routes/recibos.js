@@ -307,6 +307,19 @@ module.exports = function registerReciboRoutes(app, deps) {
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ erro: "Informe ao menos um ID." });
       if (ids.length > 100) return res.status(400).json({ erro: "Máximo de 100 recibos por exportação." });
 
+      // Caminho assíncrono: cria job, enfileira na SQS e responde na hora (Lambda gera o ZIP).
+      if (deps.filaExportConfigurada && deps.filaExportConfigurada()) {
+        const jobId = deps.crypto.randomBytes(12).toString("hex");
+        await deps.pgPool.query(
+          `INSERT INTO export_jobs (id, status, total, prontos, formato, criado_por) VALUES ($1,'fila',$2,0,'pdf',$3)`,
+          [jobId, ids.length, req.user.username]
+        );
+        await deps.enviarJobExport({ jobId, ids });
+        deps.registrarAuditoria(req, "exportar_zip", jobId, { total: ids.length });
+        return res.status(202).json({ jobId, status: "fila", total: ids.length });
+      }
+
+      // Fallback (fila não configurada): gera inline, como antes.
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", `attachment; filename="recibos_${Date.now()}.zip"`);
 
@@ -330,6 +343,24 @@ module.exports = function registerReciboRoutes(app, deps) {
     } catch (e) {
       console.error("Erro ao exportar ZIP:", e.message);
       if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar arquivo ZIP." });
+    }
+  });
+
+  // STATUS do job de exportação — gera a URL assinada de download quando pronto.
+  app.get("/api/recibos/exportar-zip/status/:jobId", deps.auth, deps.financeiroOnly, async (req, res) => {
+    try {
+      const { rows } = await deps.pgPool.query("SELECT * FROM export_jobs WHERE id=$1", [req.params.jobId]);
+      const job = rows[0];
+      if (!job) return res.status(404).json({ erro: "Job não encontrado." });
+      let url = null;
+      if (job.status === "pronto" && job.s3_key && deps.s3SignerClient) {
+        const cmd = new deps.GetObjectCommand({ Bucket: deps.BUCKET_NAME, Key: job.s3_key });
+        url = await deps.getSignedUrl(deps.s3SignerClient, cmd, { expiresIn: 24 * 3600 });
+      }
+      res.json({ status: job.status, prontos: job.prontos, total: job.total, url, erro: job.erro || null });
+    } catch (e) {
+      console.error("Erro no status da exportação:", e.message);
+      res.status(500).json({ erro: "Erro ao consultar status." });
     }
   });
 

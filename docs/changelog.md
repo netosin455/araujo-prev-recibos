@@ -2,6 +2,17 @@
 
 ---
 
+## [2026-06-26] — Exportação de ZIP em lote assíncrona (SQS + Lambda)
+
+### Adicionado
+- **Exportação em lote agora é assíncrona:** `POST /api/recibos/exportar-zip` deixou de gerar o ZIP dentro da requisição (que travava o servidor e arriscava timeout em lotes grandes). Agora cria um job em `export_jobs`, envia pra fila **SQS** (`araujo-prev-jobs`) e responde `202 { jobId }` na hora.
+- **Worker Lambda** (`lambda/export-worker/`, `araujo-prev-export-worker`): consome a fila, busca os recibos no Neon, gera os PDFs (reusa a lógica de `gerarBufferPDFRecibo`), monta o ZIP e sobe no S3 (`exports/<jobId>.zip`); marca o job como `pronto`. Retry automático (3x) + **DLQ** (`araujo-prev-jobs-dlq`) em caso de falha.
+- **Novo `GET /api/recibos/exportar-zip/status/:jobId`**: o app gera a URL assinada de download (via `s3SignerClient`) quando o job fica pronto.
+- **Frontend:** o botão de exportar vira "Gerando x/total…" com polling e dispara o download quando pronto (`exportarZipSelecionados` em `recibos.js`). Mantém fallback inline se a fila não estiver configurada (`EXPORT_QUEUE_URL`).
+- Infra (provisionada): fila SQS + DLQ, IAM (envio na role do EB, consumo/S3 na role do Lambda), event source mapping, e lifecycle do S3 apagando `exports/` após 7 dias. Tabela `export_jobs` no schema (`web/server.js`).
+
+---
+
 ## [2026-06-26] — Assinatura ancorada na linha + selo de validação
 
 ### Melhorado
