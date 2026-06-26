@@ -2,6 +2,22 @@
 
 ---
 
+## [2026-06-26] — Assinatura remota por link + "Não assinar agora" + bugfixes
+
+### Adicionado
+- **Assinatura remota por link:** o financeiro gera um link (`POST /api/recibos/:id/link-assinatura`) com token aleatório (`crypto.randomBytes(24)`, nunca o id do recibo) e envia ao cliente via WhatsApp (`wa.me`) ou "copiar link". O cliente assina de casa, sem login, em página pública `/assinar/:token` (`web/public/assinar.html` + `assinar.js`), conferindo nome/CPF antes de desenhar a assinatura.
+  - **Backend:** rotas públicas `GET/POST /api/assinatura/:token` (sem auth) — retornam apenas dados mínimos (CPF mascarado), validam expiração (7 dias) e uso único (bloqueio se já assinado), gravam `assinatura_govbr` com `metodo:"remoto"`, `ip` e timestamp.
+  - **Banco:** novas colunas em `recibos`: `assinatura_token`, `assinatura_status`, `assinatura_expira_em` (com `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` para tabelas já existentes) + índice único parcial em `assinatura_token`.
+  - **Frontend painel:** botão "Enviar p/ assinar" no card e no modal de detalhe + badge "Assinado/Assinatura pendente" em cada card.
+- **"Não assinar agora":** botão na tela de assinatura do celular (`#btn-assinatura-pular`) que adia a assinatura — o recibo fica pendente e pode ser assinado depois pelo link remoto.
+
+### Corrigido
+- **Botão Excluir não funcionava:** `recibos.js` enviava `DELETE /api/recibos/undefined` ao usar `recibo.id` (vinha `undefined`); passou a usar `rid` (`recibo.id||recibo._id`).
+- **Logout no celular:** o botão "Sair" do bottom nav (`bn-sair`) não tinha listener — adicionado em `rest.js`.
+- **Botão Ver:** `abrirPDFRecibo` falhava em silêncio (sem try/catch) e dependia de `window.open`, bloqueado no celular/WebView. Agora trata erro com toast e cai para download via `<a>` quando o popup é bloqueado.
+
+---
+
 ## [2026-06-14] — Agente 1/2 (Backend + Frontend): fix recepcao não conseguia salvar recibo
 
 ### Corrigido

@@ -358,15 +358,23 @@ async function initDb() {
       link_comprovante  TEXT        NOT NULL DEFAULT '',
       timestamp         BIGINT      NOT NULL DEFAULT 0,
       assinatura_govbr  JSONB,
+      assinatura_token  TEXT,
+      assinatura_status TEXT        NOT NULL DEFAULT 'pendente',
+      assinatura_expira_em TIMESTAMPTZ,
       historico_edicoes JSONB       NOT NULL DEFAULT '[]',
       deletado_em       TEXT,
       deletado_por      TEXT
     )
   `);
+  // Migração: assinatura remota por link (colunas adicionadas a tabelas já existentes)
+  await pgPool.query(`ALTER TABLE recibos ADD COLUMN IF NOT EXISTS assinatura_token TEXT`);
+  await pgPool.query(`ALTER TABLE recibos ADD COLUMN IF NOT EXISTS assinatura_status TEXT NOT NULL DEFAULT 'pendente'`);
+  await pgPool.query(`ALTER TABLE recibos ADD COLUMN IF NOT EXISTS assinatura_expira_em TIMESTAMPTZ`);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_cpf       ON recibos (cpf)`);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_num       ON recibos (num)`);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_recibos_timestamp ON recibos (timestamp DESC)`);
   await pgPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_recibos_num_unique ON recibos (num) WHERE deletado_em IS NULL`);
+  await pgPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_recibos_assinatura_token ON recibos (assinatura_token) WHERE assinatura_token IS NOT NULL`);
 
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS clientes (
@@ -2408,6 +2416,115 @@ app.get("/api/govbr/status/:id", auth, async (req, res) => {
     assinatura: recibo.assinatura_govbr || null,
     configurado: govbrConfigurado(),
   });
+});
+
+// ════════════════════════════════════════════════════════════
+// ASSINATURA REMOTA POR LINK
+// A moça da cobrança gera um link; o cliente assina de casa, sem login.
+// Segurança: o link usa um token aleatório (crypto.randomBytes), NUNCA o id
+// do recibo, pois o recibo contém dados sensíveis (CPF, valor, nome).
+// ════════════════════════════════════════════════════════════
+const ASSINATURA_LINK_TTL_DIAS = 7;
+
+function baseUrlDaRequisicao(req) {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, "");
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  return `${proto}://${req.get("host")}`;
+}
+
+// Gera (ou reaproveita) o link de assinatura — autenticado, papel financeiro
+app.post("/api/recibos/:id/link-assinatura", auth, financeiroOnly, async (req, res) => {
+  try {
+    const recibo = await findOne(dbRecibos, { _id: req.params.id });
+    if (!recibo || recibo.deletado_em) return res.status(404).json({ erro: "Recibo não encontrado." });
+    if (recibo.assinatura_govbr) return res.status(409).json({ erro: "Este recibo já está assinado." });
+
+    const agora = Date.now();
+    const expiraAtual = recibo.assinatura_expira_em ? new Date(recibo.assinatura_expira_em).getTime() : 0;
+    let token = recibo.assinatura_token;
+    // Reusa o token se ainda válido; senão gera um novo.
+    if (!token || expiraAtual < agora) {
+      token = crypto.randomBytes(24).toString("hex");
+      const expira = new Date(agora + ASSINATURA_LINK_TTL_DIAS * 24 * 60 * 60 * 1000);
+      await update(dbRecibos, { _id: recibo._id }, {
+        assinatura_token: token,
+        assinatura_status: "pendente",
+        assinatura_expira_em: expira.toISOString(),
+      });
+    }
+    registrarAuditoria(req, "gerar_link_assinatura", recibo._id, { num: recibo.num, nome: recibo.nome });
+    res.json({ url: `${baseUrlDaRequisicao(req)}/assinar/${token}`, token });
+  } catch (e) {
+    console.error("Erro ao gerar link de assinatura:", e);
+    res.status(500).json({ erro: "Erro ao gerar link de assinatura." });
+  }
+});
+
+// Busca recibo por token — helper interno
+async function buscarReciboPorToken(token) {
+  if (!token || !/^[a-f0-9]{48}$/.test(token)) return { erro: "invalido" };
+  const recibo = await findOne(dbRecibos, { assinatura_token: token });
+  if (!recibo || recibo.deletado_em) return { erro: "invalido" };
+  if (recibo.assinatura_expira_em && new Date(recibo.assinatura_expira_em).getTime() < Date.now()) {
+    return { erro: "expirado" };
+  }
+  return { recibo };
+}
+
+// PÚBLICO — dados mínimos do recibo para a tela de assinatura (sem auth)
+app.get("/api/assinatura/:token", async (req, res) => {
+  const { recibo, erro } = await buscarReciboPorToken(req.params.token);
+  if (erro === "expirado") return res.status(410).json({ erro: "Este link de assinatura expirou." });
+  if (erro) return res.status(404).json({ erro: "Link inválido ou não encontrado." });
+  res.json({
+    num: recibo.num,
+    nome: recibo.nome,
+    cpf_mascarado: maskCPF(recibo.cpf),
+    valor: recibo.valor,
+    data: recibo.data,
+    ja_assinado: !!recibo.assinatura_govbr,
+  });
+});
+
+// PÚBLICO — salva a assinatura desenhada pelo cliente (sem auth)
+app.post("/api/assinatura/:token", async (req, res) => {
+  try {
+    const { recibo, erro } = await buscarReciboPorToken(req.params.token);
+    if (erro === "expirado") return res.status(410).json({ erro: "Este link de assinatura expirou." });
+    if (erro) return res.status(404).json({ erro: "Link inválido ou não encontrado." });
+    if (recibo.assinatura_govbr) return res.status(409).json({ erro: "Este recibo já foi assinado." });
+
+    const { assinatura, nome_confirmado, cpf_confirmado } = req.body || {};
+    if (!assinatura || typeof assinatura !== "string" || !assinatura.startsWith("data:image/png;base64,")) {
+      return res.status(400).json({ erro: "Assinatura inválida." });
+    }
+    if (assinatura.length > 600000) {
+      return res.status(413).json({ erro: "Assinatura muito grande." });
+    }
+    const agora = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+    await update(dbRecibos, { _id: recibo._id }, {
+      assinatura_govbr: {
+        metodo: "remoto",
+        nome_assinante: (nome_confirmado || recibo.nome || "").toString().slice(0, 200),
+        cpf_assinante: (cpf_confirmado || recibo.cpf || "").toString().slice(0, 20),
+        assinado_em: agora.toLocaleString("pt-BR"),
+        ip,
+        imagem: assinatura,
+      },
+      assinatura_status: "assinado",
+    });
+    console.log(`[${new Date().toISOString()}] ✅ Recibo ${recibo._id} (Nº ${recibo.num}) assinado remotamente. IP: ${ip}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro ao salvar assinatura remota:", e);
+    res.status(500).json({ erro: "Erro ao registrar assinatura." });
+  }
+});
+
+// PÚBLICO — serve a página de assinatura (sem auth, sem cookies)
+app.get("/assinar/:token", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "assinar.html"));
 });
 
 // â”€â”€ WEBHOOK â€” RECIBO GERADO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -250,6 +250,33 @@ async function enviarReciboEmail() {
   }
 }
 
+// Gera o link de assinatura remota e oferece WhatsApp + copiar.
+async function enviarLinkAssinatura(recibo) {
+  const rid = recibo.id || recibo._id;
+  const res = await api("POST", `/api/recibos/${rid}/link-assinatura`);
+  if (!res || !res.ok) {
+    let msg = "Não foi possível gerar o link de assinatura.";
+    if (res) { try { const d = await res.json(); if (d.erro) msg = d.erro; } catch (_) {} }
+    mostrarToast(msg, null, "error");
+    return;
+  }
+  const { url } = await res.json();
+  // Copia o link para a área de transferência
+  try { await navigator.clipboard.writeText(url); mostrarToast("Link de assinatura copiado!"); }
+  catch (_) { mostrarToast("Link gerado. Copie no console se necessário."); console.log("Link de assinatura:", url); }
+  // Se o cliente tiver telefone cadastrado, abre o WhatsApp já com a mensagem
+  const cpfDigits = (recibo.cpf || "").replace(/\D/g, "");
+  const cli = (typeof listaClientes !== "undefined")
+    ? listaClientes.find(c => (c.cpf || "").replace(/\D/g, "") === cpfDigits) : null;
+  const telDigits = (cli && cli.telefone ? cli.telefone : "").replace(/\D/g, "");
+  if (telDigits.length >= 10) {
+    const msg = `Olá ${recibo.nome}, para assinar seu recibo nº ${recibo.num} (R$ ${recibo.valor}), acesse o link: ${url}`;
+    window.open(`https://wa.me/55${telDigits}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+  } else {
+    mostrarToast("Link copiado! Cole no WhatsApp do cliente.", null, "success");
+  }
+}
+
 function enviarWhatsAppRecibo() {
   if (!_lastReciboGerado) return;
   const tel = _lastReciboGerado.tel || "";
@@ -424,6 +451,7 @@ function renderHistorico(maisItens=false){
   const listaVis = lista.slice(0, _historicoVisiveis);
   listaVis.forEach(recibo=>{
     const rid = recibo.id || recibo._id;
+    const assinado = !!recibo.assinatura_govbr;
     const item=document.createElement("div");
     item.className="recibo-item";
     item.style.position="relative";
@@ -436,10 +464,14 @@ function renderHistorico(maisItens=false){
         <div class="recibo-nome">${esc(recibo.nome)}</div>
         <div class="recibo-valor">R$ ${esc(recibo.valor)}</div>
         <div class="recibo-meta">${esc(recibo.data)} Â· ${esc(recibo.municipio_uf)} Â· ${esc(recibo.emitido_por||"N/A")}${recibo.referencia?" Â· Ref: "+esc(recibo.referencia):""}</div>
+        ${assinado
+          ? `<span style="display:inline-block;margin-top:5px;font-size:10px;font-weight:700;color:var(--success);background:rgba(61,122,94,.12);padding:2px 9px;border-radius:10px"><i class="bi bi-check-circle-fill"></i> Assinado</span>`
+          : `<span style="display:inline-block;margin-top:5px;font-size:10px;font-weight:700;color:var(--muted);background:rgba(133,127,115,.12);padding:2px 9px;border-radius:10px"><i class="bi bi-clock"></i> Assinatura pendente</span>`}
       </div>
       <div class="recibo-actions">
         <button class="btn-secondary btn-sm" data-action="detalhe">Detalhes</button>
         <button class="btn-gold btn-sm" data-action="ver"><i class="bi bi-eye"></i> Ver</button>
+        ${roleLogado!=="recepcao" && !assinado?`<button class="btn-secondary btn-sm" data-action="enviar-assinatura"><i class="bi bi-pen"></i> Enviar p/ assinar</button>`:""}
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="editar">Editar</button>`:""}
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="duplicar">Duplicar</button>`:""}
         ${roleLogado!=="recepcao"?`<button class="btn-secondary btn-sm" data-action="recorrente"><i class="bi bi-arrow-repeat"></i> Recorrente</button>`:""}
@@ -455,10 +487,11 @@ function renderHistorico(maisItens=false){
         if(btn.dataset.action==="duplicar") duplicarRecibo(recibo);
         if(btn.dataset.action==="recorrente") preencherReciboRecorrente(recibo);
         if(btn.dataset.action==="reimprimir") reimprimirRecibo(recibo);
+        if(btn.dataset.action==="enviar-assinatura") enviarLinkAssinatura(recibo);
         if(btn.dataset.action==="upload-comp") abrirModalUploadComprovante(recibo.id||recibo._id);
         if(btn.dataset.action==="excluir"){
           if(!confirm(`Excluir recibo ${recibo.num}?`)) return;
-          await api("DELETE",`/api/recibos/${recibo.id}`);
+          await api("DELETE",`/api/recibos/${rid}`);
           await carregarRecibos();
           renderHistorico();
         }
@@ -548,6 +581,15 @@ async function exportarZipSelecionados() {
 }
 
 async function abrirPDFRecibo(r, print=false){
+  try {
+    await _gerarPDFRecibo(r, print);
+  } catch(e) {
+    console.error("Erro ao gerar/abrir PDF do recibo:", e);
+    mostrarToast("Não foi possível abrir o recibo. Tente novamente.", null, "error");
+  }
+}
+
+async function _gerarPDFRecibo(r, print=false){
   await garantirJSPDF();
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
@@ -661,7 +703,20 @@ async function abrirPDFRecibo(r, print=false){
   if (print) doc.autoPrint();
   const blob=doc.output("blob");
   const url=URL.createObjectURL(blob);
-  window.open(url,"_blank");
+  // window.open costuma ser bloqueado no celular / WebView do Capacitor.
+  // Se falhar, cai para download via <a> para o recibo nunca "sumir".
+  const win=window.open(url,"_blank");
+  if(!win){
+    const a=document.createElement("a");
+    a.href=url;
+    a.target="_blank";
+    a.rel="noopener";
+    a.download=`recibo_${(r.num||"").replace("/","-")}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(()=>URL.revokeObjectURL(url), 60000);
 }
 
 async function reimprimirRecibo(r){
@@ -705,6 +760,7 @@ function abrirDetalhe(r){
       <button class="btn-secondary" id="btn-imprimir-modal"><i class="bi bi-printer"></i> Imprimir</button>
       <button class="btn-primary" id="btn-reimprimir-modal"><i class="bi bi-download"></i> Baixar .docx</button>
       ${!r.assinatura_govbr?.imagem && window.innerWidth < 1024 ? `<button class="btn-gold" id="btn-assinar-canvas-modal"><i class="bi bi-pen"></i> Assinar Agora</button>` : ""}
+      ${roleLogado!=="recepcao" && !r.assinatura_govbr ? `<button class="btn-secondary" id="btn-enviar-assinatura-modal"><i class="bi bi-send"></i> Enviar p/ assinar</button>` : ""}
       ${roleLogado!=="recepcao"?`<button class="btn-secondary" id="btn-recorrente-modal"><i class="bi bi-arrow-repeat"></i> Recorrente</button>`:""}
     </div>`;
   document.getElementById("btn-ver-modal").onclick=()=>{ abrirPDFRecibo(r); fecharModal("modal-detalhe"); };
@@ -712,6 +768,8 @@ function abrirDetalhe(r){
   document.getElementById("btn-reimprimir-modal").onclick=()=>{ reimprimirRecibo(r); fecharModal("modal-detalhe"); };
   const btnRec = document.getElementById("btn-recorrente-modal");
   if (btnRec) btnRec.onclick = () => { fecharModal("modal-detalhe"); preencherReciboRecorrente(r); };
+  const btnEnvAss = document.getElementById("btn-enviar-assinatura-modal");
+  if (btnEnvAss) btnEnvAss.onclick = () => { fecharModal("modal-detalhe"); enviarLinkAssinatura(r); };
   // BotÃ£o de assinatura canvas â€” mobile e desktop
   const btnAssinarCanvas = document.getElementById("btn-assinar-canvas-modal");
   if(btnAssinarCanvas) {

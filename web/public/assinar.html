@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Assinatura de Recibo — A ARAUJO PREV</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --gold:#b8973a;--gold-light:#d4af5a;--gold-pale:#f5edd6;
+      --dark:#1a1a1a;--muted:#857f73;--border:#e7e1d6;--bg:#f4f0ea;--card:#ffffff;
+      --success:#3d7a5e;--error:#8b2e2e;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--dark);min-height:100vh;
+      display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:16px;font-size:14px}
+    .wrap{width:100%;max-width:560px}
+    .logo{display:block;margin:8px auto 4px;max-width:180px;height:auto}
+    .firm{text-align:center;font-family:'Cormorant Garamond',serif;color:var(--gold);font-size:18px;font-weight:700;letter-spacing:.5px;margin-bottom:14px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.05);margin-bottom:14px}
+    .titulo{font-size:16px;font-weight:700;margin:0 0 4px}
+    .sub{color:var(--muted);font-size:12px;margin:0 0 14px}
+    .linha{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:13px}
+    .linha:last-child{border-bottom:none}
+    .linha .rot{color:var(--muted)}
+    .linha .val{font-weight:600;text-align:right}
+    .valor{color:var(--success);font-weight:700}
+    label{display:block;font-size:10px;font-weight:600;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px}
+    input[type=text]{width:100%;padding:12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;background:#fff}
+    input[type=text]:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,151,58,.15)}
+    .canvas-wrap{position:relative;width:100%;height:200px;border:2px dashed var(--gold);border-radius:10px;background:#fff;margin-top:6px;touch-action:none;overflow:hidden}
+    #pad{width:100%;height:100%;display:block;cursor:crosshair}
+    .canvas-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c9c2b4;font-size:13px;pointer-events:none}
+    .acoes{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+    button{font-family:inherit;border:none;border-radius:8px;padding:14px 16px;font-size:14px;font-weight:700;cursor:pointer;flex:1}
+    .btn-limpar{background:#efe9dd;color:var(--dark)}
+    .btn-confirmar{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a1a1a}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .check{display:flex;align-items:flex-start;gap:10px;margin-top:16px;font-size:13px;color:var(--dark)}
+    .check input{width:20px;height:20px;margin-top:1px;flex-shrink:0}
+    .estado{text-align:center;padding:30px 16px}
+    .estado .icone{font-size:46px;margin-bottom:10px}
+    .estado h2{font-size:18px;margin:0 0 6px}
+    .estado p{color:var(--muted);margin:0;font-size:13px}
+    .ok{color:var(--success)}
+    .err{color:var(--error)}
+    .hide{display:none!important}
+    .erro-msg{color:var(--error);font-size:12px;margin-top:8px;min-height:16px}
+    .rodape{text-align:center;color:var(--muted);font-size:11px;margin:6px 0 24px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img src="/logo.png" alt="A ARAUJO PREV" class="logo" id="logo-img">
+
+    <!-- CARREGANDO -->
+    <div id="estado-carregando" class="card estado">
+      <div class="icone">⏳</div>
+      <p>Carregando recibo…</p>
+    </div>
+
+    <!-- ERRO / EXPIRADO -->
+    <div id="estado-erro" class="card estado hide">
+      <div class="icone err">⚠️</div>
+      <h2 id="erro-titulo">Link inválido</h2>
+      <p id="erro-texto">Este link de assinatura não é válido ou já expirou.</p>
+    </div>
+
+    <!-- JÁ ASSINADO -->
+    <div id="estado-assinado" class="card estado hide">
+      <div class="icone ok">✅</div>
+      <h2 class="ok">Recibo já assinado</h2>
+      <p>Este recibo já foi assinado. Não é necessário assinar novamente.</p>
+    </div>
+
+    <!-- SUCESSO -->
+    <div id="estado-sucesso" class="card estado hide">
+      <div class="icone ok">✅</div>
+      <h2 class="ok">Assinatura registrada!</h2>
+      <p>Obrigado. Sua assinatura foi registrada com sucesso. Você já pode fechar esta página.</p>
+    </div>
+
+    <!-- FORMULÁRIO -->
+    <div id="estado-form" class="hide">
+      <div class="card">
+        <h1 class="titulo">Assinatura de Recibo</h1>
+        <p class="sub">Confira os dados abaixo e assine no quadro.</p>
+        <div class="linha"><span class="rot">Recibo Nº</span><span class="val" id="f-num">—</span></div>
+        <div class="linha"><span class="rot">Valor</span><span class="val valor" id="f-valor">—</span></div>
+        <div class="linha"><span class="rot">Data</span><span class="val" id="f-data">—</span></div>
+        <div class="linha"><span class="rot">CPF/CNPJ</span><span class="val" id="f-cpf">—</span></div>
+
+        <label for="f-nome">Confirme seu nome completo</label>
+        <input type="text" id="f-nome" autocomplete="name" placeholder="Seu nome completo">
+
+        <label>Sua assinatura</label>
+        <div class="canvas-wrap">
+          <canvas id="pad"></canvas>
+          <div class="canvas-hint" id="pad-hint">Assine aqui com o dedo</div>
+        </div>
+
+        <div class="acoes">
+          <button type="button" class="btn-limpar" id="btn-limpar">Limpar</button>
+          <button type="button" class="btn-confirmar" id="btn-confirmar">Confirmar e assinar</button>
+        </div>
+
+        <label class="check">
+          <input type="checkbox" id="f-aceite">
+          <span>Declaro que sou a pessoa identificada acima e que li e concordo com o conteúdo deste recibo.</span>
+        </label>
+        <div class="erro-msg" id="form-erro"></div>
+      </div>
+    </div>
+
+    <div class="rodape">A ARAUJO PREV — Assinatura digital</div>
+  </div>
+
+  <script src="/assinar.js"></script>
+</body>
+</html>

@@ -63,6 +63,17 @@ function initAssinaturaCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
+  // "Não assinar agora" — fecha a tela sem salvar; recibo fica pendente
+  // e pode ser assinado depois pelo link remoto.
+  const btnPular = document.getElementById("btn-assinatura-pular");
+  if (btnPular) btnPular.onclick = () => {
+    const tela = document.getElementById("tela-assinatura");
+    tela.classList.remove("active");
+    tela.style.display = "none";
+    if (_assinaturaResolve) _assinaturaResolve(null);
+    _assinaturaResolve = null;
+  };
+
   document.getElementById("btn-assinatura-confirmar").onclick = () => {
     // Redimensiona pra no mÃ¡ximo 400x150 pra comprimir
     const maxW = 400, maxH = 150;

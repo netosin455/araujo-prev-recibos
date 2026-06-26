@@ -818,6 +818,7 @@ function bindStaticHandlers() {
   document.getElementById("bn-clientes").addEventListener("click", () => navegarPara("clientes"));
   document.getElementById("bn-admin").addEventListener("click", () => navegarPara("admin"));
   document.getElementById("bn-usuarios").addEventListener("click", () => navegarPara("usuarios"));
+  document.getElementById("bn-sair").addEventListener("click", fazerLogout);
 
   // Central de NotificaÃ§Ãµes
   document.getElementById("btn-notificacoes").addEventListener("click", toggleNotifDropdown);
