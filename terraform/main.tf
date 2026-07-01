@@ -91,6 +91,13 @@ resource "aws_lambda_function" "export_worker" {
       # AWS_REGION é injetada automaticamente pelo runtime da Lambda (chave reservada — não definir).
     }
   }
+
+  depends_on = [aws_cloudwatch_log_group.export_worker]
+}
+
+resource "aws_cloudwatch_log_group" "export_worker" {
+  name              = "/aws/lambda/${var.lambda_function_name}"
+  retention_in_days = 7
 }
 
 resource "aws_lambda_event_source_mapping" "sqs_to_lambda" {

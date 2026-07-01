@@ -33,6 +33,7 @@ const multer = require("multer");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const cookieParser = require("cookie-parser");
+const logger = require("./services/logger");
 const archiver = require("archiver");
 const nodemailer = require("nodemailer");
 const cron = require("node-cron");
@@ -45,17 +46,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error("âŒ ERRO: Defina a variÃ¡vel de ambiente JWT_SECRET antes de iniciar.");
+  logger.error("âŒ ERRO: Defina a variÃ¡vel de ambiente JWT_SECRET antes de iniciar.");
   process.exit(1);
 }
 
 // â”€â”€ NEON (PostgreSQL) â€” usuÃ¡rios â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error("âŒ ERRO: Defina a variÃ¡vel de ambiente DATABASE_URL (Neon) antes de iniciar.");
+  logger.error("âŒ ERRO: Defina a variÃ¡vel de ambiente DATABASE_URL (Neon) antes de iniciar.");
   process.exit(1);
 }
-const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: true } });
 
 // MÃ³dulos
 const db = require("./services/database")(pgPool);
@@ -84,9 +85,14 @@ const s3SignerClient = (process.env.S3_SIGNER_KEY_ID && process.env.S3_SIGNER_SE
     })
   : s3Client; // fallback para instance profile se env vars nÃ£o estiverem definidas
 
+const MIME_AUDIT = new Set(["image/jpeg","image/png","image/webp","image/gif","application/pdf","application/xml","text/xml"]);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (MIME_AUDIT.has(file.mimetype)) return cb(null, true);
+    cb(new Error("Tipo de arquivo não permitido. Use JPEG, PNG, WebP, GIF, PDF ou XML."));
+  },
 });
 
 // Neon (PostgreSQL) â€” dados principais
@@ -103,7 +109,7 @@ const NAO_DELETADO = { deletado_em: { $exists: false } };
 const ADMIN_USER = process.env.ADMIN_USER;
 const ADMIN_PASS = process.env.ADMIN_PASS;
 if (!ADMIN_USER || !ADMIN_PASS) {
-  console.error("âŒ ERRO: Defina as variÃ¡veis de ambiente ADMIN_USER e ADMIN_PASS antes de iniciar.");
+  logger.error("âŒ ERRO: Defina as variÃ¡veis de ambiente ADMIN_USER e ADMIN_PASS antes de iniciar.");
   process.exit(1);
 }
 
@@ -138,7 +144,7 @@ async function sincronizarUsuariosParaSheets() {
         requestBody: { values: valores },
       });
     }
-    console.log(`âœ… ${valores.length} usuÃ¡rio(s) sincronizados para o Sheets.`);
+    logger.info(`âœ… ${valores.length} usuÃ¡rio(s) sincronizados para o Sheets.`);
   } catch (e) {
     // Aba pode nÃ£o existir ainda â€” tenta criar
     if (e.message && e.message.includes("Unable to parse range")) {
@@ -150,10 +156,10 @@ async function sincronizarUsuariosParaSheets() {
         });
         await sincronizarUsuariosParaSheets();
       } catch (e2) {
-        console.error("âŒ Erro ao criar aba Usuarios:", e2.message);
+        logger.error("âŒ Erro ao criar aba Usuarios:", e2.message);
       }
     } else {
-      console.error("âŒ Erro ao sincronizar usuÃ¡rios para Sheets:", e.message);
+      logger.error("âŒ Erro ao sincronizar usuÃ¡rios para Sheets:", e.message);
     }
   }
 }
@@ -183,13 +189,13 @@ async function restaurarUsuariosDeSheets() {
       `, [username, placeholderHash, role || "financeiro", escritorio || "", created_at || new Date().toISOString()]);
       if (result.rowCount > 0) {
         restaurados++;
-        console.warn(`âš ï¸  UsuÃ¡rio '${username}' restaurado sem senha â€” admin deve redefinir via painel.`);
+        logger.warn(`âš ï¸  UsuÃ¡rio '${username}' restaurado sem senha â€” admin deve redefinir via painel.`);
       }
     }
-    console.log(`âœ… ${restaurados} usuÃ¡rio(s) restaurados do Sheets para o Neon.`);
+    logger.info(`âœ… ${restaurados} usuÃ¡rio(s) restaurados do Sheets para o Neon.`);
     return restaurados;
   } catch (e) {
-    console.error("âŒ Erro ao restaurar usuÃ¡rios do Sheets:", e.message);
+    logger.error("âŒ Erro ao restaurar usuÃ¡rios do Sheets:", e.message);
     return 0;
   }
 }
@@ -213,7 +219,7 @@ async function autoMigrarNedb() {
   const { rows: [{ n }] } = await pgPool.query("SELECT COUNT(*) AS n FROM recibos");
   if (parseInt(n) > 0) return; // jÃ¡ tem dados no Neon, pula
 
-  console.log("ðŸ”„ Auto-migraÃ§Ã£o NeDB â†’ Neon iniciada...");
+  logger.info("ðŸ”„ Auto-migraÃ§Ã£o NeDB â†’ Neon iniciada...");
   let ok = 0, err = 0;
 
   for (const r of recibosDb) {
@@ -232,7 +238,7 @@ async function autoMigrarNedb() {
       ok++;
     } catch { err++; }
   }
-  console.log(`  âœ… Recibos: ${ok} migrados, ${err} erros`);
+  logger.info(`  âœ… Recibos: ${ok} migrados, ${err} erros`);
 
   ok = 0; err = 0;
   for (const c of lerDb("clientes")) {
@@ -254,7 +260,7 @@ async function autoMigrarNedb() {
       ok++;
     } catch { err++; }
   }
-  console.log(`  âœ… Clientes: ${ok} migrados, ${err} erros`);
+  logger.info(`  âœ… Clientes: ${ok} migrados, ${err} erros`);
 
   ok = 0; err = 0;
   for (const a of lerDb("auditoria")) {
@@ -266,8 +272,8 @@ async function autoMigrarNedb() {
       ok++;
     } catch { err++; }
   }
-  console.log(`  âœ… Auditoria: ${ok} migrados, ${err} erros`);
-  console.log("ðŸŽ‰ Auto-migraÃ§Ã£o concluÃ­da!");
+  logger.info(`  âœ… Auditoria: ${ok} migrados, ${err} erros`);
+  logger.info("ðŸŽ‰ Auto-migraÃ§Ã£o concluÃ­da!");
 }
 
 // â”€â”€ INICIALIZAÃ‡ÃƒO DO BANCO DE USUÃRIOS (Neon) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -306,7 +312,7 @@ async function initDb() {
   `);
   // Limpeza de states expirados ao iniciar
   await pgPool.query(`DELETE FROM govbr_states WHERE expira_em < NOW()`);
-  console.log("âœ… Tabela govbr_states pronta.");
+  logger.info("âœ… Tabela govbr_states pronta.");
 
   // Admin: sempre atualiza senha/role para refletir env vars (conta de sistema)
   const adminHash = bcrypt.hashSync(ADMIN_PASS, 10);
@@ -315,7 +321,7 @@ async function initDb() {
     VALUES (gen_random_uuid()::text, $1, $2, 'admin', $3)
     ON CONFLICT (username) DO UPDATE SET password = $2, role = 'admin'
   `, [ADMIN_USER, adminHash, new Date().toISOString()]);
-  console.log("âœ… UsuÃ¡rio admin configurado (Neon).");
+  logger.info("âœ… UsuÃ¡rio admin configurado (Neon).");
 
   // UsuÃ¡rios extras via USERS_JSON â€” sÃ³ cria se nÃ£o existir, nunca sobrescreve
   // Isso garante que senhas alteradas pelo painel nÃ£o sejam resetadas no deploy
@@ -331,11 +337,11 @@ async function initDb() {
           ON CONFLICT (username) DO NOTHING
         `, [u.username, hash, u.role || "financeiro", u.escritorio || "", new Date().toISOString()]);
         if (result.rowCount > 0) {
-          console.log(`âœ… UsuÃ¡rio ${u.username} criado via USERS_JSON.`);
+          logger.info(`âœ… UsuÃ¡rio ${u.username} criado via USERS_JSON.`);
         }
       }
     } catch (e) {
-      console.error("âŒ Erro ao processar USERS_JSON:", e.message);
+      logger.error("âŒ Erro ao processar USERS_JSON:", e.message);
     }
   }
 
@@ -406,6 +412,7 @@ async function initDb() {
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_clientes_cpf  ON clientes (cpf)`);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_clientes_nome ON clientes (nome)`);
   await pgPool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS auto_recibo BOOLEAN NOT NULL DEFAULT false`);
+  await pgPool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS valor_entrada NUMERIC(12,2) NOT NULL DEFAULT 0`);
 
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS auditoria (
@@ -436,7 +443,7 @@ async function initDb() {
     )
   `);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_export_jobs_criado ON export_jobs (criado_em DESC)`);
-  console.log("âœ… Tabelas recibos, clientes e auditoria prontas.");
+  logger.info("âœ… Tabelas recibos, clientes e auditoria prontas.");
 
   // Auto-migraÃ§Ã£o NeDB â†’ Neon: roda uma Ãºnica vez se as tabelas estiverem vazias
   await autoMigrarNedb();
@@ -446,9 +453,9 @@ async function initDb() {
     "SELECT COUNT(*) AS total FROM users WHERE username != $1", [ADMIN_USER]
   );
   const totalNaoAdmin = parseInt(countRows[0].total, 10);
-  console.log(`â„¹ï¸  UsuÃ¡rios no banco Neon (exceto admin): ${totalNaoAdmin}`);
+  logger.info(`â„¹ï¸  UsuÃ¡rios no banco Neon (exceto admin): ${totalNaoAdmin}`);
   if (totalNaoAdmin === 0) {
-    console.log("âš ï¸  Banco vazio â€” tentando restaurar usuÃ¡rios do Sheets...");
+    logger.info("âš ï¸  Banco vazio â€” tentando restaurar usuÃ¡rios do Sheets...");
     await restaurarUsuariosDeSheets();
   }
 }
@@ -502,17 +509,17 @@ async function sincronizarDeSheets() {
       } catch (errIns) {
         // Índice único de num ou erro pontual — pula sem abortar o restore inteiro.
         ignorados++;
-        console.warn(`sincronizarDeSheets: pulado num ${num}: ${errIns.message}`);
+        logger.warn(`sincronizarDeSheets: pulado num ${num}: ${errIns.message}`);
       }
     }
-    console.log(`âœ… ${importados} recibos restaurados da planilha Google Sheets (${ignorados} ignorados/duplicados).`);
+    logger.info(`âœ… ${importados} recibos restaurados da planilha Google Sheets (${ignorados} ignorados/duplicados).`);
   } catch (e) {
-    console.error("âŒ Erro ao sincronizar recibos da planilha:", e.message);
+    logger.error("âŒ Erro ao sincronizar recibos da planilha:", e.message);
   }
 }
 testarConexaoSheets();
 sincronizarDeSheets();
-initDb().catch(e => console.error("âŒ Erro ao inicializar Neon:", e.message));
+initDb().catch(e => logger.error("âŒ Erro ao inicializar Neon:", e.message));
 
 // Sincroniza links de comprovante da planilha para recibos existentes no banco
 async function sincronizarComprovantes() {
@@ -542,9 +549,9 @@ async function sincronizarComprovantes() {
       await update(dbRecibos, { _id: recibo._id }, { link_comprovante: link });
       atualizados++;
     }
-    if (atualizados > 0) console.log(`âœ… ${atualizados} comprovantes sincronizados da planilha.`);
+    if (atualizados > 0) logger.info(`âœ… ${atualizados} comprovantes sincronizados da planilha.`);
   } catch (e) {
-    console.error("âŒ Erro ao sincronizar comprovantes:", e.message);
+    logger.error("âŒ Erro ao sincronizar comprovantes:", e.message);
   }
 }
 sincronizarComprovantes();
@@ -570,9 +577,9 @@ async function normalizarDados() {
         corrigidos++;
       }
     }
-    if (corrigidos > 0) console.log(`âœ… ${corrigidos} registros normalizados (nome/CPF).`);
+    if (corrigidos > 0) logger.info(`âœ… ${corrigidos} registros normalizados (nome/CPF).`);
   } catch (e) {
-    console.error("âŒ Erro ao normalizar dados:", e.message);
+    logger.error("âŒ Erro ao normalizar dados:", e.message);
   }
 }
 normalizarDados();
@@ -599,9 +606,9 @@ async function unificarNomesPorCPF() {
         corrigidos++;
       }
     }
-    if (corrigidos > 0) console.log(`âœ… ${corrigidos} registros com nome unificado por CPF.`);
+    if (corrigidos > 0) logger.info(`âœ… ${corrigidos} registros com nome unificado por CPF.`);
   } catch (e) {
-    console.error("âŒ Erro ao unificar nomes por CPF:", e.message);
+    logger.error("âŒ Erro ao unificar nomes por CPF:", e.message);
   }
 }
 unificarNomesPorCPF();
@@ -627,14 +634,15 @@ async function corrigirLinksComprovante() {
         corrigidos++;
       }
     }
-    if (corrigidos > 0) console.log(`âœ… ${corrigidos} links de comprovante corrigidos.`);
+    if (corrigidos > 0) logger.info(`âœ… ${corrigidos} links de comprovante corrigidos.`);
   } catch (e) {
-    console.error("âŒ Erro ao corrigir links de comprovante:", e.message);
+    logger.error("âŒ Erro ao corrigir links de comprovante:", e.message);
   }
 }
 corrigirLinksComprovante();
 
 // â”€â”€ MIDDLEWARE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.disable("x-powered-by");
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
@@ -650,12 +658,17 @@ app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "no-referrer");
+  // HSTS — browser sÃ³ acessa via HTTPS pelos prÃ³ximos 6 meses
+  if (req.headers["x-forwarded-proto"] === "https") {
+    res.setHeader("Strict-Transport-Security", "max-age=15768000; includeSubDomains");
+  }
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   res.setHeader("Content-Security-Policy",
     "default-src 'self'; " +
     "script-src 'self'; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
-    "img-src 'self' data: blob: https:; " +
+    "img-src 'self' data: blob:; " +
     "connect-src 'self'; " +
     "frame-src https://drive.google.com blob:;"
   );
@@ -695,7 +708,7 @@ async function registrarAuditoria(req, acao, entidade_id, dados) {
       dados: dados || {},
     });
   } catch (e) {
-    console.error(`âŒ Auditoria falhou (${acao}):`, e.message);
+    logger.error(`âŒ Auditoria falhou (${acao}):`, e.message);
   }
 }
 
@@ -707,10 +720,19 @@ const loginLimiter = rateLimit({
   message: { erro: "Muitas tentativas de login. Aguarde 15 minutos." },
 });
 
+// Limiter genérico para mutações (POST / PUT / DELETE)
+const mutationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erro: "Muitas requisições. Aguarde 15 minutos." },
+});
+
 // â”€â”€ MONTAGEM DAS ROTAS MODULARIZADAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const routeDeps = {
   auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios,
-  pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter,
+  pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter, mutationLimiter,
   dbClientes, dbRecibos, dbAuditoria, dbNotificacoes, dbConfig,
   NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited,
   enriquecerCliente, registrarAuditoria, maskCPF,
@@ -727,21 +749,32 @@ const routeDeps = {
   // transporter criado sob demanda (criarTransporter é hoisted)
   get transporter() { return criarTransporter(); },
 };
+// Rate limiter global para mutações (exceto login, que tem limiter próprio mais restrito)
+app.use((req, res, next) => {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method) && !req.path.startsWith("/api/login")) {
+    return mutationLimiter(req, res, next);
+  }
+  next();
+});
+
 require("./routes/auth")(app, routeDeps);
 require("./routes/clientes")(app, routeDeps);
 require("./routes/admin")(app, routeDeps);
 require("./routes/misc")(app, routeDeps);
 require("./routes/recibos")(app, routeDeps);
 
-
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./swagger");
+app.use("/api-docs", auth, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // â”€â”€ ROTAS CLIENTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function parseBRL(str) {
   return parseFloat(String(str || "0").replace(/\./g, "").replace(",", ".")) || 0;
 }
 
-function gerarParcelas(numParcelas, valorContrato) {
-  const valorParcela = numParcelas > 0 ? valorContrato / numParcelas : 0;
+function gerarParcelas(numParcelas, valorContrato, valorEntrada = 0) {
+  const base = valorContrato - valorEntrada;
+  const valorParcela = numParcelas > 0 ? base / numParcelas : 0;
   const hoje = new Date();
   const diaVencto = String(hoje.getDate()).padStart(2, "0");
   return Array.from({ length: numParcelas }, (_, i) => {
@@ -838,15 +871,17 @@ function inicializarParcelasLegado(c) {
 
 async function enriquecerCliente(c) {
   const cliente = inicializarParcelasLegado(c);
-  const valorParcela = cliente.num_parcelas > 0 ? cliente.valor_contrato / cliente.num_parcelas : 0;
-  const hoje = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const vEntrada = Number(cliente.valor_entrada) || 0;
+  const base = cliente.valor_contrato - vEntrada;
+  const valorParcela = cliente.num_parcelas > 0 ? base / cliente.num_parcelas : 0;
+  const hoje = new Date().toISOString().slice(0, 10);
   const parcelas = (cliente.parcelas || []).map(p => {
     if (p.status === "pendente" && p.data_vencimento && p.data_vencimento < hoje) {
       return { ...p, status: "atrasado" };
     }
     return p;
   });
-  return { ...cliente, parcelas, id: cliente._id, valor_parcela: valorParcela };
+  return { ...cliente, parcelas, id: cliente._id, valor_parcela: valorParcela, valor_entrada: vEntrada };
 }
 
 app.get("/api/clientes", auth, async (req, res) => {
@@ -891,7 +926,7 @@ app.get("/api/relatorios/inadimplencia", auth, semRecepcao, async (req, res) => 
     relatorio.sort((a, b) => b.valor_em_aberto - a.valor_em_aberto);
     res.json({ total_inadimplentes: relatorio.length, relatorio });
   } catch (e) {
-    console.error("Erro ao gerar relatÃ³rio de inadimplÃªncia:", e.message);
+    logger.error("Erro ao gerar relatÃ³rio de inadimplÃªncia:", e.message);
     res.status(500).json({ erro: "Erro ao gerar relatÃ³rio." });
   }
 });
@@ -925,7 +960,7 @@ app.get("/api/relatorios/projecao", auth, semRecepcao, async (req, res) => {
     const resultado = Object.entries(mapa).map(([mes, valor]) => ({ mes, valor: Math.round(valor * 100) / 100 }));
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar projeÃ§Ã£o:", e.message);
+    logger.error("Erro ao gerar projeÃ§Ã£o:", e.message);
     res.status(500).json({ erro: "Erro ao gerar projeÃ§Ã£o." });
   }
 });
@@ -953,7 +988,7 @@ app.get("/api/relatorios/por-escritorio", auth, semRecepcao, async (req, res) =>
       .sort((a, b) => b.receita - a.receita);
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar relatÃ³rio por escritÃ³rio:", e.message);
+    logger.error("Erro ao gerar relatÃ³rio por escritÃ³rio:", e.message);
     res.status(500).json({ erro: "Erro ao gerar relatÃ³rio." });
   }
 });
@@ -1003,7 +1038,7 @@ app.get("/api/relatorios/resumo-mes", auth, async (req, res) => {
       delta_clientes:          delta(clientesAnterior, clientesMes),
     });
   } catch (e) {
-    console.error("Erro ao gerar resumo-mes:", e.message);
+    logger.error("Erro ao gerar resumo-mes:", e.message);
     res.status(500).json({ erro: "Erro ao gerar resumo do mÃªs." });
   }
 });
@@ -1033,7 +1068,7 @@ app.get("/api/relatorios/por-responsavel", auth, semRecepcao, async (req, res) =
       .sort((a, b) => b.receita_total - a.receita_total);
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar relatÃ³rio por responsÃ¡vel:", e.message);
+    logger.error("Erro ao gerar relatÃ³rio por responsÃ¡vel:", e.message);
     res.status(500).json({ erro: "Erro ao gerar relatÃ³rio." });
   }
 });
@@ -1065,7 +1100,7 @@ app.get("/api/relatorios/formas-pagamento", auth, semRecepcao, async (req, res) 
       .sort((a, b) => b.receita - a.receita);
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar relatÃ³rio de formas de pagamento:", e.message);
+    logger.error("Erro ao gerar relatÃ³rio de formas de pagamento:", e.message);
     res.status(500).json({ erro: "Erro ao gerar relatÃ³rio." });
   }
 });
@@ -1097,7 +1132,7 @@ app.get("/api/relatorios/comparativo-anos", auth, semRecepcao, async (req, res) 
       }));
     res.json(resultado);
   } catch (e) {
-    console.error("Erro ao gerar comparativo-anos:", e.message);
+    logger.error("Erro ao gerar comparativo-anos:", e.message);
     res.status(500).json({ erro: "Erro ao gerar comparativo de anos." });
   }
 });
@@ -1139,7 +1174,7 @@ app.get("/api/relatorios/dre", auth, semRecepcao, async (req, res) => {
     });
     res.json({ ano, meses, total_ano: Math.round(acumulado * 100) / 100 });
   } catch (e) {
-    console.error("Erro ao gerar DRE:", e.message);
+    logger.error("Erro ao gerar DRE:", e.message);
     res.status(500).json({ erro: "Erro ao gerar DRE." });
   }
 });
@@ -1156,14 +1191,14 @@ app.get("/api/admin/backup-db", auth, adminOnly, async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="backup_db_${ts}.zip"`);
 
     const archive = archiver("zip", { zlib: { level: 9 } });
-    archive.on("error", e => { console.error("Erro backup ZIP:", e.message); });
+    archive.on("error", e => { logger.error("Erro backup ZIP:", e.message); });
     archive.pipe(res);
     for (const f of arquivos) {
       archive.file(path.join(dbDir, f), { name: f });
     }
     await archive.finalize();
   } catch (e) {
-    console.error("Erro ao gerar backup:", e.message);
+    logger.error("Erro ao gerar backup:", e.message);
     if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar backup." });
   }
 });
@@ -1182,161 +1217,13 @@ app.get("/api/admin/audit-log", auth, adminOnly, async (req, res) => {
     const { rows } = await pgPool.query(sql, params);
     res.json(rows.map(r => ({ ...r, _id: r.id })));
   } catch (e) {
-    console.error("Erro ao buscar audit-log:", e.message);
+    logger.error("Erro ao buscar audit-log:", e.message);
     res.status(500).json({ erro: "Erro ao buscar log de auditoria." });
   }
 });
 
-// â”€â”€ GERAR DOCUMENTO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.post("/api/gerar-recibo", auth, async (req, res) => {
-  try {
-    const dados = req.body;
-    const digits = dados.cpf.replace(/\D/g, "");
-    const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
-    const complemento = dados.complemento ? ` - ${dados.complemento}` : "";
 
-    const logoPath = path.join(__dirname, "public", "logo.png");
-    const logoExists = fs.existsSync(logoPath);
 
-    function p(text, opts = {}) {
-      return new Paragraph({
-        alignment: opts.align || AlignmentType.LEFT,
-        spacing: { after: opts.spaceAfter ?? 80 },
-        children: [new TextRun({
-          text, bold: opts.bold || false,
-          size: (opts.size || 11) * 2,
-          color: opts.color || "000000",
-          font: "Arial",
-        })],
-      });
-    }
-
-    function linha() {
-      return new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 80 },
-        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" } },
-        children: [],
-      });
-    }
-
-    const textoCorpo = `Recebemos do (a) senhor (a) ${dados.nome}, residente e domiciliado(a) no MunicÃ­pio de ${dados.municipio_uf}, a importÃ¢ncia de R$ ${dados.valor} referentes aos honorÃ¡rios advocatÃ­cios relacionados Ã  AÃ§Ã£o PrevidenciÃ¡ria${complemento}.`;
-
-    const children = [];
-
-    if (logoExists) {
-      children.push(new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 60 },
-        children: [new ImageRun({ data: fs.readFileSync(logoPath), transformation: { width: 200, height: 76 }, type: "png" })],
-      }));
-    }
-
-    const semBorda = { top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" } };
-
-    children.push(
-      p("A ARAUJO SERVIÃ‡OS LTDA ME", { align: AlignmentType.CENTER, bold: true, size: 14, color: "1E40AF", spaceAfter: 40 }),
-      p("A ARAUJO PREV", { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 40 }),
-      linha(),
-      p(`Recibo NÂº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 20 }),
-      p("RECIBO DE HONORÃRIOS ADVOCATÃCIOS", { align: AlignmentType.CENTER, bold: true, size: 14, spaceAfter: 80 }),
-      p(textoCorpo, { align: AlignmentType.JUSTIFIED, spaceAfter: 60 }),
-      p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
-      linha(),
-      p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 3600 }),
-      // Assinatura do cliente â€” centro
-      p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 40 }),
-      p(dados.nome, { align: AlignmentType.CENTER, size: 10, spaceAfter: 20 }),
-      p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: 2800 }),
-      // Assinatura do emissor â€” esquerda
-      p("________________________", { align: AlignmentType.LEFT, spaceAfter: 40 }),
-      p(dados.emitido_por || "A ARAUJO PREV", { align: AlignmentType.LEFT, size: 10, spaceAfter: 0 }),
-    );
-
-    if (logoExists) {
-      children.push(
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 240, after: 0 }, children: [new ImageRun({ data: fs.readFileSync(logoPath), transformation: { width: 180, height: 68 }, type: "png" })] }),
-      );
-    }
-
-    const doc = new Document({
-      sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children }],
-    });
-
-    const nomeBase = `recibo_${dados.num_recibo.replace(/[\/\\]/g, "-")}_${dados.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").toLowerCase()}`;
-
-    if (dados.formato === "pdf") {
-      // â”€â”€ Gerar PDF â”€â”€
-      const chunks = [];
-      const pdf = new PDFDocument({ margin: 60, size: "A4" });
-      pdf.on("data", c => chunks.push(c));
-      await new Promise((resolve, reject) => {
-        pdf.on("end", resolve);
-        pdf.on("error", reject);
-
-        // Logo
-        if (logoExists) {
-          pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
-        }
-
-        pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
-          .text("A ARAUJO SERVIÃ‡OS LTDA ME", { align: "center" }).moveDown(0.2);
-        pdf.fontSize(12).fillColor("#000000")
-          .text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
-
-        // Linha separadora
-        const lx = pdf.page.margins.left;
-        const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
-        pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
-
-        pdf.fontSize(12).font("Helvetica-Bold")
-          .text(`Recibo NÂº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
-        pdf.fontSize(14).text("RECIBO DE HONORÃRIOS ADVOCATÃCIOS", { align: "center" }).moveDown(0.8);
-
-        pdf.fontSize(11).font("Helvetica")
-          .text(textoCorpo, { align: "justify" }).moveDown(0.6);
-        pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
-
-        pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
-
-        pdf.text(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: "left" }).moveDown(6);
-
-        // Assinatura cliente â€” centro
-        const cx = pdf.page.width / 2;
-        pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
-        pdf.fontSize(10).text(dados.nome, { align: "center" }).moveDown(0.1);
-        pdf.fontSize(9).text(`${labelDoc}: ${dados.cpf}`, { align: "center" }).moveDown(5);
-
-        // Assinatura emissor â€” esquerda
-        pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
-        pdf.fontSize(10).text(dados.emitido_por || "A ARAUJO PREV", { align: "left" });
-
-        // Logo rodapÃ©
-        if (logoExists) {
-          pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
-        }
-
-        pdf.end();
-      });
-
-      const pdfBuf = Buffer.concat(chunks);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.pdf"`);
-      res.send(pdfBuf);
-    } else {
-      // â”€â”€ Gerar DOCX (padrÃ£o) â”€â”€
-      const buf = await Packer.toBuffer(doc);
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.docx"`);
-      res.send(buf);
-    }
-  } catch (e) {
-    console.error("Erro ao gerar recibo:", e.message);
-    res.status(500).json({ erro: "Erro ao gerar documento." });
-  }
-});
-
-// â”€â”€ ROTAS USUÃRIOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/users", auth, adminOnly, async (req, res) => {
   const { rows } = await pgPool.query("SELECT id, username, role, escritorio, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC");
   res.json(rows);
@@ -1356,7 +1243,7 @@ app.post("/api/users", auth, adminOnly, async (req, res) => {
       [username, hash, role || "financeiro", escritorio || "", new Date().toISOString()]
     );
     registrarAuditoria(req, "criar_usuario", rows[0].id, { username, role: role || "financeiro" });
-    sincronizarUsuariosParaSheets().catch(e => console.error("âŒ Sync Sheets falhou:", e.message));
+    sincronizarUsuariosParaSheets().catch(e => logger.error("âŒ Sync Sheets falhou:", e.message));
     res.json({ id: rows[0].id, username });
   } catch (e) {
     if (e.code === "23505") return res.status(400).json({ erro: "UsuÃ¡rio jÃ¡ existe" });
@@ -1383,7 +1270,7 @@ app.put("/api/users/:id", auth, adminOnly, async (req, res) => {
       [username, role || "financeiro", escritorio || "", req.params.id]
     );
   }
-  sincronizarUsuariosParaSheets().catch(e => console.error("âŒ Sync Sheets falhou:", e.message));
+  sincronizarUsuariosParaSheets().catch(e => logger.error("âŒ Sync Sheets falhou:", e.message));
   res.json({ ok: true });
 });
 
@@ -1393,7 +1280,7 @@ app.delete("/api/users/:id", auth, adminOnly, async (req, res) => {
   if (rows[0].username === ADMIN_USER) return res.status(400).json({ erro: "NÃ£o Ã© possÃ­vel remover o admin." });
   await pgPool.query("UPDATE users SET deleted_at=NOW() WHERE id=$1", [req.params.id]);
   registrarAuditoria(req, "excluir_usuario", req.params.id, { username: rows[0].username });
-  sincronizarUsuariosParaSheets().catch(e => console.error("âŒ Sync Sheets falhou:", e.message));
+  sincronizarUsuariosParaSheets().catch(e => logger.error("âŒ Sync Sheets falhou:", e.message));
   res.json({ ok: true });
 });
 
@@ -1465,14 +1352,14 @@ app.post("/api/admin/sync-sheets", auth, adminOnly, async (req, res) => {
     });
 
     const rangeEscrito = appendResult.data.updates?.updatedRange || "desconhecido";
-    console.log(`âœ… Sync forÃ§ado: ${linhas.length} recibo(s) escritos no range ${rangeEscrito}.`);
+    logger.info(`âœ… Sync forÃ§ado: ${linhas.length} recibo(s) escritos no range ${rangeEscrito}.`);
     res.json({
       ok: true,
       enviados: linhas.length,
       mensagem: `${linhas.length} recibo(s) adicionados. Total no banco: ${todos.length}. Na planilha antes: ${naPlilha.size}. Escrito em: ${rangeEscrito}.`
     });
   } catch (e) {
-    console.error("âŒ Erro no sync forÃ§ado para Sheets:", e.message);
+    logger.error("âŒ Erro no sync forÃ§ado para Sheets:", e.message);
     res.status(500).json({ erro: "Erro ao sincronizar planilha." });
   }
 });
@@ -1527,10 +1414,10 @@ app.post("/api/admin/limpar-duplicatas", auth, adminOnly, async (req, res) => {
       requestBody: { requests },
     });
 
-    console.log(`âœ… Limpeza: ${toDelete.length} linha(s) duplicada(s) removida(s).`);
+    logger.info(`âœ… Limpeza: ${toDelete.length} linha(s) duplicada(s) removida(s).`);
     res.json({ ok: true, removidas: toDelete.length, mensagem: `${toDelete.length} linha(s) duplicada(s) removida(s) com sucesso.` });
   } catch (e) {
-    console.error("âŒ Erro ao limpar duplicatas:", e.message);
+    logger.error("âŒ Erro ao limpar duplicatas:", e.message);
     res.status(500).json({ erro: "Erro ao limpar duplicatas." });
   }
 });
@@ -1580,10 +1467,10 @@ app.post("/api/admin/importar-de-sheets", auth, adminOnly, async (req, res) => {
       await insert(dbRecibos, { num, nome, cpf, municipio_uf: "", valor, data, emitido_por, complemento: "", referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante, timestamp });
       importados++;
     }
-    console.log(`âœ… ImportaÃ§Ã£o da planilha: ${importados} novo(s), ${ignorados} jÃ¡ existiam.`);
+    logger.info(`âœ… ImportaÃ§Ã£o da planilha: ${importados} novo(s), ${ignorados} jÃ¡ existiam.`);
     res.json({ ok: true, importados, ignorados, mensagem: `${importados} recibo(s) importado(s) da planilha. ${ignorados} jÃ¡ existiam no banco.` });
   } catch (e) {
-    console.error("âŒ Erro ao importar da planilha:", e.message);
+    logger.error("âŒ Erro ao importar da planilha:", e.message);
     res.status(500).json({ erro: "Erro ao importar da planilha." });
   }
 });
@@ -1628,7 +1515,7 @@ app.post("/api/admin/importar-bulk", auth, adminOnly, async (req, res) => {
     }
   }
 
-  console.log(`âœ… importar-bulk: ${importados} importados, ${ignorados} ignorados, ${erros.length} erros`);
+  logger.info(`âœ… importar-bulk: ${importados} importados, ${ignorados} ignorados, ${erros.length} erros`);
   res.json({ ok: true, importados, ignorados, erros: erros.slice(0, 10),
     mensagem: `${importados} registro(s) importado(s). ${ignorados} jÃ¡ existiam. Execute "Reescrever planilha" para sincronizar.` });
 });
@@ -1714,10 +1601,10 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
       requestBody: { values: linhas },
     });
 
-    console.log(`âœ… Planilha reescrita: ${linhas.length} recibo(s) do banco.`);
+    logger.info(`âœ… Planilha reescrita: ${linhas.length} recibo(s) do banco.`);
     res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco.` });
   } catch (e) {
-    console.error("âŒ Erro ao reescrever planilha:", e.message);
+    logger.error("âŒ Erro ao reescrever planilha:", e.message);
     res.status(500).json({ erro: "Erro ao reescrever planilha.", detalhe: e.message });
   }
 });
@@ -1829,10 +1716,10 @@ app.post("/api/admin/normalizar-escritorios", auth, adminOnly, async (req, res) 
         atualizados++;
       }
     }
-    console.log(`âœ… Dados normalizados: ${atualizados} recibo(s)`);
+    logger.info(`âœ… Dados normalizados: ${atualizados} recibo(s)`);
     res.json({ ok: true, atualizados, total: todos.length });
   } catch (e) {
-    console.error("âŒ Erro ao normalizar:", e.message);
+    logger.error("âŒ Erro ao normalizar:", e.message);
     res.status(500).json({ erro: "Erro ao normalizar.", detalhe: e.message });
   }
 });
@@ -1897,10 +1784,10 @@ app.post("/api/admin/importar-clientes-dos-recibos", auth, financeiroOnly, async
       importados++;
     }
 
-    console.log(`[${new Date().toISOString()}] âœ… Importar clientes dos recibos: ${importados} importados, ${ignorados} jÃ¡ existiam`);
+    logger.info(`âœ… Importar clientes dos recibos: ${importados} importados, ${ignorados} jÃ¡ existiam`);
     res.json({ ok: true, importados, ignorados });
   } catch (e) {
-    console.error("âŒ Erro ao importar clientes dos recibos:", e.message);
+    logger.error("âŒ Erro ao importar clientes dos recibos:", e.message);
     res.status(500).json({ erro: "Erro ao importar clientes.", detalhe: e.message });
   }
 });
@@ -1970,10 +1857,10 @@ app.post("/api/admin/corrigir-datas", auth, adminOnly, async (req, res) => {
       requestBody: { valueInputOption: "USER_ENTERED", data },
     });
 
-    console.log(`âœ… Datas corrigidas em ${updates.length} linha(s).`);
+    logger.info(`âœ… Datas corrigidas em ${updates.length} linha(s).`);
     res.json({ ok: true, corrigidas: updates.length, mensagem: `Datas corrigidas em ${updates.length} linha(s) da planilha.` });
   } catch (e) {
-    console.error("âŒ Erro ao corrigir datas:", e.message);
+    logger.error("âŒ Erro ao corrigir datas:", e.message);
     res.status(500).json({ erro: "Erro ao corrigir datas." });
   }
 });
@@ -2007,7 +1894,7 @@ function criarTransporter() {
 
 async function enviarEmail({ to, subject, html, attachments = [] }) {
   if (!smtpConfigurado()) {
-    console.warn("âš ï¸  SMTP nÃ£o configurado â€” e-mail nÃ£o enviado.");
+    logger.warn("âš ï¸  SMTP nÃ£o configurado â€” e-mail nÃ£o enviado.");
     return false;
   }
   const transporter = criarTransporter();
@@ -2019,10 +1906,10 @@ async function enviarEmail({ to, subject, html, attachments = [] }) {
       html,
       attachments,
     });
-    console.log(`âœ… E-mail enviado para ${to} â€” messageId: ${info.messageId}`);
+    logger.info(`âœ… E-mail enviado para ${to} â€” messageId: ${info.messageId}`);
     return true;
   } catch (e) {
-    console.error(`âŒ Falha ao enviar e-mail para ${to}: ${e.message}`);
+    logger.error(`âŒ Falha ao enviar e-mail para ${to}: ${e.message}`);
     return false;
   }
 }
@@ -2037,7 +1924,7 @@ function carregarTemplate(nome, variaveis = {}) {
     }
     return html;
   } catch (e) {
-    console.error(`âŒ Erro ao carregar template ${nome}: ${e.message}`);
+    logger.error(`âŒ Erro ao carregar template ${nome}: ${e.message}`);
     return null;
   }
 }
@@ -2094,7 +1981,7 @@ app.get("/api/notificacoes", auth, async (req, res) => {
     const naoLidas = notificacoes.filter(n => !n.lido).length;
     res.json({ notificacoes: notificacoes.slice(0, 50), naoLidas });
   } catch (err) {
-    console.error("Erro ao buscar notificaÃ§Ãµes:", err);
+    logger.error("Erro ao buscar notificaÃ§Ãµes:", err);
     res.status(500).json({ erro: "Erro ao buscar notificaÃ§Ãµes" });
   }
 });
@@ -2194,10 +2081,10 @@ app.post("/api/notificacoes/email-inadimplencia", auth, financeiroOnly, async (r
 
     if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configuraÃ§Ãµes SMTP." });
 
-    console.log(`[${new Date().toISOString()}] E-mail de inadimplÃªncia enviado por ${req.user.username} â€” ${inadimplentes.length} clientes`);
+    logger.info(`E-mail de inadimplÃªncia enviado por ${req.user.username} â€” ${inadimplentes.length} clientes`);
     res.json({ ok: true, inadimplentes: inadimplentes.length, destinatario: adminEmail });
   } catch (e) {
-    console.error("âŒ Erro ao gerar relatÃ³rio de inadimplÃªncia por e-mail:", e.message);
+    logger.error("âŒ Erro ao gerar relatÃ³rio de inadimplÃªncia por e-mail:", e.message);
     res.status(500).json({ erro: "Erro interno ao processar relatÃ³rio." });
   }
 });
@@ -2288,10 +2175,10 @@ app.post("/api/notificacoes/enviar-recibo-email", auth, financeiroOnly, async (r
 
     if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configuraÃ§Ãµes SMTP." });
 
-    console.log(`[${new Date().toISOString()}] Recibo ${numRecibo} enviado por e-mail para ${emailDest} por ${req.user.username}`);
+    logger.info(`Recibo ${numRecibo} enviado por e-mail para ${emailDest} por ${req.user.username}`);
     res.json({ ok: true, destinatario: emailDest });
   } catch (e) {
-    console.error("âŒ Erro ao enviar recibo por e-mail:", e.message);
+    logger.error("âŒ Erro ao enviar recibo por e-mail:", e.message);
     res.status(500).json({ erro: "Erro interno ao processar envio." });
   }
 });
@@ -2324,6 +2211,7 @@ function govbrConfigurado() {
 // Gera state aleatÃ³rio para seguranÃ§a OAuth2
 function gerarState() {
   return require("crypto").randomBytes(16).toString("hex");
+
 }
 
 // States OAuth Gov.br persistidos no Neon (SEC-012 â€” sem Map em memÃ³ria)
@@ -2355,7 +2243,7 @@ app.get("/api/govbr/iniciar", auth, async (req, res) => {
 
     res.json({ url: `${GOVBR_BASE_URL}/authorize?${params.toString()}` });
   } catch (e) {
-    console.error("Erro ao iniciar Gov.br:", e.message);
+    logger.error("Erro ao iniciar Gov.br:", e.message);
     res.status(500).json({ erro: "Erro interno ao iniciar autenticaÃ§Ã£o Gov.br." });
   }
 });
@@ -2371,7 +2259,7 @@ app.get("/api/govbr/callback", async (req, res) => {
       : error === "access_denied"
         ? "Acesso negado pelo usuÃ¡rio no Gov.br."
         : `Erro retornado pelo Gov.br: ${error}`;
-    console.warn(`[${agora}] Gov.br callback â€” erro retornado pelo provedor: ${mensagem}`);
+    logger.warn(`Gov.br callback â€” erro retornado pelo provedor: ${mensagem}`);
     return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent(mensagem)}`);
   }
 
@@ -2381,15 +2269,15 @@ app.get("/api/govbr/callback", async (req, res) => {
   );
   const stateData = stateRows[0] ? { recibo_id: stateRows[0].recibo_id, user: stateRows[0].username, expires: new Date(stateRows[0].expira_em).getTime() } : null;
   if (!stateData) {
-    console.warn(`[${agora}] Gov.br callback â€” state desconhecido ou jÃ¡ utilizado: ${state}`);
+    logger.warn(`Gov.br callback â€” state desconhecido ou jÃ¡ utilizado: ${state}`);
     return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("SessÃ£o expirada ou invÃ¡lida. Inicie o processo novamente.")}`);
   }
   if (Date.now() > stateData.expires) {
-    console.warn(`[${agora}] Gov.br callback â€” state expirado para usuÃ¡rio ${stateData.user}`);
+    logger.warn(`Gov.br callback â€” state expirado para usuÃ¡rio ${stateData.user}`);
     return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("SessÃ£o Gov.br expirada (limite de 10 minutos). Tente novamente.")}`);
   }
 
-  console.log(`[${agora}] Gov.br callback â€” iniciando troca de code por token para recibo ${stateData.recibo_id} (usuÃ¡rio: ${stateData.user})`);
+  logger.info(`Gov.br callback â€” iniciando troca de code por token para recibo ${stateData.recibo_id} (usuÃ¡rio: ${stateData.user})`);
 
   try {
     // Troca code por token
@@ -2406,7 +2294,7 @@ app.get("/api/govbr/callback", async (req, res) => {
     }, 15000);
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
-      console.error(`[${agora}] Gov.br callback â€” token nÃ£o recebido. Resposta: ${JSON.stringify(tokenData)}`);
+      logger.error(`Gov.br callback â€” token nÃ£o recebido. Resposta: ${JSON.stringify(tokenData)}`);
       throw new Error("Token de acesso nÃ£o recebido. Verifique as credenciais Gov.br ou tente novamente.");
     }
 
@@ -2428,11 +2316,11 @@ app.get("/api/govbr/callback", async (req, res) => {
     };
 
     await update(dbRecibos, { _id: stateData.recibo_id }, { assinatura_govbr: assinatura });
-    console.log(`[${new Date().toISOString()}] âœ… Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante} (CPF: ${assinatura.cpf_assinante || "n/d"}) â€” usuÃ¡rio do sistema: ${stateData.user}`);
+    logger.info(`âœ… Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante} (CPF: ${assinatura.cpf_assinante || "n/d"}) â€” usuÃ¡rio do sistema: ${stateData.user}`);
 
     res.redirect(`/?govbr_ok=1&recibo_id=${stateData.recibo_id}`);
   } catch (e) {
-    console.error(`[${new Date().toISOString()}] âŒ Erro no callback Gov.br para recibo ${stateData?.recibo_id}: ${e.message}`);
+    logger.error(`âŒ Erro no callback Gov.br para recibo ${stateData?.recibo_id}: ${e.message}`);
     const msgUsuario = e.message.includes("Token") || e.message.includes("userinfo")
       ? "Falha na comunicaÃ§Ã£o com Gov.br. Tente novamente em instantes."
       : e.message;
@@ -2488,7 +2376,7 @@ app.post("/api/recibos/:id/link-assinatura", auth, financeiroOnly, async (req, r
     registrarAuditoria(req, "gerar_link_assinatura", recibo._id, { num: recibo.num, nome: recibo.nome });
     res.json({ url: `${baseUrlDaRequisicao(req)}/assinar/${token}`, token });
   } catch (e) {
-    console.error("Erro ao gerar link de assinatura:", e);
+    logger.error("Erro ao gerar link de assinatura:", e);
     res.status(500).json({ erro: "Erro ao gerar link de assinatura." });
   }
 });
@@ -2547,10 +2435,10 @@ app.post("/api/assinatura/:token", async (req, res) => {
       },
       assinatura_status: "assinado",
     });
-    console.log(`[${new Date().toISOString()}] ✅ Recibo ${recibo._id} (Nº ${recibo.num}) assinado remotamente. IP: ${ip}`);
+    logger.info(`✅ Recibo ${recibo._id} (Nº ${recibo.num}) assinado remotamente. IP: ${ip}`);
     res.json({ ok: true });
   } catch (e) {
-    console.error("Erro ao salvar assinatura remota:", e);
+    logger.error("Erro ao salvar assinatura remota:", e);
     res.status(500).json({ erro: "Erro ao registrar assinatura." });
   }
 });
@@ -2597,7 +2485,7 @@ async function verificarEEnviarLembretesParcelasProximas() {
     }
 
     if (lembretes.length === 0) {
-      console.log(`[${new Date().toISOString()}] Lembrete automÃ¡tico: nenhuma parcela vencendo nos prÃ³ximos 3 dias.`);
+      logger.info(`Lembrete automÃ¡tico: nenhuma parcela vencendo nos prÃ³ximos 3 dias.`);
       return;
     }
 
@@ -2642,17 +2530,17 @@ async function verificarEEnviarLembretesParcelasProximas() {
         const resumo = recalcularResumo(parcelasAtualizadas);
         await update(dbClientes, { _id: l.cliente._id }, { parcelas: parcelasAtualizadas, ...resumo });
       }
-      console.log(`[${agora}] âœ… Lembretes de parcela enviados: ${lembretes.length} parcela(s) â€” destinatÃ¡rio: ${adminEmail}`);
+      logger.info(`âœ… Lembretes de parcela enviados: ${lembretes.length} parcela(s) â€” destinatÃ¡rio: ${adminEmail}`);
     }
   } catch (e) {
-    console.error(`[${new Date().toISOString()}] âŒ Erro no lembrete automÃ¡tico de parcelas: ${e.message}`);
+    logger.error(`âŒ Erro no lembrete automÃ¡tico de parcelas: ${e.message}`);
   }
 }
 
 // â”€â”€ CRON â€” LEMBRETE DIÃRIO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Executa todo dia Ã s 8h no horÃ¡rio de BrasÃ­lia
 cron.schedule("0 8 * * *", () => {
-  console.log(`[${new Date().toISOString()}] ðŸ•— Cron disparado: verificando lembretes de parcelas...`);
+  logger.info(`ðŸ•— Cron disparado: verificando lembretes de parcelas...`);
   verificarEEnviarLembretesParcelasProximas();
 }, { timezone: "America/Sao_Paulo" });
 
@@ -2661,7 +2549,7 @@ cron.schedule("0 8 * * *", () => {
 async function fazerBackupDiario() {
   const bucket = process.env.BUCKET_NAME;
   if (!bucket) {
-    console.warn(`[${new Date().toISOString()}] âš ï¸  Backup diÃ¡rio ignorado â€” BUCKET_NAME nÃ£o configurado.`);
+    logger.warn(`âš ï¸  Backup diÃ¡rio ignorado â€” BUCKET_NAME nÃ£o configurado.`);
     return;
   }
   const ts = new Date().toISOString().slice(0, 10);
@@ -2670,7 +2558,7 @@ async function fazerBackupDiario() {
     const dataDir = path.join(__dirname, "data");
     const arquivos = ["recibos.db", "clientes.db"].filter(f => fs.existsSync(path.join(dataDir, f)));
     if (arquivos.length === 0) {
-      console.warn(`[${new Date().toISOString()}] âš ï¸  Backup: nenhum arquivo .db encontrado em ${dataDir}`);
+      logger.warn(`âš ï¸  Backup: nenhum arquivo .db encontrado em ${dataDir}`);
       return;
     }
 
@@ -2690,15 +2578,15 @@ async function fazerBackupDiario() {
       Body: zipBuffer,
       ContentType: "application/zip",
     })), 30000);
-    console.log(`[${new Date().toISOString()}] âœ… Backup diÃ¡rio â†’ s3://${bucket}/${chaveS3} (${(zipBuffer.length / 1024).toFixed(1)} KB)`);
+    logger.info(`âœ… Backup diÃ¡rio â†’ s3://${bucket}/${chaveS3} (${(zipBuffer.length / 1024).toFixed(1)} KB)`);
   } catch (e) {
-    console.error(`[${new Date().toISOString()}] âŒ Erro no backup diÃ¡rio: ${e.message}`);
+    logger.error(`âŒ Erro no backup diÃ¡rio: ${e.message}`);
   }
 }
 
 // Executa todo dia Ã s 02:00 BRT (05:00 UTC)
 cron.schedule("0 5 * * *", () => {
-  console.log(`[${new Date().toISOString()}] ðŸ•— Cron disparado: backup diÃ¡rio para S3...`);
+  logger.info(`ðŸ•— Cron disparado: backup diÃ¡rio para S3...`);
   fazerBackupDiario();
 }, { timezone: "UTC" });
 
@@ -2706,7 +2594,7 @@ cron.schedule("0 5 * * *", () => {
 // Percorre a coluna K da planilha e regera URLs de 30 dias para cada link S3 encontrado.
 // Executa todo domingo Ã s 03:00 BRT (06:00 UTC)
 cron.schedule("0 6 * * 0", () => {
-  console.log(`[${new Date().toISOString()}] ðŸ•— Cron disparado: renovaÃ§Ã£o de presigned URLs no Sheets...`);
+  logger.info(`ðŸ•— Cron disparado: renovaÃ§Ã£o de presigned URLs no Sheets...`);
   renovarPresignedUrlsSheets(s3SignerClient);
 }, { timezone: "UTC" });
 
@@ -2714,7 +2602,7 @@ cron.schedule("0 6 * * 0", () => {
 // Executa todo dia Ã s 8h no horÃ¡rio de BrasÃ­lia: marca parcelas vencidas como atrasadas
 // e envia e-mail ao admin se houver inadimplentes.
 cron.schedule("0 8 * * *", async () => {
-  console.log("[CRON] Verificando parcelas inadimplentes...");
+  logger.info("[CRON] Verificando parcelas inadimplentes...");
   try {
     const clientes = await find(dbClientes, NAO_DELETADO);
     const hoje = new Date().toISOString().slice(0, 10);
@@ -2739,7 +2627,7 @@ cron.schedule("0 8 * * *", async () => {
         totalCount += count;
       }
     }
-    console.log(`[CRON] ${totalCount} parcela(s) marcada(s) como atrasada(s).`);
+    logger.info(`[CRON] ${totalCount} parcela(s) marcada(s) como atrasada(s).`);
     if (totalCount > 0 && smtpConfigurado()) {
       const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_ADMIN || process.env.SMTP_USER;
       if (adminEmail) {
@@ -2749,14 +2637,14 @@ cron.schedule("0 8 * * *", async () => {
             subject: `[Araujo Prev] ${totalCount} parcela(s) inadimplente(s)`,
             html: `<p>OlÃ¡,</p><p>${totalCount} parcela(s) estÃ£o vencidas e foram marcadas como atrasadas automaticamente.</p><p>Acesse o sistema para mais detalhes.</p>`,
           });
-          console.log(`[CRON] Email de inadimplÃªncia enviado para ${adminEmail}`);
+          logger.info(`[CRON] Email de inadimplÃªncia enviado para ${adminEmail}`);
         } catch(e) {
-          console.error("[CRON] Erro ao enviar email:", e.message);
+          logger.error("[CRON] Erro ao enviar email:", e.message);
         }
       }
     }
   } catch(e) {
-    console.error("[CRON] Erro na verificaÃ§Ã£o:", e.message);
+    logger.error("[CRON] Erro na verificaÃ§Ã£o:", e.message);
   }
 }, { timezone: "America/Sao_Paulo" });
 
@@ -2768,9 +2656,9 @@ cron.schedule("0 4 * * *", async () => {
     const { rowCount } = await pgPool.query(
       "DELETE FROM export_jobs WHERE criado_em < NOW() - INTERVAL '7 days'"
     );
-    if (rowCount > 0) console.log(`[CRON] ${rowCount} job(s) de exportação antigo(s) removido(s).`);
+    if (rowCount > 0) logger.info(`[CRON] ${rowCount} job(s) de exportação antigo(s) removido(s).`);
   } catch (e) {
-    console.error("[CRON] Erro ao limpar export_jobs antigos:", e.message);
+    logger.error("[CRON] Erro ao limpar export_jobs antigos:", e.message);
   }
 }, { timezone: "UTC" });
 
@@ -2786,15 +2674,33 @@ app.use((err, req, res, next) => {
   if (err.code === "LIMIT_FILE_SIZE") {
     return res.status(413).json({ erro: "Arquivo muito grande. Maximo permitido: 5MB." });
   }
-  if (err.name === "MulterError") {
-    return res.status(400).json({ erro: "Erro no upload: " + err.message });
+  if (err.name === "MulterError" || err.message?.startsWith("Tipo de arquivo")) {
+    return res.status(400).json({ erro: err.message });
   }
-  console.error("Erro interno:", err);
+  logger.error("Erro interno:", err);
   res.status(500).json({ erro: "Erro interno do servidor." });
 });
 
+// ── HEALTH CHECK ──────────────────────────────────────────────
+app.get("/api/health", async (req, res) => {
+  const checks = { pg: false, s3: false, sqs: false };
+  try {
+    await pgPool.query("SELECT 1");
+    checks.pg = true;
+  } catch (_) {}
+  if (s3Client) {
+    try {
+      await s3Client.config.region();
+      checks.s3 = true;
+    } catch (_) {}
+  }
+  checks.sqs = !!process.env.EXPORT_QUEUE_URL;
+  const healthy = checks.pg;
+  res.status(healthy ? 200 : 503).json({ status: healthy ? "ok" : "degraded", checks, uptime: process.uptime() });
+});
+
 app.listen(PORT, async () => {
-  console.log(`âœ… Araujo Prev rodando em http://localhost:${PORT}`);
+  logger.info(`âœ… Araujo Prev rodando em http://localhost:${PORT}`);
   // Executa tambÃ©m no startup (30s) para verificar parcelas do dia sem esperar o cron das 8h
   setTimeout(verificarEEnviarLembretesParcelasProximas, 30_000);
 });

@@ -3,9 +3,19 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      nodejs: 18
+      nodejs: 20
     commands:
       - cd web && npm install --production
+  post_build:
+    commands:
+      - echo '==> Deploy da Lambda export-worker...'
+      - cd $CODEBUILD_SRC_DIR/lambda/export-worker
+      - npm ci --production
+      - npm run build
+      - if [ -f function.zip ]; then rm function.zip; fi
+      - zip -r function.zip . -x "*.zip" -x "*.git*" -q
+      - aws lambda update-function-code --function-name araujo-prev-export-worker --zip-file fileb://function.zip
+      - echo '==> Lambda atualizada com sucesso!'
 
 artifacts:
   base-directory: web

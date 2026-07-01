@@ -34,18 +34,23 @@ module.exports = function registerAdminRoutes(app, deps) {
 
   // ── ROTAS USUÁRIOS ─────────────────────────────────────────
   app.get("/api/users", deps.auth, deps.adminOnly, async (req, res) => {
-    const { rows } = await deps.pgPool.query("SELECT id, username, role, escritorio, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC");
-    res.json(rows);
+    try {
+      const { rows } = await deps.pgPool.query("SELECT id, username, role, escritorio, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC");
+      res.json(rows);
+    } catch (e) {
+      console.error("Erro ao listar usuários:", e.message);
+      res.status(500).json({ erro: "Erro ao listar usuários." });
+    }
   });
 
   app.post("/api/users", deps.auth, deps.adminOnly, async (req, res) => {
-    const { username, password, role, escritorio } = req.body;
-    if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
-    const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
-    if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
-    if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
-    const hash = deps.bcrypt.hashSync(password, 10);
     try {
+      const { username, password, role, escritorio } = req.body;
+      if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
+      const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
+      if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
+      if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
+      const hash = deps.bcrypt.hashSync(password, 10);
       const { rows } = await deps.pgPool.query(
         "INSERT INTO users (id, username, password, role, escritorio, created_at) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5) RETURNING id",
         [username, hash, role || "financeiro", escritorio || "", new Date().toISOString()]
@@ -55,41 +60,52 @@ module.exports = function registerAdminRoutes(app, deps) {
       res.json({ id: rows[0].id, username });
     } catch (e) {
       if (e.code === "23505") return res.status(400).json({ erro: "Usuário já existe" });
-      throw e;
+      console.error("Erro ao criar usuário:", e.message);
+      res.status(500).json({ erro: "Erro ao criar usuário." });
     }
   });
 
   app.put("/api/users/:id", deps.auth, deps.adminOnly, async (req, res) => {
-    const { username, password, role, escritorio } = req.body;
-    if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
-    const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
-    if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
-    if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
-    const { rows: exists } = await deps.pgPool.query("SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL", [req.params.id]);
-    if (!exists[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
-    if (password) {
-      await deps.pgPool.query(
-        "UPDATE users SET username=$1, role=$2, escritorio=$3, password=$4 WHERE id=$5",
-        [username, role || "financeiro", escritorio || "", deps.bcrypt.hashSync(password, 10), req.params.id]
-      );
-    } else {
-      await deps.pgPool.query(
-        "UPDATE users SET username=$1, role=$2, escritorio=$3 WHERE id=$4",
-        [username, role || "financeiro", escritorio || "", req.params.id]
-      );
+    try {
+      const { username, password, role, escritorio } = req.body;
+      if (!username) return res.status(400).json({ erro: "Preencha o usuário." });
+      const ROLES_VALIDOS = ["admin", "financeiro", "recepcao", "precatorios"];
+      if (role && !ROLES_VALIDOS.includes(role)) return res.status(400).json({ erro: "Role inválido." });
+      if (role === "recepcao" && !escritorio) return res.status(400).json({ erro: "Informe o escritório para usuário de recepção." });
+      const { rows: exists } = await deps.pgPool.query("SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL", [req.params.id]);
+      if (!exists[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
+      if (password) {
+        await deps.pgPool.query(
+          "UPDATE users SET username=$1, role=$2, escritorio=$3, password=$4 WHERE id=$5",
+          [username, role || "financeiro", escritorio || "", deps.bcrypt.hashSync(password, 10), req.params.id]
+        );
+      } else {
+        await deps.pgPool.query(
+          "UPDATE users SET username=$1, role=$2, escritorio=$3 WHERE id=$4",
+          [username, role || "financeiro", escritorio || "", req.params.id]
+        );
+      }
+      deps.sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("Erro ao atualizar usuário:", e.message);
+      res.status(500).json({ erro: "Erro ao atualizar usuário." });
     }
-    deps.sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
-    res.json({ ok: true });
   });
 
   app.delete("/api/users/:id", deps.auth, deps.adminOnly, async (req, res) => {
-    const { rows } = await deps.pgPool.query("SELECT username FROM users WHERE id=$1 AND deleted_at IS NULL", [req.params.id]);
-    if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
-    if (rows[0].username === deps.ADMIN_USER) return res.status(400).json({ erro: "Não é possível remover o admin." });
-    await deps.pgPool.query("UPDATE users SET deleted_at=NOW() WHERE id=$1", [req.params.id]);
-    deps.registrarAuditoria(req, "excluir_usuario", req.params.id, { username: rows[0].username });
-    deps.sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
-    res.json({ ok: true });
+    try {
+      const { rows } = await deps.pgPool.query("SELECT username FROM users WHERE id=$1 AND deleted_at IS NULL", [req.params.id]);
+      if (!rows[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
+      if (rows[0].username === deps.ADMIN_USER) return res.status(400).json({ erro: "Não é possível remover o admin." });
+      await deps.pgPool.query("UPDATE users SET deleted_at=NOW() WHERE id=$1", [req.params.id]);
+      deps.registrarAuditoria(req, "excluir_usuario", req.params.id, { username: rows[0].username });
+      deps.sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("Erro ao excluir usuário:", e.message);
+      res.status(500).json({ erro: "Erro ao excluir usuário." });
+    }
   });
 
   // ── SYNC FORÇADO: NeDB → Google Sheets ─────────────────────

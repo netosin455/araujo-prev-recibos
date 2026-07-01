@@ -52,7 +52,7 @@ async function adicionarObservacaoCliente() {
 function limparModalCliente() {
   ["cliente-nome","cliente-cpf","cliente-telefone","cliente-endereco","cliente-municipio",
    "cliente-firma","cliente-referencia","cliente-valor-beneficio","cliente-num-beneficios",
-   "cliente-valor-contrato","cliente-num-parcelas"].forEach(campo => {
+   "cliente-valor-contrato","cliente-valor-entrada","cliente-num-parcelas"].forEach(campo => {
     const el = document.getElementById(campo);
     if (el) el.value = "";
   });
@@ -106,6 +106,8 @@ async function editarCliente(id) {
   document.getElementById("cliente-num-beneficios").value  = c.num_beneficios || "";
   const vf = (c.valor_contrato||0) > 0 ? (c.valor_contrato).toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
   document.getElementById("cliente-valor-contrato").value = vf;
+  const ve = (c.valor_entrada||0) > 0 ? (c.valor_entrada).toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
+  document.getElementById("cliente-valor-entrada").value = ve;
   document.getElementById("cliente-num-parcelas").value   = c.num_parcelas || "";
   calcularParcela();
   renderObservacoes(c.observacoes || []);
@@ -128,6 +130,7 @@ async function salvarCliente() {
   const valor_beneficio = valorParaNumero(document.getElementById("cliente-valor-beneficio").value);
   const num_beneficios  = parseInt(document.getElementById("cliente-num-beneficios").value) || 0;
   const valor_contrato  = valorParaNumero(document.getElementById("cliente-valor-contrato").value);
+  const valor_entrada   = valorParaNumero(document.getElementById("cliente-valor-entrada")?.value) || 0;
   const num_parcelas    = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
 
   if (!nome || !cpf || !municipio_uf) {
@@ -136,17 +139,18 @@ async function salvarCliente() {
     if(!cpf)  v.push("cliente-cpf");
     if(!municipio_uf) v.push("cliente-municipio");
     marcarInvalido(...v);
-    mostrarToast("Preencha Nome, CPF e MunicÃ­pio.", null, "error"); return;
+    mostrarToast("Preencha Nome, CPF e Município.", null, "error"); return;
   }
   const _cd=cpf.replace(/\D/g,"");
-  if(_cd.length===11&&!validarCPF(cpf)) { marcarInvalido("cliente-cpf"); mostrarToast("CPF invÃ¡lido. Verifique os dÃ­gitos.", null, "error"); return; }
-  if(_cd.length===14&&!validarCNPJ(cpf)) { marcarInvalido("cliente-cpf"); mostrarToast("CNPJ invÃ¡lido. Verifique os dÃ­gitos.", null, "error"); return; }
-  if(_cd.length!==11&&_cd.length!==14) { marcarInvalido("cliente-cpf"); mostrarToast("CPF deve ter 11 dÃ­gitos ou CNPJ 14 dÃ­gitos.", null, "error"); return; }
+  if(_cd.length===11&&!validarCPF(cpf)) { marcarInvalido("cliente-cpf"); mostrarToast("CPF inválido. Verifique os dígitos.", null, "error"); return; }
+  if(_cd.length===14&&!validarCNPJ(cpf)) { marcarInvalido("cliente-cpf"); mostrarToast("CNPJ inválido. Verifique os dígitos.", null, "error"); return; }
+  if(_cd.length!==11&&_cd.length!==14) { marcarInvalido("cliente-cpf"); mostrarToast("CPF deve ter 11 dígitos ou CNPJ 14 dígitos.", null, "error"); return; }
   if (valor_contrato <= 0) { marcarInvalido("cliente-valor-contrato"); mostrarToast("Informe o valor total do contrato.", null, "error"); return; }
-  if (num_parcelas <= 0)   { marcarInvalido("cliente-num-parcelas");   mostrarToast("Informe o nÃºmero de parcelas.", null, "error"); return; }
+  if (num_parcelas <= 0)   { marcarInvalido("cliente-num-parcelas");   mostrarToast("Informe o número de parcelas.", null, "error"); return; }
+  if (valor_entrada >= valor_contrato) { marcarInvalido("cliente-valor-entrada"); mostrarToast("Valor de entrada não pode ser igual ou maior que o contrato.", null, "error"); return; }
 
   const autoRecibo = document.getElementById("cliente-auto-recibo")?.checked || false;
-  const body = { nome, cpf: cpf.replace(/\D/g,""), telefone, endereco, municipio_uf, firma, referencia, valor_beneficio, num_beneficios, valor_contrato, num_parcelas, auto_recibo: autoRecibo };
+  const body = { nome, cpf: cpf.replace(/\D/g,""), telefone, endereco, municipio_uf, firma, referencia, valor_beneficio, num_beneficios, valor_contrato, valor_entrada, num_parcelas, auto_recibo: autoRecibo };
   const res  = id
     ? await api("PUT",  `/api/clientes/${id}`, body)
     : await api("POST", "/api/clientes", body);

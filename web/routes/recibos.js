@@ -12,7 +12,7 @@ module.exports = function registerReciboRoutes(app, deps) {
   // A lógica vive em web/services/pdf-generator.js (fonte única compartilhada com o
   // Lambda worker). Aqui apenas resolvemos o caminho da logo e delegamos.
   async function gerarBufferPDFRecibo(recibo) {
-    const logoPath = deps.path.join(__dirname, "public", "logo.png");
+    const logoPath = deps.path.join(__dirname, "..", "public", "logo.png");
     return gerarBufferPDFReciboShared(recibo, logoPath);
   }
 
@@ -62,6 +62,39 @@ module.exports = function registerReciboRoutes(app, deps) {
   }
 
   // ── ROTAS RECIBOS ──────────────────────────────────────────
+  /**
+   * @openapi
+   * /api/recibos:
+   *   get:
+   *     tags: [Recibos]
+   *     summary: Lista recibos (com paginação ou cursor)
+   *     security: [{ cookieAuth: [] }]
+   *     parameters:
+   *       - in: query
+   *         name: page
+   *         schema: { type: integer, default: 1 }
+   *       - in: query
+   *         name: limit
+   *         schema: { type: integer, default: 50 }
+   *       - in: query
+   *         name: cursor
+   *         schema: { type: integer }
+   *     responses:
+   *       200:
+   *         description: Lista de recibos
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 recibos:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/Recibo'
+   *                 total: { type: integer }
+   *                 pagina: { type: integer }
+   *                 totalPaginas: { type: integer }
+   */
   app.get("/api/recibos", deps.auth, async (req, res) => {
     const isRecepcao = req.user.role === "recepcao" && req.user.escritorio;
 
@@ -93,6 +126,25 @@ module.exports = function registerReciboRoutes(app, deps) {
     res.json({ recibos, total, pagina: page, totalPaginas });
   });
 
+  /**
+   * @openapi
+   * /api/recibos:
+   *   post:
+   *     tags: [Recibos]
+   *     summary: Cria novo recibo
+   *     security: [{ cookieAuth: [] }]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/Recibo'
+   *     responses:
+   *       201:
+   *         description: Recibo criado
+   *       400:
+   *         description: Dados inválidos
+   */
   app.post("/api/recibos", deps.auth, async (req, res) => {
     try {
       if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
@@ -116,10 +168,30 @@ module.exports = function registerReciboRoutes(app, deps) {
       deps.registrarAuditoria(req, "criar_recibo", doc._id, { num, nome, escritorio, valor, cpf: deps.maskCPF(cpf) });
       registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante }).catch(e => console.error("Erro sheets (ignorado):", e));
       dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia }).catch(e => console.error("Erro webhook (ignorado):", e));
+      // Auto-marca a primeira parcela pendente do cliente como paga
+      try {
+        const cliente = await deps.findOne(deps.dbClientes, { cpf, ...deps.NAO_DELETADO });
+        if (cliente && Array.isArray(cliente.parcelas)) {
+          const pendente = cliente.parcelas.find(p => p.status === "pendente");
+          if (pendente) {
+            const dataPgt = data || new Date().toLocaleDateString("pt-BR");
+            const novasParcelas = cliente.parcelas.map(p =>
+              p.num === pendente.num
+                ? { ...p, status: "pago", data_recebimento: dataPgt, recibo_num: String(num || ""), recibo_id: doc._id }
+                : p
+            );
+            const resumo = deps.recalcularResumo(novasParcelas);
+            await deps.update(deps.dbClientes, { _id: cliente._id }, { parcelas: novasParcelas, ...resumo });
+            deps.registrarAuditoria(req, "atualizar_parcela", cliente._id, { num_parcela: pendente.num, status_novo: "pago", auto: true, recibo_num: num });
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao auto-marcar parcela (ignorado):", e.message);
+      }
       res.json({ id: doc._id });
     } catch (err) {
       console.error("Erro em POST /api/recibos:", err);
-      res.status(500).json({ erro: "Erro interno ao salvar recibo: " + err.message });
+      res.status(500).json({ erro: "Erro interno ao salvar recibo." });
     }
   });
 
@@ -180,14 +252,12 @@ module.exports = function registerReciboRoutes(app, deps) {
   
 
   // ---- ATUALIZAR COMPROVANTE --------------------------------------
-  app.patch("/api/recibos/:id/comprovante", deps.auth, async (req, res) => {
+  app.patch("/api/recibos/:id/comprovante", deps.auth, deps.financeiroOnly, async (req, res) => {
     try {
       const { link_comprovante } = req.body;
-      console.log(`[DEBUG] PATCH comprovante: recibo=${req.params.id}, link=${link_comprovante?.substring(0,80)}`);
       if (!link_comprovante) return res.status(400).json({ erro: "link_comprovante eh obrigatorio." });
       await deps.update(deps.dbRecibos, { _id: req.params.id }, { link_comprovante });
       const verificado = await deps.findOne(deps.dbRecibos, { _id: req.params.id });
-      console.log(`[DEBUG] PATCH resultado: link_comprovante agora = ${verificado?.link_comprovante?.substring(0,80)}`);
       res.json({ ok: true, link: verificado?.link_comprovante || "" });
     } catch (err) {
       console.error("Erro ao atualizar comprovante:", err);
@@ -337,7 +407,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
       const complemento = dados.complemento ? ` - ${dados.complemento}` : "";
 
-      const logoPath = deps.path.join(__dirname, "public", "logo.png");
+      const logoPath = deps.path.join(__dirname, "..", "public", "logo.png");
       const logoExists = deps.fs.existsSync(logoPath);
       let assinaturaBuffer = null;
       let assinaturaTransform = { width: 160, height: 40 };
@@ -499,7 +569,7 @@ module.exports = function registerReciboRoutes(app, deps) {
   });
 
   // ── BATCH EMAIL ──────────────────────────────────────────────
-  app.post("/api/recibos/batch-email", deps.auth, async (req, res) => {
+  app.post("/api/recibos/batch-email", deps.auth, deps.financeiroOnly, async (req, res) => {
     if (!deps.smtpConfigurado()) {
       return res.status(503).json({ erro: "Integração de e-mail não configurada." });
     }

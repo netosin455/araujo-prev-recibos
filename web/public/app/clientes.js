@@ -426,10 +426,17 @@ function calcularContrato() {
 
 function calcularParcela() {
   const contrato = valorParaNumero(document.getElementById("cliente-valor-contrato").value);
+  const entrada  = valorParaNumero(document.getElementById("cliente-valor-entrada")?.value) || 0;
   const parcelas = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
   const preview  = document.getElementById("cliente-parcela-preview");
   if (contrato > 0 && parcelas > 0) {
-    preview.textContent = `Valor de cada parcela: R$ ${formatarValor(contrato / parcelas)}`;
+    const liquido = contrato - entrada;
+    const vp = liquido > 0 ? liquido / parcelas : 0;
+    if (entrada > 0) {
+      preview.textContent = `Entrada: R$ ${formatarValor(entrada)} | ${parcelas}x de R$ ${formatarValor(vp)}`;
+    } else {
+      preview.textContent = `${parcelas}x de R$ ${formatarValor(vp)}`;
+    }
   } else {
     preview.textContent = "";
   }

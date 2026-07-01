@@ -9,6 +9,11 @@ __pycache__/
 web/node_modules/
 web/data/
 
+# Segurança — não versionar credenciais
+*.pem
+credentials*.json
+terraform/*.tfvars
+
 # Arquivos locais — não vão ao repositório
 capacitor-app/
 deploy.zip
@@ -28,6 +33,9 @@ deploy_temp/
 deploy_temp_check/
 current_working/
 current_working.zip
-deploy.zip
 deploy2.zip
 
+
+# Temp files
+web/stderr.txt
+web/stdout.txt

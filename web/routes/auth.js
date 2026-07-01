@@ -4,6 +4,42 @@
 module.exports = function registerAuthRoutes(app, deps) {
   const { pgPool, jwt, JWT_SECRET, bcrypt } = deps;
 
+  /**
+   * @openapi
+   * /api/login:
+   *   post:
+   *     tags: [Autenticação]
+   *     summary: Autentica usuário e retorna cookie httpOnly
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/LoginRequest'
+   *     responses:
+   *       200:
+   *         description: Login bem-sucedido
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 username: { type: string }
+   *                 role: { type: string }
+   *                 escritorio: { type: string }
+   *       400:
+   *         description: Dados inválidos
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   *       401:
+   *         description: Credenciais inválidas
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   app.post("/api/login", async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });

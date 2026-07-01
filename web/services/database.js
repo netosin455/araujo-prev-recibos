@@ -40,12 +40,15 @@ function _rowToDoc(row) {
   return { ...row, _id: row.id };
 }
 
+const _COL = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
 function _buildWhere(query) {
   const entries = Object.entries(query || {});
   if (!entries.length) return { clause: "", params: [] };
   const parts = [], params = [];
   for (const [key, val] of entries) {
     const col = key === "_id" ? "id" : key;
+    if (!_COL.test(col)) continue;
     if (val && typeof val === "object" && "$exists" in val) {
       parts.push(val.$exists ? `${col} IS NOT NULL` : `${col} IS NULL`);
     } else if (val && typeof val === "object") {
@@ -64,6 +67,7 @@ function _buildWhere(query) {
 function _buildOrder(sort) {
   if (!sort || !Object.keys(sort).length) return "";
   return " ORDER BY " + Object.entries(sort)
+    .filter(([k]) => _COL.test(k === "_id" ? "id" : k))
     .map(([k, v]) => `${k === "_id" ? "id" : k} ${v === -1 ? "DESC" : "ASC"}`)
     .join(", ");
 }

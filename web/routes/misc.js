@@ -119,7 +119,7 @@ module.exports = function registerMiscRoutes(app, deps) {
   });
 
   // ── PROXY S3: serve arquivo do bucket privado ──────────────────────────────
-  app.get("/api/comprovante-s3/*", deps.auth, async (req, res) => {
+  app.get("/api/comprovante-s3/*", deps.auth, deps.financeiroOnly, async (req, res) => {
     try {
       const key = req.params[0];
       const bucket = process.env.BUCKET_NAME;
@@ -426,154 +426,6 @@ module.exports = function registerMiscRoutes(app, deps) {
     }
   });
 
-  // ── GERAR DOCUMENTO ────────────────────────────────────────
-  app.post("/api/gerar-recibo", deps.auth, async (req, res) => {
-    try {
-      const dados = req.body;
-      const digits = dados.cpf.replace(/\D/g, "");
-      const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
-      const complemento = dados.complemento ? ` - ${dados.complemento}` : "";
-
-      const logoPath = deps.path.join(__dirname, "public", "logo.png");
-      const logoExists = deps.fs.existsSync(logoPath);
-
-      function p(text, opts = {}) {
-        return new Paragraph({
-          alignment: opts.align || AlignmentType.LEFT,
-          spacing: { after: opts.spaceAfter ?? 80 },
-          children: [new TextRun({
-            text, bold: opts.bold || false,
-            size: (opts.size || 11) * 2,
-            color: opts.color || "000000",
-            font: "Arial",
-          })],
-        });
-      }
-
-      function linha() {
-        return new Paragraph({
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 80 },
-          border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" } },
-          children: [],
-        });
-      }
-
-      const textoCorpo = `Recebemos do (a) senhor (a) ${dados.nome}, residente e domiciliado(a) no Município de ${dados.municipio_uf}, a importância de R$ ${dados.valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${complemento}.`;
-
-      const children = [];
-
-      if (logoExists) {
-        children.push(new Paragraph({
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 60 },
-          children: [new ImageRun({ data: deps.fs.readFileSync(logoPath), transformation: { width: 200, height: 76 }, type: "png" })],
-        }));
-      }
-
-      const semBorda = { top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }, right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" } };
-
-      children.push(
-        p("A ARAUJO SERVIÇOS LTDA ME", { align: AlignmentType.CENTER, bold: true, size: 14, color: "1E40AF", spaceAfter: 40 }),
-        p("A ARAUJO PREV", { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 40 }),
-        linha(),
-        p(`Recibo Nº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 20 }),
-        p("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: AlignmentType.CENTER, bold: true, size: 14, spaceAfter: 80 }),
-        p(textoCorpo, { align: AlignmentType.JUSTIFIED, spaceAfter: 60 }),
-        p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
-        linha(),
-        p(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: AlignmentType.LEFT, spaceAfter: 3600 }),
-        // Assinatura do cliente — centro
-        p("________________________________________", { align: AlignmentType.CENTER, spaceAfter: 40 }),
-        p(dados.nome, { align: AlignmentType.CENTER, size: 10, spaceAfter: 20 }),
-        p(`${labelDoc}: ${dados.cpf}`, { align: AlignmentType.CENTER, size: 9, spaceAfter: 2800 }),
-        // Assinatura do emissor — esquerda
-        p("________________________", { align: AlignmentType.LEFT, spaceAfter: 40 }),
-        p(dados.emitido_por || "A ARAUJO PREV", { align: AlignmentType.LEFT, size: 10, spaceAfter: 0 }),
-      );
-
-      if (logoExists) {
-        children.push(
-          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 240, after: 0 }, children: [new ImageRun({ data: deps.fs.readFileSync(logoPath), transformation: { width: 180, height: 68 }, type: "png" })] }),
-        );
-      }
-
-      const doc = new Document({
-        sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children }],
-      });
-
-      const nomeBase = `recibo_${dados.num_recibo.replace(/[\/\\]/g, "-")}_${dados.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").toLowerCase()}`;
-
-      if (dados.formato === "pdf") {
-        // ── Gerar PDF ──
-        const chunks = [];
-        const pdf = new PDFDocument({ margin: 60, size: "A4" });
-        pdf.on("data", c => chunks.push(c));
-        await new Promise((resolve, reject) => {
-          pdf.on("end", resolve);
-          pdf.on("error", reject);
-
-          // Logo
-          if (logoExists) {
-            pdf.image(logoPath, { fit: [160, 61], align: "center" }).moveDown(0.5);
-          }
-
-          pdf.fontSize(14).fillColor("#1E40AF").font("Helvetica-Bold")
-            .text("A ARAUJO SERVIÇOS LTDA ME", { align: "center" }).moveDown(0.2);
-          pdf.fontSize(12).fillColor("#000000")
-            .text("A ARAUJO PREV", { align: "center" }).moveDown(0.3);
-
-          // Linha separadora
-          const lx = pdf.page.margins.left;
-          const lw = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
-          pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
-
-          pdf.fontSize(12).font("Helvetica-Bold")
-            .text(`Recibo Nº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
-          pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
-
-          pdf.fontSize(11).font("Helvetica")
-            .text(textoCorpo, { align: "justify" }).moveDown(0.6);
-          pdf.text("Por ser verdade, firmo o presente que segue datado e assinado.", { align: "justify" }).moveDown(0.8);
-
-          pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.6);
-
-          pdf.text(`${dados.municipio_uf}, ${dados.data_extenso}`, { align: "left" }).moveDown(6);
-
-          // Assinatura cliente — centro
-          const cx = pdf.page.width / 2;
-          pdf.text("________________________________________", { align: "center" }).moveDown(0.2);
-          pdf.fontSize(10).text(dados.nome, { align: "center" }).moveDown(0.1);
-          pdf.fontSize(9).text(`${labelDoc}: ${dados.cpf}`, { align: "center" }).moveDown(5);
-
-          // Assinatura emissor — esquerda
-          pdf.fontSize(11).text("________________________", { align: "left" }).moveDown(0.2);
-          pdf.fontSize(10).text(dados.emitido_por || "A ARAUJO PREV", { align: "left" });
-
-          // Logo rodapé
-          if (logoExists) {
-            pdf.moveDown(1).image(logoPath, { fit: [140, 53], align: "center" });
-          }
-
-          pdf.end();
-        });
-
-        const pdfBuf = Buffer.concat(chunks);
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.pdf"`);
-        res.send(pdfBuf);
-      } else {
-        // ── Gerar DOCX (padrão) ──
-        const buf = await Packer.toBuffer(doc);
-        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-        res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.docx"`);
-        res.send(buf);
-      }
-    } catch (e) {
-      console.error("Erro ao gerar recibo:", e.message);
-      res.status(500).json({ erro: "Erro ao gerar documento." });
-    }
-  });
 
   // ── NOTIFICAÇÕES ───────────────────────────────────────────
   // GET /api/notificacoes
@@ -762,7 +614,7 @@ module.exports = function registerMiscRoutes(app, deps) {
       const digits = cpf.replace(/\D/g, "");
       const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
       const textoComplemento = complemento ? ` - ${complemento}` : "";
-      const logoPath = deps.path.join(__dirname, "public", "logo.png");
+      const logoPath = deps.path.join(__dirname, "..", "public", "logo.png");
       const logoExists = deps.fs.existsSync(logoPath);
 
       const textoCorpo = `Recebemos do (a) senhor (a) ${nome}${municipio_uf ? `, residente e domiciliado(a) no Município de ${municipio_uf}` : ""}, a importância de R$ ${valor} referentes aos honorários advocatícios relacionados à Ação Previdenciária${textoComplemento}.`;

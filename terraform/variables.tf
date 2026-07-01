@@ -36,7 +36,7 @@ variable "lambda_zip_path" {
 
 variable "lambda_runtime" {
   type        = string
-  default     = "nodejs18.x"
+  default     = "nodejs20.x"
   description = "Runtime da Lambda (alinhado ao buildspec do EB)."
 }
 

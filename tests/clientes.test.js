@@ -1,20 +1,28 @@
-// Testes unitários — funções puras do módulo de clientes
-// Cobre: gerarParcelas, recalcularResumo, inicializarParcelasLegado
+const { describe, it } = require("node:test");
+const assert = require("node:assert");
 
-// Cópias das funções puras de web/server.js para teste isolado
-function gerarParcelas(numParcelas, valorContrato) {
-  const valorParcela = numParcelas > 0 ? valorContrato / numParcelas : 0;
-  return Array.from({ length: numParcelas }, (_, i) => ({
-    num: i + 1,
-    valor: valorParcela,
-    status: "pendente",
-    data_vencimento: "",
-    data_recebimento: "",
-    data_deposito: "",
-    recibo_id: "",
-    recibo_num: "",
-    observacao: "",
-  }));
+function gerarParcelas(numParcelas, valorContrato, valorEntrada = 0) {
+  const base = valorContrato - valorEntrada;
+  const valorParcela = numParcelas > 0 ? base / numParcelas : 0;
+  const hoje = new Date();
+  const diaVencto = String(hoje.getDate()).padStart(2, "0");
+  return Array.from({ length: numParcelas }, (_, i) => {
+    let mesVencto = hoje.getMonth() + 1 + i + 1;
+    let anoVencto = hoje.getFullYear();
+    while (mesVencto > 12) { mesVencto -= 12; anoVencto++; }
+    const dataVenc = `${diaVencto}/${String(mesVencto).padStart(2, "0")}/${anoVencto}`;
+    return {
+      num: i + 1,
+      valor: valorParcela,
+      status: "pendente",
+      data_vencimento: dataVenc,
+      data_recebimento: "",
+      data_deposito: "",
+      recibo_id: "",
+      recibo_num: "",
+      observacao: "",
+    };
+  });
 }
 
 function recalcularResumo(parcelas) {
@@ -58,193 +66,196 @@ function inicializarParcelasLegado(c) {
   return { ...c, parcelas, ...resumo };
 }
 
-// ── gerarParcelas ─────────────────────────────────────────────
-
 describe("gerarParcelas", () => {
-  test("gera_array_com_quantidade_correta_de_parcelas", () => {
-    const p = gerarParcelas(6, 3000);
-    expect(p).toHaveLength(6);
+  it("gera_array_com_quantidade_correta_de_parcelas", () => {
+    assert.strictEqual(gerarParcelas(6, 3000).length, 6);
   });
 
-  test("distribui_valor_igualmente_entre_parcelas", () => {
+  it("distribui_valor_igualmente_entre_parcelas", () => {
     const p = gerarParcelas(4, 2000);
-    p.forEach(parcela => expect(parcela.valor).toBe(500));
+    p.forEach(parcela => assert.strictEqual(parcela.valor, 500));
   });
 
-  test("numera_parcelas_sequencialmente_a_partir_de_1", () => {
+  it("numera_parcelas_sequencialmente_a_partir_de_1", () => {
     const p = gerarParcelas(3, 900);
-    expect(p.map(x => x.num)).toEqual([1, 2, 3]);
+    assert.deepStrictEqual(p.map(x => x.num), [1, 2, 3]);
   });
 
-  test("todas_as_parcelas_iniciam_com_status_pendente", () => {
+  it("todas_as_parcelas_iniciam_com_status_pendente", () => {
     const p = gerarParcelas(5, 1000);
-    p.forEach(parcela => expect(parcela.status).toBe("pendente"));
+    p.forEach(parcela => assert.strictEqual(parcela.status, "pendente"));
   });
 
-  test("retorna_array_vazio_quando_num_parcelas_e_zero", () => {
-    expect(gerarParcelas(0, 1000)).toHaveLength(0);
+  it("retorna_array_vazio_quando_num_parcelas_e_zero", () => {
+    assert.strictEqual(gerarParcelas(0, 1000).length, 0);
   });
 
-  test("retorna_valor_zero_quando_num_parcelas_e_zero", () => {
-    const p = gerarParcelas(0, 0);
-    expect(p).toHaveLength(0);
+  it("retorna_valor_zero_quando_num_parcelas_e_zero", () => {
+    assert.strictEqual(gerarParcelas(0, 0).length, 0);
   });
 
-  test("campos_opcionais_iniciam_como_string_vazia", () => {
+  it("campos_opcionais_iniciam_como_string_vazia", () => {
     const [p] = gerarParcelas(1, 500);
-    expect(p.data_vencimento).toBe("");
-    expect(p.data_recebimento).toBe("");
-    expect(p.data_deposito).toBe("");
-    expect(p.recibo_id).toBe("");
-    expect(p.recibo_num).toBe("");
-    expect(p.observacao).toBe("");
+    assert.strictEqual(p.data_recebimento, "");
+    assert.strictEqual(p.data_deposito, "");
+    assert.strictEqual(p.recibo_id, "");
+    assert.strictEqual(p.recibo_num, "");
+    assert.strictEqual(p.observacao, "");
+  });
+
+  it("data_vencimento_e_preenchida_automaticamente", () => {
+    const [p] = gerarParcelas(1, 1000);
+    assert.ok(p.data_vencimento.length > 0);
+    assert.match(p.data_vencimento, /^\d{2}\/\d{2}\/\d{4}$/);
+  });
+
+  it("subtrai_valor_entrada_do_valor_contrato", () => {
+    const p = gerarParcelas(4, 2000, 500);
+    assert.strictEqual(p[0].valor, 375);
+    assert.strictEqual(p[3].valor, 375);
+  });
+
+  it("valor_entrada_zero_comporta_igual_a_sem_entrada", () => {
+    const sem = gerarParcelas(2, 1000);
+    const com = gerarParcelas(2, 1000, 0);
+    assert.strictEqual(sem[0].valor, com[0].valor);
+  });
+
+  it("valor_entrada_igual_ao_contrato_gera_parcelas_zero", () => {
+    const p = gerarParcelas(5, 1000, 1000);
+    assert.strictEqual(p.length, 5);
+    assert.strictEqual(p[0].valor, 0);
+    assert.strictEqual(p[4].valor, 0);
   });
 });
 
-// ── recalcularResumo ──────────────────────────────────────────
-
 describe("recalcularResumo (lógica, sem updated_at)", () => {
-  function resumoSemData(parcelas) {
-    const pagas     = parcelas.filter(p => p.status === "pago");
-    const restantes = parcelas.filter(p => p.status !== "pago");
-    return {
-      parcelas_pagas:     pagas.length,
-      parcelas_restantes: restantes.length,
-      valor_pago:         pagas.reduce((s, p) => s + (p.valor || 0), 0),
-      valor_restante:     restantes.reduce((s, p) => s + (p.valor || 0), 0),
-    };
-  }
-
-  test("conta_corretamente_pagas_e_restantes", () => {
+  it("conta_corretamente_pagas_e_restantes", () => {
     const parcelas = [
       { status: "pago",     valor: 100 },
       { status: "pago",     valor: 100 },
       { status: "pendente", valor: 100 },
     ];
-    const r = resumoSemData(parcelas);
-    expect(r.parcelas_pagas).toBe(2);
-    expect(r.parcelas_restantes).toBe(1);
+    const r = recalcularResumo(parcelas);
+    assert.strictEqual(r.parcelas_pagas, 2);
+    assert.strictEqual(r.parcelas_restantes, 1);
   });
 
-  test("soma_valor_pago_apenas_de_parcelas_pagas", () => {
+  it("soma_valor_pago_apenas_de_parcelas_pagas", () => {
     const parcelas = [
       { status: "pago",     valor: 200 },
       { status: "pendente", valor: 300 },
       { status: "atrasado", valor: 150 },
     ];
-    const r = resumoSemData(parcelas);
-    expect(r.valor_pago).toBe(200);
-    expect(r.valor_restante).toBe(450);
+    const r = recalcularResumo(parcelas);
+    assert.strictEqual(r.valor_pago, 200);
+    assert.strictEqual(r.valor_restante, 450);
   });
 
-  test("retorna_zeros_quando_array_vazio", () => {
-    const r = resumoSemData([]);
-    expect(r.parcelas_pagas).toBe(0);
-    expect(r.parcelas_restantes).toBe(0);
-    expect(r.valor_pago).toBe(0);
-    expect(r.valor_restante).toBe(0);
+  it("retorna_zeros_quando_array_vazio", () => {
+    const r = recalcularResumo([]);
+    assert.strictEqual(r.parcelas_pagas, 0);
+    assert.strictEqual(r.parcelas_restantes, 0);
+    assert.strictEqual(r.valor_pago, 0);
+    assert.strictEqual(r.valor_restante, 0);
   });
 
-  test("trata_valor_nulo_como_zero_no_calculo", () => {
+  it("trata_valor_nulo_como_zero_no_calculo", () => {
     const parcelas = [
       { status: "pago", valor: null },
       { status: "pago", valor: undefined },
     ];
-    const r = resumoSemData(parcelas);
-    expect(r.valor_pago).toBe(0);
+    const r = recalcularResumo(parcelas);
+    assert.strictEqual(r.valor_pago, 0);
   });
 
-  test("considera_atrasado_como_restante", () => {
+  it("considera_atrasado_como_restante", () => {
     const parcelas = [
       { status: "atrasado", valor: 500 },
     ];
-    const r = resumoSemData(parcelas);
-    expect(r.parcelas_restantes).toBe(1);
-    expect(r.valor_restante).toBe(500);
-    expect(r.parcelas_pagas).toBe(0);
+    const r = recalcularResumo(parcelas);
+    assert.strictEqual(r.parcelas_restantes, 1);
+    assert.strictEqual(r.valor_restante, 500);
+    assert.strictEqual(r.parcelas_pagas, 0);
   });
 });
 
-// ── inicializarParcelasLegado ─────────────────────────────────
-
 describe("inicializarParcelasLegado", () => {
-  test("nao_altera_cliente_que_ja_tem_parcelas", () => {
+  it("nao_altera_cliente_que_ja_tem_parcelas", () => {
     const cliente = {
       nome: "João",
       parcelas: [{ num: 1, status: "pago", valor: 500 }],
     };
     const resultado = inicializarParcelasLegado(cliente);
-    expect(resultado).toBe(cliente); // mesma referência
+    assert.strictEqual(resultado, cliente);
   });
 
-  test("gera_parcelas_para_cliente_legado_sem_campo_parcelas", () => {
+  it("gera_parcelas_para_cliente_legado_sem_campo_parcelas", () => {
     const cliente = { num_parcelas: 3, valor_contrato: 900, parcelas_pagas: 0 };
     const resultado = inicializarParcelasLegado(cliente);
-    expect(resultado.parcelas).toHaveLength(3);
+    assert.strictEqual(resultado.parcelas.length, 3);
   });
 
-  test("marca_parcelas_pagas_conforme_parcelas_pagas_legado", () => {
+  it("marca_parcelas_pagas_conforme_parcelas_pagas_legado", () => {
     const cliente = { num_parcelas: 4, valor_contrato: 1200, parcelas_pagas: 2 };
     const resultado = inicializarParcelasLegado(cliente);
-    expect(resultado.parcelas[0].status).toBe("pago");
-    expect(resultado.parcelas[1].status).toBe("pago");
-    expect(resultado.parcelas[2].status).toBe("pendente");
-    expect(resultado.parcelas[3].status).toBe("pendente");
+    assert.strictEqual(resultado.parcelas[0].status, "pago");
+    assert.strictEqual(resultado.parcelas[1].status, "pago");
+    assert.strictEqual(resultado.parcelas[2].status, "pendente");
+    assert.strictEqual(resultado.parcelas[3].status, "pendente");
   });
 
-  test("calcula_resumo_corretamente_apos_migracao", () => {
+  it("calcula_resumo_corretamente_apos_migracao", () => {
     const cliente = { num_parcelas: 3, valor_contrato: 900, parcelas_pagas: 1 };
     const r = inicializarParcelasLegado(cliente);
-    expect(r.parcelas_pagas).toBe(1);
-    expect(r.parcelas_restantes).toBe(2);
-    expect(r.valor_pago).toBe(300);
-    expect(r.valor_restante).toBe(600);
+    assert.strictEqual(r.parcelas_pagas, 1);
+    assert.strictEqual(r.parcelas_restantes, 2);
+    assert.strictEqual(r.valor_pago, 300);
+    assert.strictEqual(r.valor_restante, 600);
   });
 
-  test("retorna_zero_parcelas_quando_num_parcelas_nao_definido", () => {
+  it("retorna_zero_parcelas_quando_num_parcelas_nao_definido", () => {
     const cliente = { nome: "Ana" };
     const r = inicializarParcelasLegado(cliente);
-    expect(r.parcelas).toHaveLength(0);
+    assert.strictEqual(r.parcelas.length, 0);
   });
 
-  test("nao_salva_no_banco_apenas_retorna_novo_objeto", () => {
+  it("nao_salva_no_banco_apenas_retorna_novo_objeto", () => {
     const cliente = { num_parcelas: 2, valor_contrato: 400, parcelas_pagas: 0 };
     const resultado = inicializarParcelasLegado(cliente);
-    expect(resultado).not.toBe(cliente); // objeto diferente
-    expect(cliente.parcelas).toBeUndefined(); // original não modificado
+    assert.notStrictEqual(resultado, cliente);
+    assert.strictEqual(cliente.parcelas, undefined);
   });
 });
 
-// ── Validação de entrada (regras de negócio) ──────────────────
-
 describe("validacoes de entrada — regras de negocio", () => {
-  test("status_invalido_deve_ser_rejeitado", () => {
+  it("status_invalido_deve_ser_rejeitado", () => {
     const STATUS_VALIDOS = ["pendente", "pago", "atrasado"];
-    expect(STATUS_VALIDOS.includes("hacked")).toBe(false);
-    expect(STATUS_VALIDOS.includes("pago")).toBe(true);
-    expect(STATUS_VALIDOS.includes("atrasado")).toBe(true);
+    assert.strictEqual(STATUS_VALIDOS.includes("hacked"), false);
+    assert.strictEqual(STATUS_VALIDOS.includes("pago"), true);
+    assert.strictEqual(STATUS_VALIDOS.includes("atrasado"), true);
   });
 
-  test("role_invalido_deve_ser_rejeitado", () => {
+  it("role_invalido_deve_ser_rejeitado", () => {
     const ROLES_VALIDOS = ["admin", "financeiro", "recepcao"];
-    expect(ROLES_VALIDOS.includes("superadmin")).toBe(false);
-    expect(ROLES_VALIDOS.includes("financeiro")).toBe(true);
+    assert.strictEqual(ROLES_VALIDOS.includes("superadmin"), false);
+    assert.strictEqual(ROLES_VALIDOS.includes("financeiro"), true);
   });
 
-  test("referencia_padrao_acima_de_20_chars_deve_ser_rejeitada", () => {
+  it("referencia_padrao_acima_de_20_chars_deve_ser_rejeitada", () => {
     const ref = "ESTE_TEXTO_TEM_MAIS_DE_VINTE_CARACTERES";
-    expect(ref.length > 20).toBe(true);
+    assert.strictEqual(ref.length > 20, true);
   });
 
-  test("link_comprovante_deve_aceitar_apenas_formatos_conhecidos", () => {
+  it("link_comprovante_deve_aceitar_apenas_formatos_conhecidos", () => {
     const validar = (link) =>
       /^(\/api\/comprovante|https:\/\/drive\.google\.com|https:\/\/.*\.amazonaws\.com)/.test(link);
 
-    expect(validar("/api/comprovante/abc123.pdf")).toBe(true);
-    expect(validar("/api/comprovante-s3/comprovantes/file.pdf")).toBe(true); // prefixo /api/comprovante cobre ambos
-    expect(validar("https://drive.google.com/file/d/abc/view")).toBe(true);
-    expect(validar("https://bucket.s3.us-east-1.amazonaws.com/key")).toBe(true);
-    expect(validar("javascript:alert(1)")).toBe(false);
-    expect(validar("http://evil.com")).toBe(false);
+    assert.strictEqual(validar("/api/comprovante/abc123.pdf"), true);
+    assert.strictEqual(validar("/api/comprovante-s3/comprovantes/file.pdf"), true);
+    assert.strictEqual(validar("https://drive.google.com/file/d/abc/view"), true);
+    assert.strictEqual(validar("https://bucket.s3.us-east-1.amazonaws.com/key"), true);
+    assert.strictEqual(validar("javascript:alert(1)"), false);
+    assert.strictEqual(validar("http://evil.com"), false);
   });
 });
