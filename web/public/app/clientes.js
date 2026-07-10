@@ -228,7 +228,6 @@ async function renderClientes() {
             <span>${(c.recibos||[]).length} recibo${(c.recibos||[]).length !== 1 ? "s" : ""}</span>
             <span>Â·</span><span>Ãšltimo: ${esc(ultimo?.data || "-")}</span>
             ${cadastro && cadastro.firma ? `<span>Â·</span><span style="color:var(--gold);font-weight:600">${esc(cadastro.firma)}</span>` : ""}
-            ${cadastro && cadastro.auto_recibo ? `<span>·</span><span style="color:var(--success);font-size:11px"><i class="bi bi-arrow-repeat"></i> Auto</span>` : ""}
             ${cadastro && cadastro.referencia ? `<span>Â·</span><span>Ref: ${esc(cadastro.referencia)}</span>` : (ultimo?.referencia ? `<span>Â·</span><span>Ref: ${esc(ultimo.referencia)}</span>` : "")}
             ${cadastro && cadastro.telefone ? `<span>Â·</span><span><a href="https://wa.me/55${cadastro.telefone.replace(/\D/g,'')}" target="_blank" rel="noopener" class="wa-link" style="color:var(--success);text-decoration:none" title="Abrir WhatsApp"><i class="bi bi-whatsapp"></i> ${esc(cadastro.telefone)}</a></span>` : ""}
           </div>
@@ -429,16 +428,21 @@ function calcularParcela() {
   const entrada  = valorParaNumero(document.getElementById("cliente-valor-entrada")?.value) || 0;
   const parcelas = parseInt(document.getElementById("cliente-num-parcelas").value) || 0;
   const preview  = document.getElementById("cliente-parcela-preview");
-  if (contrato > 0 && parcelas > 0) {
-    const liquido = contrato - entrada;
-    const vp = liquido > 0 ? liquido / parcelas : 0;
-    if (entrada > 0) {
-      preview.textContent = `Entrada: R$ ${formatarValor(entrada)} | ${parcelas}x de R$ ${formatarValor(vp)}`;
-    } else {
-      preview.textContent = `${parcelas}x de R$ ${formatarValor(vp)}`;
-    }
-  } else {
-    preview.textContent = "";
-  }
+  if (!(contrato > 0 && parcelas > 0)) { preview.innerHTML = ""; return; }
+  const liquido = Math.max(0, contrato - entrada);
+  const vp = liquido > 0 ? liquido / parcelas : 0;
+  const cel = (k, v, cor) => `<div style="padding:8px 14px;border-right:1px solid var(--gold-pale)"><div style="font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)">${k}</div><div style="font-size:13px;font-weight:600;color:${cor||"var(--dark)"};font-variant-numeric:tabular-nums">R$ ${formatarValor(v)}</div></div>`;
+  preview.innerHTML = `
+    <div style="border:1.5px solid var(--gold-pale);border-radius:9px;background:linear-gradient(180deg,#fffdf6,#fdf8ec);overflow:hidden;margin-top:6px">
+      <div style="padding:12px 14px 10px">
+        <span style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:var(--dark);font-variant-numeric:tabular-nums"><span style="color:var(--gold)">${parcelas}×</span> de R$ ${formatarValor(vp)}</span>
+        <span style="font-size:12px;color:var(--muted)"> · sugestão de parcela</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--gold-pale)">
+        ${cel("Contrato", contrato)}${cel("Entrada", entrada)}
+        <div style="padding:8px 14px"><div style="font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)">A financiar</div><div style="font-size:13px;font-weight:600;color:var(--success);font-variant-numeric:tabular-nums">R$ ${formatarValor(liquido)}</div></div>
+      </div>
+      <div style="padding:9px 14px;border-top:1px solid var(--gold-pale);font-size:11px;line-height:1.5;color:var(--muted)">Valor sugerido — ao gerar o recibo você registra o <b style="color:var(--mid)">valor real</b> que o cliente pagou.</div>
+    </div>`;
 }
 

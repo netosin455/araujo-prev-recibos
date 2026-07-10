@@ -5,7 +5,13 @@
 
 // ── UTILITÁRIOS ────────────────────────────────────────────
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
-function valorParaNumero(v){ return parseFloat((v||"0").replace(/\./g,"").replace(",","."))||0; }
+function valorParaNumero(v){
+  // Aceita os dois formatos: BR "1.518,00" (ponto=milhar) e SQL "6000.00" (ponto=decimal).
+  if(typeof v==="number") return isFinite(v)?v:0;
+  const s=String(v??"0").trim();
+  if(s.includes(",")) return parseFloat(s.replace(/\./g,"").replace(",","."))||0;
+  return parseFloat(s)||0;
+}
 function formatarValor(n){ return n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 function debounce(fn, ms) {

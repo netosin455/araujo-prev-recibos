@@ -106,7 +106,7 @@ module.exports = function registerClienteRoutes(app, deps) {
     const nParcelas = Number(num_parcelas);
     const parcelas  = deps.gerarParcelas(nParcelas, vContrato, vEntrada);
     const vParcela  = nParcelas > 0 ? (vContrato - vEntrada) / nParcelas : 0;
-    const resumo    = deps.recalcularResumo(parcelas);
+    const resumo    = deps.recalcularResumo(parcelas, vContrato - vEntrada);
 
     const doc = await deps.insert(deps.dbClientes, {
       nome, cpf,
@@ -183,7 +183,7 @@ module.exports = function registerClienteRoutes(app, deps) {
         }
       }
 
-      const resumo = deps.recalcularResumo(novasParcelas);
+      const resumo = deps.recalcularResumo(novasParcelas, vContrato - vEntrada);
 
       await deps.update(deps.dbClientes, { _id: req.params.id }, {
         nome, cpf,
@@ -297,7 +297,8 @@ module.exports = function registerClienteRoutes(app, deps) {
           ? { ...p, lembrete_enviado_em: new Date().toISOString(), lembrete_enviado_por: req.user.username }
           : p
       );
-      const resumo = deps.recalcularResumo(parcelas);
+      const baseContrato = deps.numeroSeguro(cliente.valor_contrato) - deps.numeroSeguro(cliente.valor_entrada);
+      const resumo = deps.recalcularResumo(parcelas, baseContrato);
       await deps.update(deps.dbClientes, { _id: req.params.id }, { parcelas, ...resumo });
       const atualizado = await deps.findOne(deps.dbClientes, { _id: req.params.id });
       res.json(await deps.enriquecerCliente(atualizado));
@@ -332,7 +333,8 @@ module.exports = function registerClienteRoutes(app, deps) {
       const parcelas = parcelasAtuais.map(p =>
         p.num === num ? { ...p, ...atualizacao } : p
       );
-      const resumo = deps.recalcularResumo(parcelas);
+      const baseContrato = deps.numeroSeguro(cliente.valor_contrato) - deps.numeroSeguro(cliente.valor_entrada);
+      const resumo = deps.recalcularResumo(parcelas, baseContrato);
       await deps.update(deps.dbClientes, { _id: req.params.id }, { parcelas, ...resumo });
       if (status !== undefined) {
         deps.registrarAuditoria(req, "atualizar_parcela", req.params.id, { num_parcela: num, status_novo: status });

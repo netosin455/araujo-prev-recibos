@@ -2,6 +2,41 @@
 
 ---
 
+## [2026-07-10] — Cadastro de clientes: valores corretos, parcela flexível e resumo novo
+
+### Corrigido
+- **Inflação de 100x nos valores de cliente**: `valorParaNumero` só entendia o formato BR (`"1.518,00"`) e, ao receber valores de cliente em formato SQL (`"6000.00"`), removia o ponto decimal — virava 600000. Agora entende os dois formatos, e o backend (`enriquecerCliente`) normaliza contrato/entrada/pago/restante/parcelas para **número** ao retornar da API (fim das somas que concatenavam texto).
+- **Parcela "atrasada" errada**: comparava datas em formatos diferentes (`DD/MM/YYYY` vs `YYYY-MM-DD`). Agora normaliza para ISO antes de comparar.
+
+### Adicionado
+- **Valor de parcela flexível (versatilidade)**: ao gerar um recibo, a parcela é quitada com o **valor real do recibo** (pode diferir da parcela sugerida). `recalcularResumo(parcelas, baseContrato)` passou a calcular "falta receber" como `contrato − pago`, então pagamentos a menor/maior sempre batem com o dinheiro real.
+- **Resumo de parcelas em destaque** no modal de cadastro (contrato · entrada · a financiar), no lugar do texto simples.
+
+### Removido
+- Resquício visual do **recibo automático** (selo "Auto") — emitir recibo é ação manual.
+
+---
+
+## [2026-07-09] — Numeração de recibo à prova de corrida (atômica no servidor)
+
+### Corrigido
+- **Race condition na numeração**: o número do recibo era calculado no navegador (`GET /api/proximo-num` = "maior + 1") e impresso no documento **antes** de salvar. Dois recibos criados ao mesmo tempo pegavam o mesmo número → o segundo tomava um "Erro interno" (500) por causa do índice UNIQUE, com o PDF errado já baixado. Agora o **servidor reserva o número atomicamente** ao gerar o documento (`X-Recibo-Num` no header da resposta), então o número impresso sempre bate com o salvo.
+- **Mensagem de erro clara**: conflito de número (`23505`) agora retorna **409** com mensagem explicativa em vez do "Erro interno ao salvar recibo." genérico.
+
+### Adicionado
+- Tabela `recibo_counters (ano, ultimo)` + seed idempotente (semeia com o maior número existente por ano; `GREATEST` no boot nunca reduz o contador).
+- Helper `reservarProximoNumero(ano)` em `web/routes/recibos.js` (`INSERT ... ON CONFLICT DO UPDATE ... RETURNING` — reserva atômica).
+
+### Alterado
+- `POST /api/gerar-recibo`: reserva o número quando o cliente envia `reservar_numero: true` (fluxo de criação novo). Re-impressão (`reimprimirRecibo`) e importação (`rest.js`) seguem usando o número existente — sem quebra.
+- Rota de recibo recorrente passou a usar a reserva atômica (tinha o mesmo bug de `maior + 1`).
+- Frontend (`public/app/recibos.js`): deixou de calcular o número; lê `X-Recibo-Num` da resposta e usa no nome do arquivo e ao salvar.
+
+### Trade-off conhecido
+- A numeração pode ter **buracos** (ex.: 0025 → 0027) se alguém gerar e não concluir — porque o número foi reservado. É intencional: numeração sem buracos é incompatível com "à prova de corrida".
+
+---
+
 ## [2026-06-26] — Hardening do export assíncrono (6 pendências do opencode.md)
 
 ### Adicionado

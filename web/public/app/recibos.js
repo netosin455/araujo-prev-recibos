@@ -85,11 +85,11 @@ async function gerarRecibo(){
     return;
   }
 
-  // Buscar prÃ³ximo nÃºmero
-  const numRes=await api("GET","/api/proximo-num");
-  if(!numRes){btn.disabled=false;btn.innerHTML=btnTextoOriginal;return;}
-  const {num}=await numRes.json();
-  dados.num_recibo=num;
+  // O NÚMERO é reservado atomicamente pelo SERVIDOR ao gerar (à prova de corrida).
+  // Não calculamos mais o número no navegador — pedimos a reserva e lemos a
+  // resposta (header X-Recibo-Num) pra usar no nome do arquivo e ao salvar.
+  dados.reservar_numero = true;
+  let num = "";
 
   // Formato escolhido
   const formatoSel = document.querySelector('input[name="formato"]:checked');
@@ -103,6 +103,10 @@ async function gerarRecibo(){
     btn.disabled=false; btn.innerHTML=btnTextoOriginal;
     return;
   }
+
+  // Número que o servidor reservou de fato — sempre bate com o impresso no doc.
+  num = res.headers.get("X-Recibo-Num") || dados.num_recibo || "";
+  dados.num_recibo = num;
 
   // Download do arquivo
   const blob=await res.blob();

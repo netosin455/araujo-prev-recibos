@@ -382,6 +382,29 @@ async function initDb() {
   await pgPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_recibos_num_unique ON recibos (num) WHERE deletado_em IS NULL`);
   await pgPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_recibos_assinatura_token ON recibos (assinatura_token) WHERE assinatura_token IS NOT NULL`);
 
+  // Contador atômico de numeração de recibo (por ano). Reservar o próximo número
+  // via UPDATE ... RETURNING nesta tabela é à prova de corrida — dois recibos
+  // criados ao mesmo tempo NUNCA recebem o mesmo número (fim dos duplicados/500).
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS recibo_counters (
+      ano    INTEGER PRIMARY KEY,
+      ultimo INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  // Semeia o contador de cada ano com o MAIOR número já existente, pra continuar
+  // de onde está (não reiniciar no 0001). Idempotente: GREATEST nunca reduz o
+  // contador, então rodar todo boot é seguro e ainda se auto-corrige.
+  await pgPool.query(`
+    INSERT INTO recibo_counters (ano, ultimo)
+    SELECT (split_part(num, '/', 2))::int AS ano,
+           MAX((split_part(num, '/', 1))::int) AS ultimo
+      FROM recibos
+     WHERE num ~ '^[0-9]+/[0-9]{4}$' AND deletado_em IS NULL
+     GROUP BY split_part(num, '/', 2)
+    ON CONFLICT (ano) DO UPDATE
+      SET ultimo = GREATEST(recibo_counters.ultimo, EXCLUDED.ultimo)
+  `);
+
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS clientes (
       id                  TEXT          PRIMARY KEY,
@@ -736,7 +759,7 @@ const routeDeps = {
   dbClientes, dbRecibos, dbAuditoria, dbNotificacoes, dbConfig,
   NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited,
   enriquecerCliente, registrarAuditoria, maskCPF,
-  validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado,
+  validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado, numeroSeguro,
   getSheetsClient, sincronizarUsuariosParaSheets, ADMIN_USER,
   s3Client, withTimeout, fetchWithTimeout,
   upload, crypto, fs, path,
@@ -796,17 +819,26 @@ function gerarParcelas(numParcelas, valorContrato, valorEntrada = 0) {
   });
 }
 
-function recalcularResumo(parcelas) {
+function recalcularResumo(parcelas, baseContrato) {
+  const temBase = baseContrato !== undefined && baseContrato !== null;
+  const base = numeroSeguro(baseContrato);
   if (!Array.isArray(parcelas) || parcelas.length === 0) {
-    return { parcelas_pagas: 0, parcelas_restantes: 0, valor_pago: 0, valor_restante: 0, updated_at: new Date().toISOString() };
+    return { parcelas_pagas: 0, parcelas_restantes: 0, valor_pago: 0, valor_restante: temBase ? base : 0, updated_at: new Date().toISOString() };
   }
   const pagas     = parcelas.filter(p => p.status === "pago");
   const restantes = parcelas.filter(p => p.status !== "pago");
+  const valor_pago = pagas.reduce((s, p) => s + numeroSeguro(p.valor), 0);
+  // Com o contrato base informado, "falta receber" = contrato - pago (reflete o
+  // dinheiro REAL: se o cliente pagou menos numa parcela, o restante sobe). Sem
+  // base, mantém o comportamento antigo (soma das parcelas não pagas).
+  const valor_restante = temBase
+    ? Math.max(0, base - valor_pago)
+    : restantes.reduce((s, p) => s + numeroSeguro(p.valor), 0);
   return {
     parcelas_pagas:     pagas.length,
     parcelas_restantes: restantes.length,
-    valor_pago:         pagas.reduce((s, p) => s + (p.valor || 0), 0),
-    valor_restante:     restantes.reduce((s, p) => s + (p.valor || 0), 0),
+    valor_pago,
+    valor_restante,
     updated_at:         new Date().toISOString(),
   };
 }
@@ -865,23 +897,54 @@ function inicializarParcelasLegado(c) {
     recibo_num: "",
     observacao: "",
   }));
-  const resumo = recalcularResumo(parcelas);
+  const resumo = recalcularResumo(parcelas, valorContrato);
   return { ...c, parcelas, ...resumo };
+}
+
+// Converte valor para NÚMERO aceitando os dois formatos que circulam no sistema:
+// SQL "6000.00" (ponto = decimal) e BR "1.518,00" (ponto = milhar, vírgula = decimal).
+// Sem isso, somar valores de cliente concatenava texto e inflava os totais.
+function numeroSeguro(v) {
+  if (typeof v === "number") return isFinite(v) ? v : 0;
+  const s = String(v ?? "").trim();
+  if (!s) return 0;
+  if (s.includes(",")) return parseFloat(s.replace(/\./g, "").replace(",", ".")) || 0;
+  return parseFloat(s) || 0;
+}
+
+// Converte "DD/MM/YYYY" -> "YYYY-MM-DD" para comparar datas de forma correta
+// (comparar formatos diferentes marcava parcelas como atrasadas erradamente).
+function vencimentoParaISO(dv) {
+  const s = String(dv || "").trim();
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : "";
 }
 
 async function enriquecerCliente(c) {
   const cliente = inicializarParcelasLegado(c);
-  const vEntrada = Number(cliente.valor_entrada) || 0;
-  const base = cliente.valor_contrato - vEntrada;
+  const vContrato = numeroSeguro(cliente.valor_contrato);
+  const vEntrada = numeroSeguro(cliente.valor_entrada);
+  const base = vContrato - vEntrada;
   const valorParcela = cliente.num_parcelas > 0 ? base / cliente.num_parcelas : 0;
   const hoje = new Date().toISOString().slice(0, 10);
   const parcelas = (cliente.parcelas || []).map(p => {
-    if (p.status === "pendente" && p.data_vencimento && p.data_vencimento < hoje) {
-      return { ...p, status: "atrasado" };
-    }
-    return p;
+    const pn = { ...p, valor: numeroSeguro(p.valor) };
+    const venc = vencimentoParaISO(pn.data_vencimento);
+    if (pn.status === "pendente" && venc && venc < hoje) pn.status = "atrasado";
+    return pn;
   });
-  return { ...cliente, parcelas, id: cliente._id, valor_parcela: valorParcela, valor_entrada: vEntrada };
+  return {
+    ...cliente,
+    parcelas,
+    id: cliente._id,
+    valor_contrato: vContrato,
+    valor_entrada: vEntrada,
+    valor_beneficio: numeroSeguro(cliente.valor_beneficio),
+    valor_pago: numeroSeguro(cliente.valor_pago),
+    valor_restante: numeroSeguro(cliente.valor_restante),
+    valor_parcela: valorParcela,
+  };
 }
 
 app.get("/api/clientes", auth, async (req, res) => {

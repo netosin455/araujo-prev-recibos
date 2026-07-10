@@ -16,6 +16,21 @@ module.exports = function registerReciboRoutes(app, deps) {
     return gerarBufferPDFReciboShared(recibo, logoPath);
   }
 
+  // ── NUMERAÇÃO ATÔMICA ──────────────────────────────────────
+  // Reserva o próximo número do ano de forma atômica no banco (à prova de
+  // corrida). Cada chamada recebe um número único garantido — nunca repete,
+  // mesmo com dois recibos criados no mesmo instante. Retorna "0001/2026".
+  async function reservarProximoNumero(ano) {
+    const anoInt = parseInt(ano, 10) || new Date().getFullYear();
+    const { rows } = await deps.pgPool.query(
+      `INSERT INTO recibo_counters (ano, ultimo) VALUES ($1, 1)
+       ON CONFLICT (ano) DO UPDATE SET ultimo = recibo_counters.ultimo + 1
+       RETURNING ultimo`,
+      [anoInt]
+    );
+    return `${String(rows[0].ultimo).padStart(4, "0")}/${anoInt}`;
+  }
+
   // ── WEBHOOK — RECIBO GERADO ────────────────────────────────
   async function dispararWebhook(dadosRecibo) {
     const url = process.env.WEBHOOK_URL;
@@ -175,14 +190,19 @@ module.exports = function registerReciboRoutes(app, deps) {
           const pendente = cliente.parcelas.find(p => p.status === "pendente");
           if (pendente) {
             const dataPgt = data || new Date().toLocaleDateString("pt-BR");
+            // Versatilidade: a parcela é quitada com o VALOR REAL do recibo (pode
+            // diferir da parcela sugerida). O resumo usa contrato-entrada como base,
+            // então "falta receber" reflete o dinheiro que de fato entrou.
+            const valorRecebido = deps.numeroSeguro(valor);
             const novasParcelas = cliente.parcelas.map(p =>
               p.num === pendente.num
-                ? { ...p, status: "pago", data_recebimento: dataPgt, recibo_num: String(num || ""), recibo_id: doc._id }
+                ? { ...p, status: "pago", valor: valorRecebido, data_recebimento: dataPgt, recibo_num: String(num || ""), recibo_id: doc._id }
                 : p
             );
-            const resumo = deps.recalcularResumo(novasParcelas);
+            const baseContrato = deps.numeroSeguro(cliente.valor_contrato) - deps.numeroSeguro(cliente.valor_entrada);
+            const resumo = deps.recalcularResumo(novasParcelas, baseContrato);
             await deps.update(deps.dbClientes, { _id: cliente._id }, { parcelas: novasParcelas, ...resumo });
-            deps.registrarAuditoria(req, "atualizar_parcela", cliente._id, { num_parcela: pendente.num, status_novo: "pago", auto: true, recibo_num: num });
+            deps.registrarAuditoria(req, "atualizar_parcela", cliente._id, { num_parcela: pendente.num, status_novo: "pago", valor_recebido: valorRecebido, recibo_num: num });
           }
         }
       } catch (e) {
@@ -191,6 +211,12 @@ module.exports = function registerReciboRoutes(app, deps) {
       res.json({ id: doc._id });
     } catch (err) {
       console.error("Erro em POST /api/recibos:", err);
+      // 23505 = violação de UNIQUE (número de recibo já usado). Com a reserva
+      // atômica isso não deve mais acontecer, mas se acontecer o usuário recebe
+      // uma mensagem clara (em vez do "Erro interno" genérico) e pode refazer.
+      if (err && err.code === "23505") {
+        return res.status(409).json({ erro: "Esse número de recibo já foi usado. Gere o recibo de novo para pegar o próximo número." });
+      }
       res.status(500).json({ erro: "Erro interno ao salvar recibo." });
     }
   });
@@ -279,16 +305,8 @@ module.exports = function registerReciboRoutes(app, deps) {
       const newReferencia = req.body.referencia !== undefined ? req.body.referencia : (original.referencia || "");
 
       const anoNum = (newData.split("/")[2]) || String(new Date().getFullYear());
-      const todos = await deps.find(deps.dbRecibos, {});
-      let maior = 0;
-      for (const r of todos) {
-        const match = (r.num || "").match(/^(\d+)\/(\d{4})$/);
-        if (match && match[2] === anoNum) {
-          const seq = parseInt(match[1], 10);
-          if (seq > maior) maior = seq;
-        }
-      }
-      const newNum = `${String(maior + 1).padStart(4, "0")}/${anoNum}`;
+      // Reserva atômica (mesma proteção contra corrida do fluxo de criação).
+      const newNum = await reservarProximoNumero(anoNum);
 
       const novoRecibo = {
         num: newNum,
@@ -403,6 +421,16 @@ module.exports = function registerReciboRoutes(app, deps) {
   app.post("/api/gerar-recibo", deps.auth, async (req, res) => {
     try {
       const dados = req.body;
+      // Numeração à prova de corrida: se o cliente pedir reserva (fluxo de criação
+      // novo), o SERVIDOR reserva o número atômico AGORA e o imprime no documento —
+      // nunca confia num número calculado no navegador (que duplicava sob acesso
+      // simultâneo). Re-download (sem a flag) usa o número existente.
+      let numeroRecibo = dados.num_recibo || "";
+      if (dados.reservar_numero) {
+        const anoRecibo = (dados.data || "").split("/")[2] || String(new Date().getFullYear());
+        numeroRecibo = await reservarProximoNumero(anoRecibo);
+        res.setHeader("X-Recibo-Num", numeroRecibo);
+      }
       const digits = dados.cpf.replace(/\D/g, "");
       const labelDoc = digits.length > 11 ? "CNPJ" : "CPF";
       const complemento = dados.complemento ? ` - ${dados.complemento}` : "";
@@ -467,7 +495,7 @@ module.exports = function registerReciboRoutes(app, deps) {
         p("A ARAUJO SERVIÇOS LTDA ME", { align: AlignmentType.CENTER, bold: true, size: 14, color: "1E40AF", spaceAfter: 40 }),
         p("A ARAUJO PREV", { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 40 }),
         linha(),
-        p(`Recibo Nº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 20 }),
+        p(`Recibo Nº ${numeroRecibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: AlignmentType.CENTER, bold: true, size: 12, spaceAfter: 20 }),
         p("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: AlignmentType.CENTER, bold: true, size: 14, spaceAfter: 80 }),
         p(textoCorpo, { align: AlignmentType.JUSTIFIED, spaceAfter: 60 }),
         p("Por ser verdade, firmo o presente que segue datado e assinado.", { align: AlignmentType.JUSTIFIED, spaceAfter: 80 }),
@@ -499,7 +527,7 @@ module.exports = function registerReciboRoutes(app, deps) {
         sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children }],
       });
 
-      const nomeBase = `recibo_${dados.num_recibo.replace(/[\/\\]/g, "-")}_${dados.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").toLowerCase()}`;
+      const nomeBase = `recibo_${(numeroRecibo || "").replace(/[\/\\]/g, "-")}_${dados.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").toLowerCase()}`;
 
       if (dados.formato === "pdf") {
         const chunks = [];
@@ -523,7 +551,7 @@ module.exports = function registerReciboRoutes(app, deps) {
           pdf.moveTo(lx, pdf.y).lineTo(lx + lw, pdf.y).stroke().moveDown(0.4);
 
           pdf.fontSize(12).font("Helvetica-Bold")
-            .text(`Recibo Nº ${dados.num_recibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
+            .text(`Recibo Nº ${numeroRecibo}${dados.referencia ? "   |   Ref: " + dados.referencia : ""}`, { align: "center" }).moveDown(0.2);
           pdf.fontSize(14).text("RECIBO DE HONORÁRIOS ADVOCATÍCIOS", { align: "center" }).moveDown(0.8);
 
           pdf.fontSize(11).font("Helvetica")
