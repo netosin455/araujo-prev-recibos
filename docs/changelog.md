@@ -2,6 +2,21 @@
 
 ---
 
+## [2026-07-10] — Fichário aperfeiçoado (visualizador, envio em lote, agrupamento)
+
+### Adicionado
+- **Visualizador (lightbox)**: ver os documentos dentro do app, com **zoom** (clique) e **navegação** por setas/teclado entre os documentos do cliente, no lugar de abrir a URL crua em aba nova.
+- **Envio em lote**: enviar/fotografar **vários documentos de uma vez** (RG frente+verso+comprovante), com progresso "Enviando N de M".
+- **Agrupamento por tipo** na galeria (RG, Comprovante, Procuração…), com contagem.
+
+### Alterado
+- Visual da seção Fichário alinhado à identidade do sistema (título serifado, cards com capa + badge de contagem, cabeçalho da galeria, hover, estados vazios).
+
+### Removido / corrigido
+- **Colisão de `renderFichario`**: existiam duas implementações (a aba antiga no card do cliente e a seção do menu). Removida a **aba redundante do card**; o Fichário passa a ser só a seção do menu (fonte única). Código de upload unificado (fim da duplicação).
+
+---
+
 ## [2026-07-10] — Fichário de documentos do cliente
 
 ### Adicionado
