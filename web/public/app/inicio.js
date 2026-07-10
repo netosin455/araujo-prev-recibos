@@ -70,6 +70,7 @@ function _dashGrafico(recibos) {
 }
 
 function renderInicio() {
+  if (typeof roleLogado !== "undefined" && roleLogado === "recepcao") return; // recepção não vê o painel
   _dashCSS();
   const el = document.getElementById("screen-inicio");
   if (!el) return;

@@ -132,6 +132,8 @@ async function iniciarApp(){
       document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
       document.getElementById("nav-admin").style.display = "none";
       document.getElementById("bn-admin").style.display = "none";
+      // Recepção não vê o painel Início (dados financeiros do escritório)
+      ["nav-inicio","bn-inicio"].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = "none"; });
     }
     if(roleLogado === "precatorios"){
       ["nav-gerar","nav-historico","nav-clientes","bn-gerar","bn-historico","bn-clientes"].forEach(id => {
@@ -140,7 +142,7 @@ async function iniciarApp(){
       document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
     }
     await Promise.all([carregarRecibos(), carregarClientes()]);
-    if(typeof renderInicio==="function") renderInicio();
+    if(roleLogado !== "recepcao" && typeof renderInicio==="function") renderInicio();
     await atualizarNumRecibo();
     await carregarReferenciaPadrao();
     atualizarSugestoesNomes();
@@ -150,6 +152,7 @@ async function iniciarApp(){
     verificarParcelasVencendo();
     initNotifPolling();
     if(roleLogado === "precatorios") navegarPara("admin");
+    if(roleLogado === "recepcao") navegarPara("gerar");
   } catch(e) {
     console.error("iniciarApp:", e);
   }
