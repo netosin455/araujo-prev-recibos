@@ -789,6 +789,7 @@ const routeDeps = {
   filaExportConfigurada: require("./services/fila").filaConfigurada,
   s3SignerClient, getSignedUrl, GetObjectCommand,
   BUCKET_NAME: process.env.BUCKET_NAME,
+  MIRROR_LOCAL_DIR: process.env.MIRROR_LOCAL_DIR || "",
   // transporter criado sob demanda (criarTransporter é hoisted)
   get transporter() { return criarTransporter(); },
 };

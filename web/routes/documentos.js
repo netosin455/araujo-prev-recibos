@@ -19,15 +19,20 @@ module.exports = function registerDocumentoRoutes(app, deps) {
   });
   const nd = v => String(v || "").replace(/\D/g, "");
 
-  // ── Ponto ÚNICO de gravação de arquivo (futuro: espelhar no servidor local) ──
+  // ── Ponto ÚNICO de gravação: S3 + espelho local (se configurado) ──
   async function salvarArquivo(key, buffer, contentType) {
     await deps.s3Client.send(new PutObjectCommand({
       Bucket: deps.BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType,
     }));
+    if (deps.MIRROR_LOCAL_DIR) {
+      const caminho = deps.path.join(deps.MIRROR_LOCAL_DIR, key);
+      await deps.fs.mkdir(deps.path.dirname(caminho), { recursive: true });
+      await deps.fs.writeFile(caminho, buffer);
+    }
     return key;
   }
 
-  // URL assinada temporária (o arquivo NUNCA é público)
+  // URL assinada temporária (fallback pra rota local se S3 falhar)
   async function urlAssinada(key, ttl = 3600) {
     if (!key) return "";
     try {
@@ -37,6 +42,7 @@ module.exports = function registerDocumentoRoutes(app, deps) {
         { expiresIn: ttl }
       );
     } catch {
+      if (deps.MIRROR_LOCAL_DIR) return `/api/arquivo-local/${key}`;
       return "";
     }
   }
@@ -113,15 +119,44 @@ module.exports = function registerDocumentoRoutes(app, deps) {
   app.delete("/api/documentos/:id", deps.auth, deps.financeiroOnly, async (req, res) => {
     try {
       const { rows } = await deps.pgPool.query(
-        `UPDATE documentos SET deletado_em=NOW() WHERE id=$1 AND deletado_em IS NULL RETURNING nome`,
+        `UPDATE documentos SET deletado_em=NOW() WHERE id=$1 AND deletado_em IS NULL RETURNING nome, s3_key, s3_key_thumb`,
         [req.params.id]
       );
       if (rows.length === 0) return res.status(404).json({ erro: "Documento não encontrado." });
+      // Remove do espelho local se existir
+      if (deps.MIRROR_LOCAL_DIR && rows[0].s3_key) {
+        const localArquivo = deps.path.join(deps.MIRROR_LOCAL_DIR, rows[0].s3_key);
+        const localThumb = rows[0].s3_key_thumb ? deps.path.join(deps.MIRROR_LOCAL_DIR, rows[0].s3_key_thumb) : null;
+        deps.fs.unlink(localArquivo).catch(() => {});
+        if (localThumb) deps.fs.unlink(localThumb).catch(() => {});
+      }
       deps.registrarAuditoria(req, "excluir_documento", req.params.id, { nome: rows[0].nome });
       res.json({ ok: true });
     } catch (e) {
       console.error("Erro ao excluir documento:", e.message);
       res.status(500).json({ erro: "Erro ao excluir documento." });
+    }
+  });
+
+  // ── SERVIR arquivo do espelho local (fallback quando S3 falha) ──
+  app.get("/api/arquivo-local/*", deps.auth, async (req, res) => {
+    try {
+      if (!deps.MIRROR_LOCAL_DIR) return res.status(404).json({ erro: "Espelho local não configurado." });
+      const key = req.params[0];
+      if (!key || key.includes("..")) return res.status(400).json({ erro: "Caminho inválido." });
+      const caminho = deps.path.resolve(deps.path.join(deps.MIRROR_LOCAL_DIR, key));
+      if (!caminho.startsWith(deps.path.resolve(deps.MIRROR_LOCAL_DIR))) {
+        return res.status(403).json({ erro: "Acesso negado." });
+      }
+      const buf = await deps.fs.readFile(caminho);
+      const ext = deps.path.extname(key).toLowerCase();
+      const mime = ({ ".pdf": "application/pdf", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif" })[ext] || "image/jpeg";
+      res.setHeader("Content-Type", mime);
+      res.send(buf);
+    } catch (e) {
+      if (e.code === "ENOENT") return res.status(404).json({ erro: "Arquivo não encontrado no espelho local." });
+      console.error("Erro ao servir arquivo local:", e.message);
+      res.status(500).json({ erro: "Erro ao servir arquivo." });
     }
   });
 };
