@@ -40,5 +40,5 @@ deploy2.zip
 web/stderr.txt
 web/stdout.txt
 
-# backups pontuais de limpeza de dados (nao versionar)
-web/backup_limpeza_*.json
+# backups pontuais de limpeza/recontagem de dados (nao versionar)
+web/backup_*.json
