@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-07-10] — Lista de clientes redesenhada + "Quitado" por valor
+
+### Adicionado
+- **Cards de cliente redesenhados**: etiqueta de status (Quitado / Em dia / Atrasado), "Total pago" em destaque, barra de progresso e "falta receber" mais claros, com aviso de parcela vencida.
+
+### Alterado
+- **Status "Quitado" agora é por VALOR** (pago ≥ contrato) em vez de contar parcelas — respeita pagamento parcial. A barra de progresso também é por dinheiro (pago ÷ contrato).
+
+### Manutenção de dados (script pontual, executado uma vez)
+- Mesclados 37 clientes duplicados do import (CPF estragado por formatação de Excel: `.0`, zeros à esquerda perdidos) — mantido o CPF válido, recibos re-apontados (nenhum recibo apagado), duplicado com soft-delete. 7 clientes marcados "pagos" sem nenhum recibo foram resetados. 8 casos ambíguos (CPFs válidos distintos) deixados para revisão manual.
+
+---
+
 ## [2026-07-10] — Cadastro de clientes: valores corretos, parcela flexível e resumo novo
 
 ### Corrigido

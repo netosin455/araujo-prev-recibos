@@ -46,19 +46,27 @@ function _btnWhatsApp(telefone, nomeCliente, p) {
 
 function _buildBlocoContrato(cadastro) {
   if (!cadastro || cadastro.num_parcelas <= 0) return "";
-  const pct      = Math.min(100, Math.round((cadastro.parcelas_pagas / cadastro.num_parcelas) * 100));
-  const quitado  = cadastro.parcelas_restantes === 0;
-  const corBarra = quitado ? "var(--success)" : "var(--gold)";
+  // Progresso e "quitado" por VALOR (dinheiro pago), não por contar parcelas —
+  // o cliente pode pagar parcial, então o que vale é quanto entrou vs o contrato.
+  const contratoV = Number(cadastro.valor_contrato) || 0;
+  const pagoV     = Number(cadastro.valor_pago) || 0;
+  const pct      = contratoV > 0 ? Math.min(100, Math.round((pagoV / contratoV) * 100)) : 0;
+  const quitado  = contratoV > 0 ? (pagoV >= contratoV - 0.005) : (cadastro.parcelas_restantes === 0);
+  const vencidas = Array.isArray(cadastro.parcelas) ? cadastro.parcelas.filter(p => p.status === "atrasado").length : 0;
+  const corBarra = quitado ? "var(--success)" : "linear-gradient(90deg,var(--gold-light),var(--gold))";
+  const rodape = quitado
+    ? `<b style="color:var(--success);font-weight:700">✓ Contrato quitado</b>`
+    : `Faltam <b style="color:var(--dark)">R$ ${formatarValor(cadastro.valor_restante)}</b> · ${cadastro.parcelas_restantes} parcela${cadastro.parcelas_restantes !== 1 ? "s" : ""}${vencidas > 0 ? ` · <b style="color:var(--error)">${vencidas} vencida${vencidas !== 1 ? "s" : ""}</b>` : ""}`;
   return `
-    <div style="margin-top:8px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span style="color:var(--muted)">${cadastro.parcelas_pagas}/${cadastro.num_parcelas} parcelas${quitado ? " Â· âœ… Quitado" : ""}</span>
-        <span style="color:var(--muted)">R$ ${formatarValor(cadastro.valor_pago)} / R$ ${formatarValor(cadastro.valor_contrato)}</span>
+    <div style="margin-top:13px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:6px">
+        <span style="color:var(--mid);font-weight:600">${cadastro.parcelas_pagas} de ${cadastro.num_parcelas} parcelas</span>
+        <span style="color:var(--muted);font-variant-numeric:tabular-nums"><b style="color:var(--dark)">R$ ${formatarValor(cadastro.valor_pago)}</b> / R$ ${formatarValor(cadastro.valor_contrato)}</span>
       </div>
-      <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden">
-        <div style="width:${pct}%;background:${corBarra};height:100%;border-radius:4px;transition:width .3s"></div>
+      <div style="background:var(--border);border-radius:5px;height:7px;overflow:hidden">
+        <div style="width:${pct}%;background:${corBarra};height:100%;border-radius:5px;transition:width .3s"></div>
       </div>
-      ${!quitado ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">Faltam R$ ${formatarValor(cadastro.valor_restante)} Â· ${cadastro.parcelas_restantes} parcela${cadastro.parcelas_restantes !== 1 ? "s" : ""}</div>` : ""}
+      <div style="font-size:11.5px;color:var(--muted);margin-top:7px">${rodape}</div>
     </div>`;
 }
 
@@ -218,26 +226,39 @@ async function renderClientes() {
     const tabelaRecibos = _buildTabelaRecibos(c);
     const { tabelaParcelamento, tabelaAReceber, tabelaRecebidos } = _buildTabelasParcelamento(cadastro);
 
+    const pillBase = "font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 9px;border-radius:20px;white-space:nowrap;vertical-align:middle";
+    let statusPill = "";
+    if (cadastro && cadastro.num_parcelas > 0) {
+      const temAtrasada = Array.isArray(cadastro.parcelas) && cadastro.parcelas.some(p => p.status === "atrasado");
+      const contratoV = Number(cadastro.valor_contrato) || 0;
+      const quitado = contratoV > 0 ? (Number(cadastro.valor_pago) >= contratoV - 0.005) : (cadastro.parcelas_restantes === 0);
+      if (quitado) statusPill = `<span style="${pillBase};background:#e6f0ea;color:var(--success)">Quitado</span>`;
+      else if (temAtrasada) statusPill = `<span style="${pillBase};background:#f6e7e4;color:var(--error)">Atrasado</span>`;
+      else statusPill = `<span style="${pillBase};background:var(--gold-pale);color:#8a6d1f">Em dia</span>`;
+    }
+
     const card = document.createElement("div");
     card.className = "cliente-card";
     card.innerHTML = `
-      <div class="cliente-header">
-        <div style="flex:1">
-          <div class="cliente-nome">${esc(c.nome)}</div>
-          <div class="cliente-stats">
-            <span>${(c.recibos||[]).length} recibo${(c.recibos||[]).length !== 1 ? "s" : ""}</span>
-            <span>Â·</span><span>Ãšltimo: ${esc(ultimo?.data || "-")}</span>
-            ${cadastro && cadastro.firma ? `<span>Â·</span><span style="color:var(--gold);font-weight:600">${esc(cadastro.firma)}</span>` : ""}
-            ${cadastro && cadastro.referencia ? `<span>Â·</span><span>Ref: ${esc(cadastro.referencia)}</span>` : (ultimo?.referencia ? `<span>Â·</span><span>Ref: ${esc(ultimo.referencia)}</span>` : "")}
-            ${cadastro && cadastro.telefone ? `<span>Â·</span><span><a href="https://wa.me/55${cadastro.telefone.replace(/\D/g,'')}" target="_blank" rel="noopener" class="wa-link" style="color:var(--success);text-decoration:none" title="Abrir WhatsApp"><i class="bi bi-whatsapp"></i> ${esc(cadastro.telefone)}</a></span>` : ""}
+      <div class="cliente-header" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;width:100%">
+          <div style="min-width:0">
+            <div class="cliente-nome" style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">${esc(c.nome)}${statusPill}</div>
+            <div class="cliente-stats" style="flex-wrap:wrap;gap:6px 12px">
+              <span>${(c.recibos||[]).length} recibo${(c.recibos||[]).length !== 1 ? "s" : ""}</span>
+              <span style="color:var(--border-strong)">·</span><span>Último: ${esc(ultimo?.data || "-")}</span>
+              ${cadastro && cadastro.firma ? `<span style="color:var(--border-strong)">·</span><span style="color:var(--gold);font-weight:600">${esc(cadastro.firma)}</span>` : ""}
+              ${cadastro && cadastro.referencia ? `<span style="color:var(--border-strong)">·</span><span>Ref: ${esc(cadastro.referencia)}</span>` : (ultimo?.referencia ? `<span style="color:var(--border-strong)">·</span><span>Ref: ${esc(ultimo.referencia)}</span>` : "")}
+              ${cadastro && cadastro.telefone ? `<span style="color:var(--border-strong)">·</span><span><a href="https://wa.me/55${cadastro.telefone.replace(/\D/g,'')}" target="_blank" rel="noopener" class="wa-link" style="color:var(--success);text-decoration:none;font-weight:600" title="Abrir WhatsApp"><i class="bi bi-whatsapp"></i> ${esc(cadastro.telefone)}</a></span>` : ""}
+            </div>
           </div>
-          ${blocoContrato}
+          <div style="text-align:right;flex:none">
+            <div style="font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)">Total pago</div>
+            <div class="cliente-total" style="font-size:20px;font-family:'Cormorant Garamond',serif;color:var(--dark)">R$ ${formatarValor(c.total)}</div>
+          </div>
         </div>
-        <div style="display:flex;align-items:flex-start;gap:8px;margin-left:12px;flex-shrink:0">
-          <div style="text-align:right;margin-right:4px">
-            <div class="cliente-total">R$ ${formatarValor(c.total)}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">total pago</div>
-          </div>
+        ${blocoContrato}
+        <div style="display:flex;gap:8px;margin-top:13px;flex-wrap:wrap">
           <button class="btn-sm btn-secondary cadastro-btn">${cadastro ? "Editar cadastro" : "Cadastrar"}</button>
           ${roleLogado !== "recepcao" && cadastro ? `<button class="btn-danger btn-sm excluir-cliente-btn" title="Excluir cliente"><i class="bi bi-trash"></i></button>` : ""}
           <button class="btn-gold btn-sm novo-recibo-btn">+ Recibo</button>

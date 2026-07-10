@@ -39,3 +39,6 @@ deploy2.zip
 # Temp files
 web/stderr.txt
 web/stdout.txt
+
+# backups pontuais de limpeza de dados (nao versionar)
+web/backup_limpeza_*.json
