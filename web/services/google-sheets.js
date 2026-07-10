@@ -187,7 +187,7 @@ async function linkParaSheets(link, s3SignerClient) {
     const { GetObjectCommand } = require("@aws-sdk/client-s3");
     const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: s3Match[1] });
-    const urlPromise = getSignedUrl(s3SignerClient, cmd, { expiresIn: 30 * 24 * 3600 });
+    const urlPromise = getSignedUrl(s3SignerClient, cmd, { expiresIn: 7 * 24 * 3600 });
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
     return await Promise.race([urlPromise, timeoutPromise]);
   } catch (e) {
@@ -221,7 +221,7 @@ async function renovarPresignedUrlsSheets(s3SignerClient) {
       if (!chave) continue;
       try {
         const cmd = new GetObjectCommand({ Bucket: bucket, Key: decodeURIComponent(chave) });
-        const novaUrl = await getSignedUrl(s3SignerClient, cmd, { expiresIn: 30 * 24 * 3600 });
+        const novaUrl = await getSignedUrl(s3SignerClient, cmd, { expiresIn: 7 * 24 * 3600 });
         atualizacoes.push({ range: `${SHEET_NAME}!K${i + 1}`, values: [[novaUrl]] });
       } catch (e) {
         console.warn(`⚠️  Não foi possível renovar URL para chave "${chave}": ${e.message}`);
