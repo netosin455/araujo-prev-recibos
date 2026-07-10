@@ -138,6 +138,36 @@ module.exports = function registerDocumentoRoutes(app, deps) {
     }
   });
 
+  // ── BUSCA para a seção Fichário (clientes + contagem + capa) ──
+  app.get("/api/fichario/busca", deps.auth, async (req, res) => {
+    try {
+      const q = (req.query.q || "").trim();
+      const { rows } = await deps.pgPool.query(`
+        SELECT c.id, c.nome, c.cpf,
+          (SELECT COUNT(*) FROM documentos d
+           WHERE d.cliente_cpf = regexp_replace(c.cpf, '[^0-9]', '', 'g')
+           AND d.deletado_em IS NULL) AS qtd_docs,
+          (SELECT d2.s3_key_thumb FROM documentos d2
+           WHERE d2.cliente_cpf = regexp_replace(c.cpf, '[^0-9]', '', 'g')
+           AND d2.deletado_em IS NULL
+           ORDER BY d2.criado_em DESC LIMIT 1) AS cover_thumb
+        FROM clientes c
+        WHERE c.deletado_em IS NULL
+          AND ($1 = '' OR c.nome ILIKE '%' || $1 || '%' OR c.cpf ILIKE '%' || $1 || '%')
+        ORDER BY CASE WHEN $1 = '' THEN 0 ELSE 1 END, c.nome ASC
+      `, [q]);
+      const clientes = await Promise.all(rows.map(async r => ({
+        id: r.id, nome: r.nome, cpf: r.cpf,
+        qtd_docs: parseInt(r.qtd_docs) || 0,
+        cover_thumb_url: await urlAssinada(r.cover_thumb),
+      })));
+      res.json({ clientes });
+    } catch (e) {
+      console.error("Erro ao buscar fichário:", e.message);
+      res.status(500).json({ erro: "Erro ao buscar clientes." });
+    }
+  });
+
   // ── SERVIR arquivo do espelho local (fallback quando S3 falha) ──
   app.get("/api/arquivo-local/*", deps.auth, async (req, res) => {
     try {

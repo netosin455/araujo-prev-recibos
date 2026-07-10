@@ -552,6 +552,7 @@
       <div class="nav-item" id="nav-historico" data-tooltip="Ctrl+H"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
       <div class="nav-section">Gestão</div>
       <div class="nav-item" id="nav-clientes" data-tooltip="Ctrl+C"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes<span id="badge-clientes-atraso" class="nav-badge" style="display:none"></span></div>
+      <div class="nav-item" id="nav-fichario"><span class="icon"><i class="bi bi-folder2-open"></i></span> Fichário</div>
       <div class="nav-item" id="nav-admin" data-tooltip="Ctrl+A"><span class="icon"><i class="bi bi-bar-chart-fill"></i></span> Administrativo</div>
       <div class="nav-section">Sistema</div>
       <div class="nav-item" id="nav-usuarios" style="display:none"><span class="icon"><i class="bi bi-person-gear"></i></span> Usuários</div>
@@ -577,6 +578,10 @@
     <div class="bn-item" id="bn-clientes">
       <i class="bi bi-people-fill"></i>
       <span>Clientes</span>
+    </div>
+    <div class="bn-item" id="bn-fichario">
+      <i class="bi bi-folder2-open"></i>
+      <span>Fichário</span>
     </div>
     <div class="bn-item" id="bn-admin">
       <i class="bi bi-bar-chart-fill"></i>
@@ -855,6 +860,9 @@
         <div id="resumo-clientes" class="resumo-tela"></div>
         <div id="clientes-grid"></div>
       </div>
+
+      <!-- FICHÁRIO -->
+      <div id="screen-fichario" class="screen"></div>
 
       <!-- ADMINISTRATIVO -->
       <div id="screen-admin" class="screen">
@@ -1717,6 +1725,7 @@
   <script src="app/clientes.js?cb=1" defer></script>
   <script src="app/admin.js?cb=1" defer></script>
   <script src="app/analytics.js?cb=1" defer></script>
+  <script src="app/fichario.js?cb=1" defer></script>
   <script src="app/rest.js?cb=1" defer></script>
 </body>
 </html>

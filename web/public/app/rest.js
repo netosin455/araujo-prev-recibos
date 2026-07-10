@@ -805,6 +805,7 @@ function bindStaticHandlers() {
   document.getElementById("nav-gerar").addEventListener("click", () => navegarPara("gerar"));
   document.getElementById("nav-historico").addEventListener("click", () => navegarPara("historico"));
   document.getElementById("nav-clientes").addEventListener("click", () => navegarPara("clientes"));
+  document.getElementById("nav-fichario").addEventListener("click", () => navegarPara("fichario"));
   document.getElementById("nav-admin").addEventListener("click", () => navegarPara("admin"));
   document.getElementById("nav-usuarios").addEventListener("click", () => navegarPara("usuarios"));
   document.getElementById("nav-backup").addEventListener("click", fazerBackup);
@@ -816,6 +817,7 @@ function bindStaticHandlers() {
   document.getElementById("bn-gerar").addEventListener("click", () => navegarPara("gerar"));
   document.getElementById("bn-historico").addEventListener("click", () => navegarPara("historico"));
   document.getElementById("bn-clientes").addEventListener("click", () => navegarPara("clientes"));
+  document.getElementById("bn-fichario").addEventListener("click", () => navegarPara("fichario"));
   document.getElementById("bn-admin").addEventListener("click", () => navegarPara("admin"));
   document.getElementById("bn-usuarios").addEventListener("click", () => navegarPara("usuarios"));
   document.getElementById("bn-sair").addEventListener("click", fazerLogout);

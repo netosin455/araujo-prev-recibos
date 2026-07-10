@@ -335,16 +335,16 @@ function marcarInvalido(...ids){
 }
 
 // ── NAVEGAÇÃO ──────────────────────────────────────────────
-const telas=["gerar","historico","clientes","admin","usuarios"];
-const titulos={gerar:"Gerar Recibo",historico:"Histórico de Recibos",clientes:"Clientes",admin:"Administrativo",usuarios:"Usuários"};
+const telas=["gerar","historico","clientes","fichario","admin","usuarios"];
+const titulos={gerar:"Gerar Recibo",historico:"Histórico de Recibos",clientes:"Clientes",fichario:"Fichário",admin:"Administrativo",usuarios:"Usuários"};
 
 async function navegarPara(tela){
   try {
     telas.forEach(t=>document.getElementById("screen-"+t)?.classList.remove("active"));
     document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
     document.getElementById("screen-"+tela)?.classList.add("active");
-    const idx=["gerar","historico","clientes","admin"].indexOf(tela);
-    if(idx>=0) document.querySelectorAll(".nav-item")[idx]?.classList.add("active");
+    const navEl=document.getElementById("nav-"+tela);
+    if(navEl) navEl.classList.add("active");
     document.querySelectorAll(".bn-item").forEach(n=>n.classList.remove("active"));
     const bn=document.getElementById("bn-"+tela);
     if(bn) bn.classList.add("active");
@@ -366,6 +366,7 @@ async function navegarPara(tela){
       if(buscaCli) buscaCli.value = "";
       renderClientes();
     }
+    if(tela==="fichario") renderFichario();
     if(tela==="admin"){
       await carregarRecibos();
       atualizarDashboard();
