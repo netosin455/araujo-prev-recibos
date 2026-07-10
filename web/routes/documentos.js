@@ -33,7 +33,7 @@ module.exports = function registerDocumentoRoutes(app, deps) {
   }
 
   // URL assinada temporária (fallback pra rota local se S3 falhar)
-  async function urlAssinada(key, ttl = 3600) {
+  async function urlAssinada(key, ttl = 86400) { // 24h — evita link expirar com a tela aberta/cache
     if (!key) return "";
     try {
       return await deps.getSignedUrl(
