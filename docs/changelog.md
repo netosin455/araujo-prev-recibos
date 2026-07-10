@@ -2,6 +2,17 @@
 
 ---
 
+## [2026-07-10] — Tela inicial "Início" (painel-resumo)
+
+### Adicionado
+- **Tela "Início"** como home do app (`web/public/app/inicio.js`): saudação, 4 tiles (receita do mês c/ variação vs mês anterior, recibos no mês, a receber, clientes ativos), mini-gráfico de receita (6 meses) e listas de recibos recentes + parcelas atrasadas.
+- Vira a **tela padrão** ao entrar; itens de menu "Início" no sidebar e no nav mobile.
+
+### Decisão
+- **Não duplica o "Administrativo"** (que tem os relatórios detalhados): o Início só **resume** os dados que o app já carrega em memória (`historicoRecibos`, `listaClientes`) e **linka** pras telas de detalhe. Design system (tiles/cards/tokens) reaproveitável no resto do app.
+
+---
+
 ## [2026-07-10] — Fichário aperfeiçoado (visualizador, envio em lote, agrupamento)
 
 ### Adicionado

@@ -802,6 +802,7 @@ function bindStaticHandlers() {
   document.getElementById("btn-login").addEventListener("click", fazerLogin);
 
   // Sidebar
+  document.getElementById("nav-inicio").addEventListener("click", () => navegarPara("inicio"));
   document.getElementById("nav-gerar").addEventListener("click", () => navegarPara("gerar"));
   document.getElementById("nav-historico").addEventListener("click", () => navegarPara("historico"));
   document.getElementById("nav-clientes").addEventListener("click", () => navegarPara("clientes"));
@@ -814,6 +815,7 @@ function bindStaticHandlers() {
   document.getElementById("nav-sair").addEventListener("click", fazerLogout);
 
   // Bottom nav
+  document.getElementById("bn-inicio").addEventListener("click", () => navegarPara("inicio"));
   document.getElementById("bn-gerar").addEventListener("click", () => navegarPara("gerar"));
   document.getElementById("bn-historico").addEventListener("click", () => navegarPara("historico"));
   document.getElementById("bn-clientes").addEventListener("click", () => navegarPara("clientes"));

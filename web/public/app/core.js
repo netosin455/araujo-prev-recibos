@@ -140,6 +140,7 @@ async function iniciarApp(){
       document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
     }
     await Promise.all([carregarRecibos(), carregarClientes()]);
+    if(typeof renderInicio==="function") renderInicio();
     await atualizarNumRecibo();
     await carregarReferenciaPadrao();
     atualizarSugestoesNomes();
@@ -335,8 +336,8 @@ function marcarInvalido(...ids){
 }
 
 // ── NAVEGAÇÃO ──────────────────────────────────────────────
-const telas=["gerar","historico","clientes","fichario","admin","usuarios"];
-const titulos={gerar:"Gerar Recibo",historico:"Histórico de Recibos",clientes:"Clientes",fichario:"Fichário",admin:"Administrativo",usuarios:"Usuários"};
+const telas=["inicio","gerar","historico","clientes","fichario","admin","usuarios"];
+const titulos={inicio:"Início",gerar:"Gerar Recibo",historico:"Histórico de Recibos",clientes:"Clientes",fichario:"Fichário",admin:"Administrativo",usuarios:"Usuários"};
 
 async function navegarPara(tela){
   try {
@@ -366,6 +367,7 @@ async function navegarPara(tela){
       if(buscaCli) buscaCli.value = "";
       renderClientes();
     }
+    if(tela==="inicio") renderInicio();
     if(tela==="fichario") renderFichario();
     if(tela==="admin"){
       await carregarRecibos();

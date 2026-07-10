@@ -548,7 +548,8 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Documentos</div>
-      <div class="nav-item active" id="nav-gerar" data-tooltip="Ctrl+N"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
+      <div class="nav-item active" id="nav-inicio"><span class="icon"><i class="bi bi-house-door-fill"></i></span> Início</div>
+      <div class="nav-item" id="nav-gerar" data-tooltip="Ctrl+N"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
       <div class="nav-item" id="nav-historico" data-tooltip="Ctrl+H"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
       <div class="nav-section">Gestão</div>
       <div class="nav-item" id="nav-clientes" data-tooltip="Ctrl+C"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes<span id="badge-clientes-atraso" class="nav-badge" style="display:none"></span></div>
@@ -567,7 +568,11 @@
 
   <!-- BOTTOM NAV (só mobile) -->
   <nav class="bottom-nav" id="bottom-nav">
-    <div class="bn-item active" id="bn-gerar">
+    <div class="bn-item active" id="bn-inicio">
+      <i class="bi bi-house-door-fill"></i>
+      <span>Início</span>
+    </div>
+    <div class="bn-item" id="bn-gerar">
       <i class="bi bi-receipt"></i>
       <span>Recibo</span>
     </div>
@@ -638,7 +643,8 @@
       </div>
 
       <!-- GERAR RECIBO -->
-      <div id="screen-gerar" class="screen active">
+      <div id="screen-inicio" class="screen active"></div>
+      <div id="screen-gerar" class="screen">
         <div class="card">
           <div id="edit-mode-banner">
             <span><i class="bi bi-pencil-fill"></i> Modo de edição — Recibo <strong id="edit-num-banner"></strong></span>
@@ -1725,6 +1731,7 @@
   <script src="app/clientes.js?cb=1" defer></script>
   <script src="app/admin.js?cb=1" defer></script>
   <script src="app/analytics.js?cb=1" defer></script>
+  <script src="app/inicio.js?cb=1" defer></script>
   <script src="app/fichario.js?cb=1" defer></script>
   <script src="app/rest.js?cb=1" defer></script>
 </body>
