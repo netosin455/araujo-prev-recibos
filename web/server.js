@@ -466,6 +466,26 @@ async function initDb() {
     )
   `);
   await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_export_jobs_criado ON export_jobs (criado_em DESC)`);
+
+  // Fichário — documentos (fotos/PDFs) de cada cliente. Arquivos ficam no S3;
+  // aqui só os metadados + as chaves S3 (original e miniatura). Soft-delete.
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS documentos (
+      id           TEXT        PRIMARY KEY,
+      cliente_cpf  TEXT        NOT NULL,
+      tipo         TEXT        NOT NULL DEFAULT '',
+      nome         TEXT        NOT NULL DEFAULT '',
+      s3_key       TEXT        NOT NULL,
+      s3_key_thumb TEXT,
+      content_type TEXT        NOT NULL DEFAULT '',
+      tamanho      INTEGER     NOT NULL DEFAULT 0,
+      criado_por   TEXT        NOT NULL DEFAULT '',
+      criado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      deletado_em  TIMESTAMPTZ
+    )
+  `);
+  await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_documentos_cpf ON documentos (cliente_cpf) WHERE deletado_em IS NULL`);
+
   logger.info("âœ… Tabelas recibos, clientes e auditoria prontas.");
 
   // Auto-migraÃ§Ã£o NeDB â†’ Neon: roda uma Ãºnica vez se as tabelas estiverem vazias
@@ -785,6 +805,7 @@ require("./routes/clientes")(app, routeDeps);
 require("./routes/admin")(app, routeDeps);
 require("./routes/misc")(app, routeDeps);
 require("./routes/recibos")(app, routeDeps);
+require("./routes/documentos")(app, routeDeps);
 
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./swagger");

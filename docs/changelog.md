@@ -2,6 +2,23 @@
 
 ---
 
+## [2026-07-10] — Fichário de documentos do cliente
+
+### Adicionado
+- **Fichário por cliente**: aba "Fichário" no card de cada cliente pra guardar **fotos e PDFs** (RG, CPF, comprovante, procuração, laudo, CTPS…). Pensado pro pessoal de campo — botão **Tirar foto** (câmera direto no celular) + Enviar arquivo.
+- **Tabela `documentos`** (metadados + chaves S3, soft-delete) e rotas `web/routes/documentos.js`: `POST/GET /api/clientes/:cpf/documentos` e `DELETE /api/documentos/:id` (excluir só financeiro/admin).
+- Arquivos no **S3** (privado, via URL assinada temporária).
+
+### Decisões de arquitetura
+- **Carregamento sob demanda**: nada de documento carrega ao abrir o app/lista — só quando a aba Fichário de um cliente é aberta; miniaturas com `loading="lazy"`; arquivo cheio só no "Ver". Mantém o app leve mesmo com muitos documentos por cliente.
+- **Redimensionamento no navegador (canvas)** em vez de `sharp` (que não está instalado e complicaria o deploy): o cliente envia a foto já reduzida + a miniatura — economiza banda no campo e evita dependência nativa. `createImageBitmap` corrige a orientação EXIF.
+- Gravação passa por um ponto único (`salvarArquivo`) pra facilitar o **espelho no servidor local da firma** (fase 2).
+
+### Nota
+- Precisa de `BUCKET_NAME`/S3 configurado (existe na produção; não no `.env` local) pra o upload funcionar. Leitura e UI testadas no local.
+
+---
+
 ## [2026-07-10] — Lista de clientes redesenhada + "Quitado" por valor
 
 ### Adicionado

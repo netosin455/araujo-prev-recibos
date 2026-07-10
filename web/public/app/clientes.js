@@ -272,13 +272,22 @@ async function renderClientes() {
           <button class="cliente-tab" data-action="trocar-aba" data-card-id="${cardId}" data-aba="recebidos">Recebidos</button>
           <button class="cliente-tab" data-action="trocar-aba" data-card-id="${cardId}" data-aba="historico">HistÃ³rico</button>
           <button class="cliente-tab" data-action="trocar-aba" data-card-id="${cardId}" data-aba="timeline">Timeline</button>
+          <button class="cliente-tab" data-action="trocar-aba" data-card-id="${cardId}" data-aba="fichario"><i class="bi bi-folder2-open"></i> Fichário</button>
         </div>
         <div id="${cardId}-parcelamento" class="tab-painel active">${tabelaParcelamento}</div>
         <div id="${cardId}-areceber" class="tab-painel">${tabelaAReceber}</div>
         <div id="${cardId}-recebidos" class="tab-painel">${tabelaRecebidos}</div>
         <div id="${cardId}-historico" class="tab-painel">${tabelaRecibos}</div>
         <div id="${cardId}-timeline" class="tab-painel">${_buildTimeline(cadastro, c.recibos)}</div>
-        ` : tabelaRecibos}
+        <div id="${cardId}-fichario" class="tab-painel" data-cpf="${_cpfDigsC}" data-loaded="0"></div>
+        ` : `
+        <div class="cliente-tabs">
+          <button class="cliente-tab active" data-action="trocar-aba" data-card-id="${cardId}" data-aba="historico">Histórico</button>
+          <button class="cliente-tab" data-action="trocar-aba" data-card-id="${cardId}" data-aba="fichario"><i class="bi bi-folder2-open"></i> Fichário</button>
+        </div>
+        <div id="${cardId}-historico" class="tab-painel active">${tabelaRecibos}</div>
+        <div id="${cardId}-fichario" class="tab-painel" data-cpf="${_cpfDigsC}" data-loaded="0"></div>
+        `}
       </div>`;
 
     card.querySelector(".cliente-header").addEventListener("click", () => toggleCliente(card.querySelector(".cliente-header")));
@@ -362,6 +371,132 @@ function trocarAbaCliente(btn, cardId, aba) {
   btn.classList.add("active");
   const painel = document.getElementById(`${cardId}-${aba}`);
   if (painel) painel.classList.add("active");
+  // Fichário carrega SOB DEMANDA (só na 1ª vez que a aba abre) — mantém o app leve
+  if (aba === "fichario" && painel && painel.dataset.loaded === "0") {
+    carregarFichario(painel.dataset.cpf, painel);
+  }
+}
+
+// ── FICHÁRIO — documentos do cliente (carregamento sob demanda) ──
+const FICHARIO_TIPOS = ["RG", "CPF", "Comprovante de residência", "Procuração", "Laudo médico", "CTPS", "Outro"];
+function _podeExcluirDoc() { return roleLogado === "admin" || roleLogado === "financeiro"; }
+
+async function carregarFichario(cpf, painel) {
+  painel.dataset.loaded = "1";
+  painel.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">Carregando fichário…</div>`;
+  try {
+    const res = await api("GET", `/api/clientes/${cpf}/documentos`);
+    const j = res ? await res.json() : { documentos: [] };
+    renderFichario(cpf, painel, j.documentos || []);
+  } catch (e) {
+    painel.dataset.loaded = "0";
+    painel.innerHTML = `<div style="padding:16px;color:var(--error);font-size:12px">Erro ao carregar o fichário. Toque na aba de novo.</div>`;
+  }
+}
+
+function _cardDocumento(d) {
+  const thumb = d.is_pdf
+    ? `<div style="height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:#f0ebe1;color:var(--error)"><i class="bi bi-file-earmark-pdf" style="font-size:26px"></i><span style="font-size:10px;font-weight:800">PDF</span></div>`
+    : `<div style="height:96px;background:#f0ebe1;overflow:hidden"><img loading="lazy" src="${d.thumb_url}" alt="" style="width:100%;height:100%;object-fit:cover"></div>`;
+  const del = _podeExcluirDoc() ? `<button data-doc-del="${d.id}" title="Excluir" style="flex:0 0 auto;width:28px;border:1px solid #eccfcb;color:var(--error);background:#fff;border-radius:7px;cursor:pointer">✕</button>` : "";
+  return `
+    <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff">
+      ${thumb}
+      <div style="padding:7px 9px">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--gold)">${esc(d.tipo || "Documento")}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(d.nome || "")}">${esc(d.nome || "—")}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${esc(d.criado_por || "")}</div>
+        <div style="display:flex;gap:5px;margin-top:7px">
+          <button data-doc-ver="${d.url}" style="flex:1;font-size:11px;font-weight:600;padding:5px;border:1px solid var(--border-strong);background:#fff;color:var(--mid);border-radius:7px;cursor:pointer">Ver</button>
+          ${del}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderFichario(cpf, painel, docs) {
+  const opts = FICHARIO_TIPOS.map(t => `<option value="${t}">${t}</option>`).join("");
+  const grid = docs.length
+    ? docs.map(_cardDocumento).join("")
+    : `<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:18px">Nenhum documento ainda. Envie a primeira foto ou PDF.</div>`;
+  painel.innerHTML = `
+    <div style="padding:6px 2px 12px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <select class="fic-tipo" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;background:#fff;color:var(--dark)">${opts}</select>
+        <button class="btn-gold btn-sm fic-cam"><i class="bi bi-camera"></i> Tirar foto</button>
+        <button class="btn-secondary btn-sm fic-file"><i class="bi bi-upload"></i> Enviar arquivo</button>
+        <span class="fic-status" style="font-size:11.5px;color:var(--muted)"></span>
+        <input type="file" class="fic-in-cam" accept="image/*" capture="environment" style="display:none">
+        <input type="file" class="fic-in-file" accept="image/*,application/pdf" style="display:none">
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px">${grid}</div>
+    </div>`;
+  const status = painel.querySelector(".fic-status");
+  const tipo = painel.querySelector(".fic-tipo");
+  const inCam = painel.querySelector(".fic-in-cam");
+  const inFile = painel.querySelector(".fic-in-file");
+  painel.querySelector(".fic-cam").addEventListener("click", e => { e.stopPropagation(); inCam.click(); });
+  painel.querySelector(".fic-file").addEventListener("click", e => { e.stopPropagation(); inFile.click(); });
+  const pick = async (inp) => { if (inp.files && inp.files[0]) { await enviarDocumento(cpf, painel, inp.files[0], tipo.value, status); inp.value = ""; } };
+  inCam.addEventListener("change", () => pick(inCam));
+  inFile.addEventListener("change", () => pick(inFile));
+  painel.querySelectorAll("[data-doc-ver]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); if (b.dataset.docVer) window.open(b.dataset.docVer, "_blank", "noopener"); }));
+  painel.querySelectorAll("[data-doc-del]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); excluirDocumento(b.dataset.docDel, cpf, painel); }));
+}
+
+// Redimensiona a imagem NO NAVEGADOR (canvas) — corrige a orientação EXIF via
+// createImageBitmap e devolve um Blob JPEG. Reduz a banda do upload e gera a
+// miniatura sem precisar de biblioteca no servidor.
+async function _resizeImagem(file, maxLado, quality) {
+  let bitmap;
+  try { bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch { bitmap = await createImageBitmap(file); }
+  const escala = Math.min(1, maxLado / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * escala));
+  const h = Math.max(1, Math.round(bitmap.height * escala));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+  if (bitmap.close) bitmap.close();
+  return await new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error("falha ao processar imagem")), "image/jpeg", quality));
+}
+
+async function enviarDocumento(cpf, painel, file, tipo, status) {
+  status.textContent = "Preparando…";
+  const fd = new FormData();
+  fd.append("tipo", tipo);
+  fd.append("nome", file.name || "documento");
+  try {
+    if ((file.type || "").startsWith("image/")) {
+      const [orig, thumb] = await Promise.all([
+        _resizeImagem(file, 1600, 0.82),  // versão reduzida
+        _resizeImagem(file, 300, 0.7),    // miniatura leve
+      ]);
+      fd.append("arquivo", orig, "foto.jpg");
+      fd.append("thumb", thumb, "thumb.jpg");
+    } else {
+      fd.append("arquivo", file, file.name || "documento.pdf");
+    }
+    status.textContent = "Enviando…";
+    const r = await fetch(`/api/clientes/${cpf}/documentos`, { method: "POST", credentials: "include", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { status.textContent = ""; mostrarToast(j.erro || "Erro ao enviar o documento.", null, "error"); return; }
+    status.textContent = "Enviado!";
+    painel.dataset.loaded = "0";
+    carregarFichario(cpf, painel);
+  } catch (e) {
+    status.textContent = "";
+    mostrarToast("Falha ao enviar: " + (e.message || "erro"), null, "error");
+  }
+}
+
+async function excluirDocumento(id, cpf, painel) {
+  if (!confirm("Excluir este documento? (fica recuperável no sistema)")) return;
+  try {
+    const r = await api("DELETE", `/api/documentos/${id}`);
+    if (r && r.ok) { painel.dataset.loaded = "0"; carregarFichario(cpf, painel); }
+    else { const j = r ? await r.json().catch(() => ({})) : {}; mostrarToast(j.erro || "Erro ao excluir.", null, "error"); }
+  } catch (e) { mostrarToast("Falha ao excluir.", null, "error"); }
 }
 
 function abrirModalPagamentoParcela(clienteId, parcelaNum, valorParcela, reciboNumPreenchido) {
