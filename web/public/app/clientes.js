@@ -63,7 +63,7 @@ function _buildBlocoContrato(cadastro) {
         <span style="color:var(--mid);font-weight:600">${cadastro.parcelas_pagas} de ${cadastro.num_parcelas} parcelas</span>
         <span style="color:var(--muted);font-variant-numeric:tabular-nums"><b style="color:var(--dark)">R$ ${formatarValor(cadastro.valor_pago)}</b> / R$ ${formatarValor(cadastro.valor_contrato)}</span>
       </div>
-      <div style="background:var(--border);border-radius:5px;height:7px;overflow:hidden">
+      <div style="background:var(--gold100);border-radius:5px;height:7px;overflow:hidden">
         <div style="width:${pct}%;background:${corBarra};height:100%;border-radius:5px;transition:width .3s"></div>
       </div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:7px">${rodape}</div>
@@ -232,9 +232,9 @@ async function renderClientes() {
       const temAtrasada = Array.isArray(cadastro.parcelas) && cadastro.parcelas.some(p => p.status === "atrasado");
       const contratoV = Number(cadastro.valor_contrato) || 0;
       const quitado = contratoV > 0 ? (Number(cadastro.valor_pago) >= contratoV - 0.005) : (cadastro.parcelas_restantes === 0);
-      if (quitado) statusPill = `<span style="${pillBase};background:#e6f0ea;color:var(--success)">Quitado</span>`;
-      else if (temAtrasada) statusPill = `<span style="${pillBase};background:#f6e7e4;color:var(--error)">Atrasado</span>`;
-      else statusPill = `<span style="${pillBase};background:var(--gold-pale);color:#8a6d1f">Em dia</span>`;
+      if (quitado) statusPill = `<span style="${pillBase};background:var(--su50);color:var(--su700)">Quitado</span>`;
+      else if (temAtrasada) statusPill = `<span style="${pillBase};background:var(--er50);color:var(--er600)">Atrasado</span>`;
+      else statusPill = `<span style="${pillBase};background:var(--gold50);color:var(--gold700)">Em dia</span>`;
     }
 
     const card = document.createElement("div");

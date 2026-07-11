@@ -711,9 +711,9 @@ app.use((req, res, next) => {
     "script-src 'self'; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
-    "img-src 'self' data: blob:; " +
-    "connect-src 'self'; " +
-    "frame-src https://drive.google.com blob:;"
+    "img-src 'self' data: blob: https://*.amazonaws.com; " +
+    "connect-src 'self' https://*.amazonaws.com; " +
+    "frame-src https://drive.google.com blob: https://*.amazonaws.com;"
   );
   next();
 });

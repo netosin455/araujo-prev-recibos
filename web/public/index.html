@@ -62,6 +62,11 @@
       --dark:#1a1a1a;--dark2:#2c2c2c;--mid:#4d4d4d;--muted:#857f73;
       --border:#e7e1d6;--border-strong:#d8d0c0;--bg:#f4f0ea;--card:#ffffff;
       --success:#3d7a5e;--error:#8b2e2e;--sidebar-w:224px;
+      /* Design system — escala dourada (900->50) + semanticas em par claro/escuro */
+      --gold900:#3a2f11;--gold800:#5a4718;--gold700:#7a6220;--gold600:#9a7d2a;--gold500:#b8973a;--gold400:#cdb163;--gold200:#e6d3a0;--gold100:#f0e6c8;--gold50:#f8f1de;--gold-deep:#7a6220;
+      --su50:#e6f0ea;--su600:#3d7a5e;--su700:#2c5a44;
+      --er50:#f9ece9;--er600:#a53a2f;--er700:#7c281f;
+      --in50:#e9f0f8;--in700:#2a5581;--border-md:#d8cfbe;
       --shadow:0 1px 2px rgba(26,22,15,.04),0 2px 8px rgba(26,22,15,.05);
       --shadow-hover:0 2px 6px rgba(26,22,15,.06),0 12px 28px rgba(26,22,15,.10);
       --shadow-lg:0 12px 40px rgba(26,22,15,.14);
@@ -110,10 +115,12 @@
     .sidebar-logo .firm-sub{color:rgba(255,255,255,0.25);font-size:10px;margin-top:3px;letter-spacing:0.3px}
     .sidebar-nav{flex:1;padding:16px 10px}
     .nav-section{padding:0 10px 6px;font-size:9px;font-weight:600;letter-spacing:1.5px;color:rgba(255,255,255,0.12);text-transform:uppercase;margin-top:18px}
-    .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;color:rgba(255,255,255,0.4);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s var(--ease);border-radius:var(--radius-sm);letter-spacing:0.2px;margin-bottom:2px;position:relative}
-    .nav-item:hover{background:rgba(184,151,58,.08);color:rgba(255,255,255,.85)}
-    .nav-item.active{background:linear-gradient(90deg,rgba(184,151,58,.12),transparent);color:var(--gold-light);box-shadow:inset 3px 0 0 var(--gold)}
-    .nav-item .icon{font-size:14px;width:18px;text-align:center}
+    .nav-item{display:flex;align-items:center;gap:11px;padding:9px 11px;color:rgba(255,255,255,0.42);cursor:pointer;font-size:12.5px;font-weight:500;transition:all .16s var(--ease);border-radius:10px;letter-spacing:0.2px;margin-bottom:3px;position:relative}
+    .nav-item:hover{background:rgba(184,151,58,.10);color:rgba(255,255,255,.9)}
+    .nav-item:hover .icon{color:var(--gold-light);background:rgba(184,151,58,.14)}
+    .nav-item.active{background:rgba(184,151,58,.15);color:var(--gold-light)}
+    .nav-item.active .icon{color:#fff;background:var(--gold600)}
+    .nav-item .icon{font-size:14px;width:26px;height:26px;display:grid;place-items:center;border-radius:8px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);transition:all .16s var(--ease);flex:none}
     .sidebar-footer{padding:14px 20px;border-top:1px solid rgba(255,255,255,0.05);color:rgba(255,255,255,0.18);font-size:10px;text-align:center}
     .sidebar-search-wrap{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.06);position:relative}
     .sidebar-search-wrap input{width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:rgba(255,255,255,0.75);font-size:11px;padding:7px 10px;outline:none;box-sizing:border-box}
@@ -259,8 +266,8 @@
     .badge-green{background:#edf7f2;color:var(--success);border:1px solid rgba(61,122,94,0.2)}
 
     /* ── CLIENTES ── */
-    .cliente-card{background:white;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
-    .cliente-card:hover{box-shadow:var(--shadow-hover)}
+    .cliente-card{background:white;border:1px solid var(--border);border-radius:14px;margin-bottom:11px;overflow:hidden}
+    .cliente-card:hover{border-color:var(--border-md);box-shadow:0 10px 26px -16px rgba(58,47,17,.30)}
     .cliente-header{padding:14px 20px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:background 0.18s}
     .cliente-header:hover{background:#faf8f4}
     .cliente-nome{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700}

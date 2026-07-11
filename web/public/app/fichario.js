@@ -34,6 +34,7 @@ function _ficInjetarCSS() {
     .fic-lb{position:fixed;inset:0;z-index:9999;background:rgba(20,16,8,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;animation:fic-fade .15s ease}
     @keyframes fic-fade{from{opacity:0}to{opacity:1}}
     .fic-lb-img{max-width:92vw;max-height:78vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);cursor:zoom-in;transition:transform .2s}
+    .fic-lb-frame{width:90vw;height:80vh;border:none;border-radius:8px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
     .fic-lb-img.zoom{cursor:zoom-out;transform:scale(2)}
     .fic-lb-cap{color:#f3ecdc;font-size:13px;margin-top:14px;text-align:center;max-width:90vw}
     .fic-lb-cap b{color:var(--gold-light)}
@@ -266,15 +267,17 @@ function _lbRender() {
   const d = _ficDocs[_lbIndex];
   if (!d) return;
   const total = _ficDocs.length;
+  // Imagem no <img> (com zoom); PDF inline no <iframe> — igual ao visualizador
+  // dos comprovantes (não abre em nova aba).
   const miolo = d.is_pdf
-    ? `<div class="fic-lb-pdf"><i class="bi bi-file-earmark-pdf"></i><div style="font-size:15px;font-weight:600">${esc(d.nome || "Documento PDF")}</div><button class="btn-gold" id="fic-lb-pdf-abrir" style="cursor:pointer"><i class="bi bi-box-arrow-up-right"></i> Abrir PDF</button></div>`
+    ? `<iframe class="fic-lb-frame" src="${d.url}" title="${esc(d.nome || "PDF")}"></iframe>`
     : `<img class="fic-lb-img" id="fic-lb-img" src="${d.url}" alt="">`;
   ov.innerHTML = `
     <div class="fic-lb-count">${_lbIndex + 1} / ${total}</div>
     <button class="fic-lb-x" id="fic-lb-x">✕</button>
     ${total > 1 ? `<button class="fic-lb-nav fic-lb-prev" id="fic-lb-prev">‹</button><button class="fic-lb-nav fic-lb-next" id="fic-lb-next">›</button>` : ""}
     ${miolo}
-    <div class="fic-lb-cap"><b>${esc(d.tipo || "Documento")}</b> · ${esc(d.nome || "")}${d.criado_por ? " · " + esc(d.criado_por) : ""}</div>
+    <div class="fic-lb-cap"><b>${esc(d.tipo || "Documento")}</b> · ${esc(d.nome || "")}${d.criado_por ? " · " + esc(d.criado_por) : ""} · <a href="${d.url}" target="_blank" rel="noopener" style="color:var(--gold-light);text-decoration:underline">abrir em nova aba ↗</a></div>
   `;
   ov.querySelector("#fic-lb-x").addEventListener("click", fecharLightbox);
   const prev = ov.querySelector("#fic-lb-prev"), next = ov.querySelector("#fic-lb-next");
@@ -282,8 +285,6 @@ function _lbRender() {
   if (next) next.addEventListener("click", () => _lbNav(1));
   const img = ov.querySelector("#fic-lb-img");
   if (img) img.addEventListener("click", () => img.classList.toggle("zoom"));
-  const pdfBtn = ov.querySelector("#fic-lb-pdf-abrir");
-  if (pdfBtn) pdfBtn.addEventListener("click", () => { if (d.url) window.open(d.url, "_blank", "noopener"); });
 }
 
 function _lbNav(dir) {
