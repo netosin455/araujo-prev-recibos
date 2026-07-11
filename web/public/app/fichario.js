@@ -284,7 +284,19 @@ function _lbRender() {
   if (prev) prev.addEventListener("click", () => _lbNav(-1));
   if (next) next.addEventListener("click", () => _lbNav(1));
   const img = ov.querySelector("#fic-lb-img");
-  if (img) img.addEventListener("click", () => img.classList.toggle("zoom"));
+  if (img) {
+    img.addEventListener("click", () => img.classList.toggle("zoom"));
+    // Se a imagem não carregar (link expirado, rede do celular, etc.), troca a
+    // tela preta por um aviso com botão — em vez de deixar o usuário no escuro.
+    img.addEventListener("error", () => {
+      const box = document.createElement("div");
+      box.className = "fic-lb-pdf";
+      box.innerHTML = `<i class="bi bi-image"></i>
+        <div style="font-size:15px;font-weight:600;text-align:center">Não foi possível carregar a imagem aqui</div>
+        <a href="${d.url}" target="_blank" rel="noopener" class="btn-gold" style="cursor:pointer;text-decoration:none"><i class="bi bi-box-arrow-up-right"></i> Abrir imagem</a>`;
+      img.replaceWith(box);
+    });
+  }
 }
 
 function _lbNav(dir) {
