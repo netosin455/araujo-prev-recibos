@@ -134,12 +134,26 @@ module.exports = function registerMiscRoutes(app, deps) {
     }
   });
 
-  // ── VER COMPROVANTE (disco local — fallback sem S3) ────────
-  app.get("/api/comprovante/:filename", deps.auth, (req, res) => {
+  // ── VER COMPROVANTE (disco local com fallback S3) ────────
+  app.get("/api/comprovante/:filename", deps.auth, async (req, res) => {
     const safe = deps.path.basename(req.params.filename);
     const filePath = deps.path.join(uploadsDir, safe);
-    if (!deps.fs.existsSync(filePath)) return res.status(404).send("Arquivo não encontrado.");
-    res.sendFile(filePath);
+    if (deps.fs.existsSync(filePath)) return res.sendFile(filePath);
+    // Fallback: tenta buscar do S3 (legado migrado)
+    const bucket = process.env.BUCKET_NAME;
+    if (bucket) {
+      try {
+        const key = `comprovantes/${safe}`;
+        const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
+        const obj = await deps.s3Client.send(cmd);
+        res.setHeader("Content-Type", obj.ContentType || "application/octet-stream");
+        obj.Body.pipe(res);
+        return;
+      } catch (e) {
+        // não achou no S3 também
+      }
+    }
+    res.status(404).send("Arquivo não encontrado.");
   });
 
   // ── RELATÓRIO DE INADIMPLÊNCIA ─────────────────────────────

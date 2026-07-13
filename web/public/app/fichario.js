@@ -8,6 +8,9 @@ let _ficharioQuery = "";
 let _ficDocs = [];          // documentos da galeria aberta (pro lightbox navegar)
 let _lbIndex = 0;           // índice atual no lightbox
 let _lbKeyHandler = null;
+let _ficPagina = 0;         // página atual da grade de clientes (paginação)
+let _ficTemMais = false;    // servidor sinalizou que há mais clientes pra carregar
+const _FIC_LIMIT = 60;      // clientes por página
 
 const FIC_TIPOS = ["RG", "CPF", "Comprovante de residência", "Procuração", "Laudo médico", "CTPS", "Outro"];
 const _ficPodeExcluir = () => roleLogado === "admin" || roleLogado === "financeiro";

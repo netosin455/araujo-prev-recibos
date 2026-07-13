@@ -142,6 +142,11 @@ module.exports = function registerDocumentoRoutes(app, deps) {
   app.get("/api/fichario/busca", deps.auth, async (req, res) => {
     try {
       const q = (req.query.q || "").trim();
+      // Paginação: evita carregar TODOS os clientes (e gerar uma URL assinada da
+      // capa de cada um) numa tacada só. Busca limit+1 para saber se há mais páginas
+      // sem precisar de um COUNT(*) separado.
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 60, 1), 100);
+      const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
       const { rows } = await deps.pgPool.query(`
         SELECT c.id, c.nome, c.cpf,
           (SELECT COUNT(*) FROM documentos d
@@ -155,13 +160,16 @@ module.exports = function registerDocumentoRoutes(app, deps) {
         WHERE c.deletado_em IS NULL
           AND ($1 = '' OR c.nome ILIKE '%' || $1 || '%' OR c.cpf ILIKE '%' || $1 || '%')
         ORDER BY CASE WHEN $1 = '' THEN 0 ELSE 1 END, c.nome ASC
-      `, [q]);
-      const clientes = await Promise.all(rows.map(async r => ({
+        LIMIT $2 OFFSET $3
+      `, [q, limit + 1, offset]);
+      const temMais = rows.length > limit;
+      const pagina = temMais ? rows.slice(0, limit) : rows;
+      const clientes = await Promise.all(pagina.map(async r => ({
         id: r.id, nome: r.nome, cpf: r.cpf,
         qtd_docs: parseInt(r.qtd_docs) || 0,
         cover_thumb_url: await urlAssinada(r.cover_thumb),
       })));
-      res.json({ clientes });
+      res.json({ clientes, temMais });
     } catch (e) {
       console.error("Erro ao buscar fichário:", e.message);
       res.status(500).json({ erro: "Erro ao buscar clientes." });

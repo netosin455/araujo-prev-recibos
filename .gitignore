@@ -6,6 +6,7 @@ backup_*/
 __pycache__/
 *.pyc
 .env
+.env.*
 web/node_modules/
 web/data/
 
