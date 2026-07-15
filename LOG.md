@@ -1,5 +1,31 @@
 # LOG de Alterações — Araujo Prev
 
+## 2026-07-14 (3)
+
+### fix(sheets): recibos não apareciam na planilha — Google Sheets API estava desativada
+- **Sintoma:** ao gerar recibo, ele salvava no sistema mas não aparecia na planilha. Erro ficava escondido porque `web/routes/recibos.js:184` faz `registrarNoSheets(...).catch(e => console.error("Erro sheets (ignorado):", e))` (fire-and-forget).
+- **Causa raiz:** a **Google Sheets API estava desabilitada** no projeto Google Cloud `araujoprev` (434858324173). Toda chamada retornava `403 - API has not been used... or it is disabled`. Não tinha relação com as variáveis do EB (o `SHEET_ID` inclusive tem fallback fixo no código, `google-sheets.js:8`).
+- **Diagnóstico:** reproduzido localmente com as credenciais reais do EB (`spreadsheets.get` → 403).
+- **Fix:** API ativada via `serviceusage.services.enable` usando a própria conta de serviço (`sheets-api@araujoprev...`), que tinha permissão. Confirmado após propagação: leitura OK, planilha "Caixa Araújo Prev 2026 (respostas)", 1867 linhas, abas corretas. Sem necessidade de deploy/restart.
+- **Recomendação futura:** o `.catch` silencioso mascara falhas de Sheets. Vale logar de forma mais visível ou expor um alerta no painel admin quando a gravação na planilha falhar.
+
+## 2026-07-14 (2)
+
+### feat(backup): backup local no servidor da empresa (arquivos S3 + banco Neon)
+- **Contexto:** o sistema roda na nuvem (AWS EB), que não consegue escrever no servidor físico da empresa. A variável `MIRROR_LOCAL_DIR` (já implementada em `web/routes/documentos.js`) só espelharia para um disco na própria nuvem — não resolve o objetivo de "cópia no servidor local". Estratégia correta: o servidor local **puxa** as cópias.
+- **Adicionado:** `scripts/backup_local.ps1` (PowerShell) — roda no servidor da empresa e (1) `aws s3 sync` do bucket `araujo-prev-comprovantes` (pega fichário `clientes/` + comprovantes `comprovantes/`), (2) `pg_dump` do banco Neon em formato custom, (3) rotação de dumps antigos, (4) log com timestamp. `DATABASE_URL` lida de env var (senha não fica hardcoded).
+- **Adicionado:** `docs/backup_local_servidor.md` — guia de instalação (AWS CLI, IAM read-only restrito ao bucket, pg_dump, Agendador de Tarefas) e instruções de restauração.
+- **Pendente (usuário):** executar o guia no servidor Windows da empresa (instalar AWS CLI + pg_dump, criar IAM read-only, definir `DATABASE_URL`, agendar a tarefa).
+
+## 2026-07-14
+
+### fix(infra/EB): corrige variável de ambiente `NPM_USE_PRODUCTION` com espaço no nome
+- **Causa:** a opção estava cadastrada no Elastic Beanstalk como `" NPM_USE_PRODUCTION"` (espaço no início do nome), fazendo o EB tratá-la como uma variável diferente e deixando a `NPM_USE_PRODUCTION` real inerte.
+- **Fix:** removida a opção com espaço e recriada com nome limpo na aplicação `araujo-prev` / ambiente `Araujo-prev-env`. Valor final ajustado para `NPM_USE_PRODUCTION=true` — o `package.json` só tem `eslint`/`prettier` em `devDependencies` (ferramentas de dev, não usadas em runtime) e o start é `node server.js` sem passo de build, então instalar só `dependencies` é o correto. Confirmado após deploy: ambiente `Ready`/`Green` e variável presente com nome e valor corretos.
+- **Nota:** o ambiente `Araujo-prev-env` pertence à aplicação **`araujo-prev`** (hífen), não `Araujo_Prev_Recibos` — comandos AWS CLI com o nome errado retornam vazio silenciosamente.
+
+---
+
 ## 2026-06-14 (3)
 
 ### fix(sheets): Invalid Date no carimbo e CPF sem formatação na planilha

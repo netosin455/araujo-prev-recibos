@@ -119,7 +119,7 @@ module.exports = function registerMiscRoutes(app, deps) {
   });
 
   // ── PROXY S3: serve arquivo do bucket privado ──────────────────────────────
-  app.get("/api/comprovante-s3/*", deps.auth, deps.financeiroOnly, async (req, res) => {
+  app.get("/api/comprovante-s3/*", deps.auth, async (req, res) => {
     try {
       const key = req.params[0];
       const bucket = process.env.BUCKET_NAME;
