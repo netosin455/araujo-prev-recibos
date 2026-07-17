@@ -81,6 +81,27 @@ function criarApp(fakes) {
 const FINANCEIRO = { id: "u1", username: "maria", role: "financeiro", escritorio: "" };
 const ADMIN = { id: "u1", username: ADMIN_USER, role: "admin", escritorio: "" };
 
+// ── async-wrap: erro async não derruba o servidor ──────────
+describe("async-wrap (Express 4 + handlers async)", () => {
+  it("handler async que lança vira 500 no error handler, não crash", async () => {
+    const app = express();
+    require("../web/middleware/async-wrap")(app);
+    app.get("/boom", async () => { throw new Error("falha simulada de banco"); });
+    // eslint-disable-next-line no-unused-vars
+    app.use((err, req, res, next) => res.status(500).json({ erro: "Erro interno do servidor." }));
+    const res = await request(app).get("/boom");
+    assert.equal(res.status, 500);
+    assert.equal(res.body.erro, "Erro interno do servidor.");
+  });
+
+  it("app.get('chave') de configuração continua funcionando", () => {
+    const app = express();
+    require("../web/middleware/async-wrap")(app);
+    app.set("view engine", "x");
+    assert.equal(app.get("view engine"), "x");
+  });
+});
+
 // ── Middleware de auth (real) ──────────────────────────────
 describe("middleware auth (cookie httpOnly)", () => {
   let app;

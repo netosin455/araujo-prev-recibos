@@ -5,10 +5,16 @@ const { google } = require("googleapis");
 const { Readable } = require("stream");
 const { withTimeout } = require("./timeout");
 
+// IDs vêm do ambiente; os fallbacks hardcoded existem só pra não derrubar a
+// integração se a env var sumir — o boot avisa quando são usados. (O ID da
+// planilha não é credencial: o acesso exige a service account do
+// GOOGLE_CREDENTIALS. Ainda assim, o certo é vir do ambiente.)
 const SHEET_ID   = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erMswhP2-68";
 const SHEET_NAME = "Respostas ao formulário 1";
 const MESES = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1BUAPGfIIyehGWkmYlas0SYER3kriQK_H";
+if (!process.env.SHEET_ID) console.warn("⚠️  SHEET_ID ausente no ambiente — usando fallback hardcoded (configure no EB).");
+if (!process.env.DRIVE_FOLDER_ID) console.warn("⚠️  DRIVE_FOLDER_ID ausente no ambiente — usando fallback hardcoded (configure no EB).");
 
 function getSheetsClient() {
   const credsB64 = process.env.GOOGLE_CREDENTIALS;

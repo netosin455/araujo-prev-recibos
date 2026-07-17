@@ -37,6 +37,9 @@ const helpers = require("./services/helpers");
 const email = require("./services/email");
 
 const app = express();
+// Erros de handlers async caem no error handler global em vez de derrubar o
+// processo (Express 4 + Node 15+) — precisa vir ANTES de qualquer rota
+require("./middleware/async-wrap")(app);
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {

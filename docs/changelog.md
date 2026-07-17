@@ -2,6 +2,20 @@
 
 ---
 
+## [2026-07-17] — Estabilidade e dependências: async-wrap + npm audit zerado
+
+### Corrigido
+- **Erro em rota async não derruba mais o servidor** — Express 4 não captura rejeição de handler async (Node 15+ mata o processo com unhandledRejection). Novo `middleware/async-wrap.js` embrulha automaticamente todo handler async registrado (get/post/put/patch/delete): o erro cai no error handler global (500 JSON) e o servidor segue de pé. Cobre as 11 rotas apontadas em auditoria e qualquer rota futura. +2 testes.
+- **`SHEET_ID`/`DRIVE_FOLDER_ID`**: aviso no boot quando o fallback hardcoded é usado (os IDs não são credenciais — o acesso exige a service account — mas o certo é vir do ambiente; nota: já constam no histórico do git de qualquer forma).
+
+### Dependências (npm audit: 8 vulnerabilidades → **0**)
+- Removido `xlsx` do backend — **não era usado em lugar nenhum** (o frontend usa o arquivo estático próprio); carregava 2 vulnerabilidades altas sem correção disponível.
+- `node-cron` 3 → 4 (corrige uuid vulnerável); crons validados no boot.
+- `nodemailer` 8 → 9.0.3 (corrige SSRF/leitura de arquivo via opção raw); API usada (`createTransport`/`sendMail`) inalterada.
+- `npm audit fix` aplicado no restante (multer/qs/js-yaml).
+
+---
+
 ## [2026-07-17] — Planilha: linhas ANTIGAS clicáveis + levantamento de comprovantes perdidos
 
 ### Feito na planilha (execução única, já aplicada)
