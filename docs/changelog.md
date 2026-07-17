@@ -9,6 +9,9 @@
 - **`GET /api/admin/lixeira`** e **`POST /api/admin/lixeira/:tipo/:id/restaurar`** (adminOnly). Restaurar limpa `deletado_em`/`deletado_por` e registra auditoria (`restaurar_recibo`/`restaurar_cliente`).
 - **Proteção de conflito de numeração**: restaurar um recibo cujo número já pertence a um recibo ativo é bloqueado com 409 (o índice único de `num` só vale para ativos).
 
+### Removido
+- **Backup/Restaurar via JSON no sidebar** (seção Sistema) — redundantes com o card "Backup do Banco de Dados" das Configurações. No lugar entrou o item **Lixeira** (só admin), que navega direto pro card e já carrega a lista.
+
 ### Contexto
 - Os demais itens da Fase 3 do plano já estavam implementados em sessões anteriores: JWT em cookie httpOnly (SEC-011, login/logout/middleware), soft delete de recibos, clientes, usuários e documentos, todos com auditoria.
 
