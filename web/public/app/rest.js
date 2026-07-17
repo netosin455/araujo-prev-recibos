@@ -150,48 +150,8 @@ async function excluirUsuario(id){
   renderUsuarios();
 }
 
-// â”€â”€ BACKUP / RESTAURAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function fazerBackup(){
-  const dados={versao:"2.0",data:new Date().toISOString(),historicoRecibos};
-  const blob=new Blob([JSON.stringify(dados,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;
-  a.download=`backup_araujo_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  mostrarToast("Backup baixado!");
-}
-
-async function restaurarBackup(input){
-  const file=input.files[0];
-  if(!file) return;
-  const text=await file.text();
-  try{
-    const dados=JSON.parse(text);
-    const recibos=dados.historicoRecibos||dados;
-    if(!Array.isArray(recibos)) { mostrarToast("Arquivo invÃ¡lido.", null, "error"); return; }
-    if(!confirm(`Importar ${recibos.length} recibos? Os recibos existentes nÃ£o serÃ£o apagados.`)) return;
-    let importados=0;
-    for(const r of recibos){
-      if(!r.nome||!r.num) continue;
-      await api("POST","/api/recibos",{
-        num:r.num,nome:r.nome,cpf:r.cpf||"",municipio_uf:r.municipio_uf||"",
-        valor:r.valor||"",data:r.data||"",emitido_por:r.emitido_por||"",
-        complemento:r.complemento||"",referencia:r.referencia||"",
-        timestamp:typeof r.timestamp==="number"?r.timestamp:Date.now()
-      });
-      importados++;
-    }
-    await carregarRecibos();
-    atualizarSugestoesNomes();
-    preencherFiltrosAnos();
-    mostrarToast(`${importados} recibos importados com sucesso!`);
-  }catch{
-    mostrarToast("Erro ao ler o arquivo de backup.", null, "error");
-  }
-  input.value="";
-}
+// (Backup/Restaurar via JSON pelo sidebar foram removidos — o backup real
+//  do banco continua no card "Backup do Banco de Dados" das Configurações)
 
 // ── LIXEIRA (admin) — listar e restaurar soft-deletados ─────
 async function carregarLixeira() {
@@ -856,10 +816,14 @@ function bindStaticHandlers() {
   document.getElementById("nav-fichario").addEventListener("click", () => navegarPara("fichario"));
   document.getElementById("nav-admin").addEventListener("click", () => navegarPara("admin"));
   document.getElementById("nav-usuarios").addEventListener("click", () => navegarPara("usuarios"));
-  document.getElementById("nav-backup").addEventListener("click", fazerBackup);
   document.getElementById("btn-carregar-lixeira")?.addEventListener("click", carregarLixeira);
-  document.getElementById("nav-restaurar").addEventListener("click", () => document.getElementById("input-restaurar").click());
-  document.getElementById("input-restaurar").addEventListener("change", function() { restaurarBackup(this); });
+  document.getElementById("nav-lixeira")?.addEventListener("click", () => {
+    navegarPara("admin");
+    const tabBtn = document.querySelector('.admin-tab[data-tab="relatorios"]');
+    if (tabBtn) abrirAdminTab("relatorios", tabBtn);
+    carregarLixeira();
+    setTimeout(() => document.getElementById("card-lixeira")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+  });
   document.getElementById("nav-sair").addEventListener("click", fazerLogout);
 
   // Bottom nav

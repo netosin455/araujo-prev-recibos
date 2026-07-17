@@ -129,6 +129,10 @@ async function iniciarApp(){
       document.querySelectorAll(".admin-tab-auditoria").forEach(el => el.style.display = "");
       const cardLixeira = document.getElementById("card-lixeira");
       if (cardLixeira) cardLixeira.style.display = "";
+      const navLixeira = document.getElementById("nav-lixeira");
+      if (navLixeira) navLixeira.style.display = "";
+      const secSistema = document.getElementById("nav-section-sistema");
+      if (secSistema) secSistema.style.display = "";
     }
     if(roleLogado === "recepcao"){
       document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
