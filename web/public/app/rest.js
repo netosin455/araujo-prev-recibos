@@ -156,7 +156,7 @@ async function excluirUsuario(id){
 // ── LIXEIRA (admin) — listar e restaurar soft-deletados ─────
 async function carregarLixeira() {
   const div = document.getElementById("lixeira-conteudo");
-  div.innerHTML = '<span style="color:var(--muted)">Carregando...</span>';
+  mostrarSkeleton("lixeira-conteudo", 3);
   const res = await api("GET", "/api/admin/lixeira");
   if (!res || !res.ok) { div.innerHTML = '<span style="color:var(--danger,#ef4444)">Erro ao carregar a lixeira.</span>'; return; }
   const { recibos, clientes } = await res.json();
@@ -956,6 +956,7 @@ function bindStaticHandlers() {
   // Modal cliente
   document.getElementById("btn-fechar-modal-cliente").addEventListener("click", () => fecharModal("modal-cliente"));
   document.getElementById("cliente-cpf").addEventListener("input", function() { mascaraCpfCliente(this); preencherDadosCliente(this.value); });
+  document.getElementById("cliente-telefone")?.addEventListener("input", function() { mascaraTelefone(this); });
   document.getElementById("btn-salvar-ref-padrao").addEventListener("click", salvarReferenciaPadrao);
   document.getElementById("cliente-valor-beneficio").addEventListener("input", function() { mascaraValorCliente(this); calcularContrato(); });
   document.getElementById("cliente-num-beneficios").addEventListener("input", calcularContrato);

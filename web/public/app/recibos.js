@@ -543,6 +543,7 @@ function renderHistorico(maisItens=false){
           await api("DELETE",`/api/recibos/${rid}`);
           await carregarRecibos();
           renderHistorico();
+          mostrarToast(`Recibo ${recibo.num} excluído.`, () => desfazerExclusaoRecibos([rid]), "success", "Desfazer");
         }
       });
     });
@@ -579,6 +580,12 @@ function atualizarBarraBatch() {
     const b = document.getElementById(id);
     if (b) b.disabled = count === 0;
   });
+  // Badge no sidebar — mostra a seleção mesmo navegando em outra tela
+  const badgeSel = document.getElementById("badge-recibos-sel");
+  if (badgeSel) {
+    badgeSel.textContent = count;
+    badgeSel.style.display = count > 0 ? "" : "none";
+  }
 }
 
 // Marca/desmarca os checkboxes visíveis conforme o estado atual da seleção
@@ -621,14 +628,28 @@ function selecionarPorCriterio(criterio) {
 async function excluirSelecionados() {
   const total = _selecionadosExport.size;
   if (total === 0) return;
-  if (!confirm("Excluir " + total + " recibo(s) permanentemente?")) return;
-  for (const id of _selecionadosExport) {
+  if (!confirm("Excluir " + total + " recibo(s)? (dá pra desfazer em até 15 min)")) return;
+  const idsExcluidos = [..._selecionadosExport];
+  for (const id of idsExcluidos) {
     await api("DELETE", "/api/recibos/" + id);
   }
   _selecionadosExport.clear();
   await carregarRecibos();
   renderHistorico();
-  mostrarToast(total + " recibo(s) excluídos.", null, "success");
+  mostrarToast(total + " recibo(s) excluídos.", () => desfazerExclusaoRecibos(idsExcluidos), "success", "Desfazer");
+}
+
+// Desfaz exclusões recentes (janela de 15 min no backend) — alimenta o toast "Desfazer"
+async function desfazerExclusaoRecibos(ids) {
+  let ok = 0, falhas = 0;
+  for (const id of ids) {
+    const res = await api("POST", `/api/recibos/${id}/desfazer-exclusao`);
+    if (res && res.ok) ok++; else falhas++;
+  }
+  await carregarRecibos();
+  renderHistorico();
+  if (falhas === 0) mostrarToast(ok === 1 ? "Exclusão desfeita!" : `${ok} recibo(s) restaurados!`, null, "success");
+  else mostrarToast(`${ok} restaurado(s), ${falhas} falha(s) — veja a Lixeira com o admin.`, null, "error");
 }
 
 // Excel consolidado dos selecionados — gerado no cliente com a lib XLSX local

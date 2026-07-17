@@ -322,11 +322,12 @@ let _toastShowing = false;
 function _showNextToast() {
   if (_toastQueue.length === 0) { _toastShowing = false; return; }
   _toastShowing = true;
-  const { msg, onAbrir, tipo } = _toastQueue.shift();
+  const { msg, onAbrir, tipo, labelBtn } = _toastQueue.shift();
   const el = document.getElementById("toast");
   const btnAbrir = document.getElementById("toast-btn-abrir");
   document.getElementById("toast-msg").textContent = msg;
   if (onAbrir) {
+    btnAbrir.textContent = labelBtn || "Abrir";
     btnAbrir.style.display = "block";
     btnAbrir.onclick = () => { onAbrir(); _toastQueue = []; fecharToast(); };
   } else {
@@ -339,8 +340,8 @@ function _showNextToast() {
   setTimeout(() => fecharToast(), 6000);
 }
 
-function mostrarToast(msg, onAbrir = null, tipo = "default") {
-  _toastQueue.push({ msg, onAbrir, tipo });
+function mostrarToast(msg, onAbrir = null, tipo = "default", labelBtn = "Abrir") {
+  _toastQueue.push({ msg, onAbrir, tipo, labelBtn });
   if (!_toastShowing) _showNextToast();
 }
 

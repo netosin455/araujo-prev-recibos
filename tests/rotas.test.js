@@ -247,6 +247,61 @@ describe("Lixeira /api/admin/lixeira", () => {
   });
 });
 
+// ── Desfazer exclusão (toast "Desfazer") ───────────────────
+describe("POST /api/recibos/:id/desfazer-exclusao", () => {
+  let ctx, fakes;
+  beforeEach(() => {
+    fakes = criarFakes();
+    ctx = criarApp(fakes);
+    require("../web/routes/recibos")(ctx.app, ctx.deps);
+  });
+
+  it("recibo não excluído retorna 404", async () => {
+    fakes.dados.findOne.recibos = [{ _id: "r1", num: "0001/2026" }]; // sem deletado_em
+    const res = await request(ctx.app).post("/api/recibos/r1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`);
+    assert.equal(res.status, 404);
+  });
+
+  it("outro usuário não pode desfazer (403)", async () => {
+    fakes.dados.findOne.recibos = [{ _id: "r1", num: "0001/2026", deletado_em: new Date().toISOString(), deletado_por: "outra-pessoa" }];
+    const res = await request(ctx.app).post("/api/recibos/r1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`);
+    assert.equal(res.status, 403);
+  });
+
+  it("janela de 15 min expirada retorna 410", async () => {
+    const antiga = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    fakes.dados.findOne.recibos = [{ _id: "r1", num: "0001/2026", deletado_em: antiga, deletado_por: "maria" }];
+    const res = await request(ctx.app).post("/api/recibos/r1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`);
+    assert.equal(res.status, 410);
+  });
+
+  it("quem excluiu desfaz dentro da janela (200) e audita", async () => {
+    fakes.dados.findOne.recibos = [
+      { _id: "r1", num: "0001/2026", nome: "João", deletado_em: new Date().toISOString(), deletado_por: "maria" },
+      null, // sem conflito de num
+    ];
+    const res = await request(ctx.app).post("/api/recibos/r1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`);
+    assert.equal(res.status, 200);
+    assert.equal(fakes.chamadas.update[0].upd.deletado_em, null);
+    assert.equal(fakes.chamadas.auditoria[0].acao, "desfazer_exclusao_recibo");
+  });
+
+  it("admin desfaz mesmo fora da janela e de exclusão alheia", async () => {
+    const antiga = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    fakes.dados.findOne.recibos = [
+      { _id: "r1", num: "0001/2026", deletado_em: antiga, deletado_por: "maria" },
+      null,
+    ];
+    const res = await request(ctx.app).post("/api/recibos/r1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(ADMIN)}`);
+    assert.equal(res.status, 200);
+  });
+});
+
 // ── Login (rota real, banco mockado) ───────────────────────
 describe("POST /api/login", () => {
   function appLogin(usuarioNoBanco) {

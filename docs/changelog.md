@@ -2,6 +2,21 @@
 
 ---
 
+## [2026-07-17] — Fase 6: UX (desfazer exclusão, máscara de telefone, badge, skeleton)
+
+### Adicionado
+- **Toast "Desfazer" na exclusão de recibos** (individual e em lote): quem excluiu pode desfazer em até **15 minutos** via `POST /api/recibos/:id/desfazer-exclusao` (admin desfaz sempre; 409 se o número já foi reutilizado; auditoria `desfazer_exclusao_recibo`). Complementa a Lixeira sem abrir a restauração pra todo mundo.
+- **Máscara de telefone** no cadastro de cliente — `(44) 99999-9999` (celular) e `(44) 9999-9999` (fixo), formatando enquanto digita.
+- **Badge de selecionados** no item Histórico do sidebar — a contagem da seleção em lote fica visível mesmo navegando em outra tela.
+- **Skeleton loading na Lixeira** (no lugar do texto "Carregando...").
+- Toast agora aceita rótulo customizado no botão de ação (`mostrarToast(msg, fn, tipo, "Desfazer")`).
+- +5 testes da rota de desfazer (404/403/410/200/admin) — suite total: **74 testes**.
+
+### Observações
+- Dark mode persistente já existia; campo CEP não existe no formulário — itens do plano original descartados.
+
+---
+
 ## [2026-07-17] — Fase 2: arquitetura frontend
 
 ### Refatorado

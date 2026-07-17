@@ -444,6 +444,14 @@ function mascaraCpfCliente(el) {
   el.value = v;
 }
 
+function mascaraTelefone(el) {
+  const d = el.value.replace(/\D/g, "").slice(0, 11);
+  if (d.length > 10)      el.value = d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3"); // celular 9 dígitos
+  else if (d.length > 6)  el.value = d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3"); // fixo
+  else if (d.length > 2)  el.value = d.replace(/(\d{2})(\d*)/, "($1) $2");
+  else                    el.value = d;
+}
+
 function mascaraValorCliente(el) {
   let v = el.value.replace(/\D/g, "");
   if (!v) { el.value = ""; return; }

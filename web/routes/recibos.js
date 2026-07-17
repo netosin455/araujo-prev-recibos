@@ -256,6 +256,34 @@ module.exports = function registerReciboRoutes(app, deps) {
     res.json({ ok: true });
   });
 
+  // ── DESFAZER EXCLUSÃO (janela curta, quem excluiu) ─────────
+  // Complementa a Lixeira (admin): o próprio usuário pode desfazer a exclusão
+  // que acabou de fazer, dentro de 15 minutos — alimenta o toast "Desfazer".
+  app.post("/api/recibos/:id/desfazer-exclusao", deps.auth, deps.financeiroOnly, async (req, res) => {
+    try {
+      const recibo = await deps.findOne(deps.dbRecibos, { _id: req.params.id });
+      if (!recibo || !recibo.deletado_em) return res.status(404).json({ erro: "Recibo não está excluído." });
+      const ehAdmin = req.user.username === deps.ADMIN_USER;
+      if (!ehAdmin && recibo.deletado_por !== req.user.username) {
+        return res.status(403).json({ erro: "Só quem excluiu (ou o admin) pode desfazer." });
+      }
+      const idadeMs = Date.now() - new Date(recibo.deletado_em).getTime();
+      if (!ehAdmin && (!isFinite(idadeMs) || idadeMs > 15 * 60 * 1000)) {
+        return res.status(410).json({ erro: "Janela de desfazer expirou. Peça ao admin para restaurar pela Lixeira." });
+      }
+      if (recibo.num) {
+        const conflito = await deps.findOne(deps.dbRecibos, { num: recibo.num, ...deps.NAO_DELETADO });
+        if (conflito) return res.status(409).json({ erro: `Já existe um recibo ativo com o número ${recibo.num}.` });
+      }
+      await deps.update(deps.dbRecibos, { _id: req.params.id }, { deletado_em: null, deletado_por: null });
+      deps.registrarAuditoria(req, "desfazer_exclusao_recibo", req.params.id, { num: recibo.num, nome: recibo.nome });
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("Erro ao desfazer exclusão:", e.message);
+      res.status(500).json({ erro: "Erro ao desfazer exclusão." });
+    }
+  });
+
   // ── SALVAR ASSINATURA DIGITAL ──────────────────────────────
   app.put("/api/recibos/:id/assinatura", deps.auth, async (req, res) => {
     try {
