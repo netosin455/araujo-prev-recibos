@@ -2,6 +2,16 @@
 
 ---
 
+## [2026-07-17] — Varredura própria: backup quebrado, logger 100%, rate limit em rota pública
+
+### Corrigido
+- **Botão "Backup do Banco de Dados" estava QUEBRADO desde a migração pro Neon** — procurava arquivos NeDB (`recibos.db`/`clientes.db`) num caminho inexistente e sempre retornava 404. Reescrito: exporta as 4 tabelas do Neon (recibos, clientes, auditoria, documentos) em JSON num ZIP com manifesto; auditado (`backup_db`).
+- **Rota pública `GET /api/assinatura/:token` sem rate limit** — token aleatório sofria força bruta sem freio; agora passa pelo limiter (100/15min por IP).
+- **Fallback de uploads apontava pra `routes/data`** (faltava o `..` no caminho) — só afetaria instalação sem S3, mas estava errado.
+- **Migração console→logger 100% completa**: `services/google-sheets.js` (18) e `services/database.js` (1) eram os últimos usando `console.*`.
+
+---
+
 ## [2026-07-17] — Estabilidade e dependências: async-wrap + npm audit zerado
 
 ### Corrigido

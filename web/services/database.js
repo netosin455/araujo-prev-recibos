@@ -2,6 +2,7 @@
 // services/database.js — NeDB-style helpers sobre PostgreSQL
 // ============================================================
 const { randomUUID } = require("crypto");
+const logger = require("./logger");
 
 const NAO_DELETADO = { deletado_em: { $exists: false } };
 
@@ -106,7 +107,7 @@ module.exports = function createDatabase(pgPool) {
       for (const sql of INDEXES_SQL) {
         await pgPool.query(sql).catch(() => {});
       }
-      console.log(`[DB] ${INDEXES_SQL.length} índices verificados/criados.`);
+      logger.info(`[DB] ${INDEXES_SQL.length} índices verificados/criados.`);
     } catch (_) {}
   })();
 

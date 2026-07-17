@@ -8,7 +8,8 @@ const { PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 module.exports = function registerMiscRoutes(app, deps) {
   // deps: auth, adminOnly, financeiroOnly, semPrecatorios, semRecepcao, pgPool, dbClientes, dbRecibos, dbAuditoria, dbNotificacoes, dbConfig, NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited, enriquecerCliente, registrarAuditoria, maskCPF, formatDateToBR, validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado, getSheetsClient, sincronizarUsuariosParaSheets, bcrypt, ADMIN_USER, s3Client, withTimeout, fetchWithTimeout, transporter, JWT_SECRET, jwt, upload, loginLimiter, crypto, fs, path, sharp
 
-  const dbDir = process.env.DATA_DIR || deps.path.join(__dirname, "data");
+  // ".." — este arquivo vive em routes/; o diretório de dados fica em web/data
+  const dbDir = process.env.DATA_DIR || deps.path.join(__dirname, "..", "data");
   const uploadsDir = deps.path.join(dbDir, "uploads");
 
   // Converte "DD/MM/YYYY" → "YYYY-MM" para filtros de mês

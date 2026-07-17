@@ -200,8 +200,9 @@ async function buscarReciboPorToken(token) {
   return { recibo };
 }
 
-// PÚBLICO — dados mínimos do recibo para a tela de assinatura (sem auth)
-app.get("/api/assinatura/:token", async (req, res) => {
+// PÚBLICO — dados mínimos do recibo para a tela de assinatura (sem auth).
+// Rate limit: rota pública por token não pode ficar aberta a força bruta
+app.get("/api/assinatura/:token", deps.mutationLimiter, async (req, res) => {
   const { recibo, erro } = await buscarReciboPorToken(req.params.token);
   if (erro === "expirado") return res.status(410).json({ erro: "Este link de assinatura expirou." });
   if (erro) return res.status(404).json({ erro: "Link inválido ou não encontrado." });

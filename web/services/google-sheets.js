@@ -3,6 +3,7 @@
 // ============================================================
 const { google } = require("googleapis");
 const { Readable } = require("stream");
+const logger = require("./logger");
 const { withTimeout } = require("./timeout");
 
 // IDs vêm do ambiente; os fallbacks hardcoded existem só pra não derrubar a
@@ -13,13 +14,13 @@ const SHEET_ID   = process.env.SHEET_ID || "1qbpuZo5HLQHw4itjWbnXJNjBjIy63So3erM
 const SHEET_NAME = "Respostas ao formulário 1";
 const MESES = ["JANEIRO","FEVEREIRO","MARÇO","ABRIL","MAIO","JUNHO","JULHO","AGOSTO","SETEMBRO","OUTUBRO","NOVEMBRO","DEZEMBRO"];
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1BUAPGfIIyehGWkmYlas0SYER3kriQK_H";
-if (!process.env.SHEET_ID) console.warn("⚠️  SHEET_ID ausente no ambiente — usando fallback hardcoded (configure no EB).");
-if (!process.env.DRIVE_FOLDER_ID) console.warn("⚠️  DRIVE_FOLDER_ID ausente no ambiente — usando fallback hardcoded (configure no EB).");
+if (!process.env.SHEET_ID) logger.warn("⚠️  SHEET_ID ausente no ambiente — usando fallback hardcoded (configure no EB).");
+if (!process.env.DRIVE_FOLDER_ID) logger.warn("⚠️  DRIVE_FOLDER_ID ausente no ambiente — usando fallback hardcoded (configure no EB).");
 
 function getSheetsClient() {
   const credsB64 = process.env.GOOGLE_CREDENTIALS;
   if (!credsB64) {
-    console.warn("⚠️  GOOGLE_CREDENTIALS não configurado — integração com Sheets desativada.");
+    logger.warn("⚠️  GOOGLE_CREDENTIALS não configurado — integração com Sheets desativada.");
     return null;
   }
   try {
@@ -27,7 +28,7 @@ function getSheetsClient() {
     const auth = new google.auth.GoogleAuth({ credentials: creds, scopes: ["https://www.googleapis.com/auth/spreadsheets"] });
     return google.sheets({ version: "v4", auth });
   } catch (e) {
-    console.error("❌ Erro ao inicializar Google Sheets:", e.message);
+    logger.error("❌ Erro ao inicializar Google Sheets:", e.message);
     return null;
   }
 }
@@ -37,10 +38,10 @@ async function testarConexaoSheets() {
   if (!sheets) return;
   try {
     await withTimeout(sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: "spreadsheetId" }));
-    console.log("✅ Conexão com Google Sheets OK.");
+    logger.info("✅ Conexão com Google Sheets OK.");
   } catch (e) {
-    console.error(`❌ FALHA na conexão com Google Sheets: ${e.message}`);
-    console.error(`   → Planilha ID: ${SHEET_ID}`);
+    logger.error(`❌ FALHA na conexão com Google Sheets: ${e.message}`);
+    logger.error(`   → Planilha ID: ${SHEET_ID}`);
   }
 }
 
@@ -70,7 +71,7 @@ async function uploadParaDrive(buffer, nomeArquivo, mimeType) {
     }));
     return `https://drive.google.com/file/d/${fileId}/view`;
   } catch (e) {
-    console.error("❌ Erro ao fazer upload pro Drive:", e.message);
+    logger.error("❌ Erro ao fazer upload pro Drive:", e.message);
     throw e;
   }
 }
@@ -152,10 +153,10 @@ async function registrarNoSheets(dados, s3SignerClient) {
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [linha] },
     }));
-    console.log(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets (linha ${nextRow})`);
+    logger.info(`✅ Recibo ${dados.num_recibo} registrado no Google Sheets (linha ${nextRow})`);
     return true;
   } catch (e) {
-    console.error("❌ Erro ao registrar no Google Sheets:", e.message);
+    logger.error("❌ Erro ao registrar no Google Sheets:", e.message);
     return e.message;
   }
 }
@@ -197,9 +198,9 @@ async function atualizarNoSheets(num, dados, s3SignerClient) {
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [linha.slice(1)] },
     }));
-    console.log(`✅ Recibo ${num} atualizado no Google Sheets`);
+    logger.info(`✅ Recibo ${num} atualizado no Google Sheets`);
   } catch (e) {
-    console.error("❌ Erro ao atualizar no Google Sheets:", e.message);
+    logger.error("❌ Erro ao atualizar no Google Sheets:", e.message);
   }
 }
 
@@ -217,7 +218,7 @@ async function linkParaSheets(link, s3SignerClient) {
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
     return await Promise.race([urlPromise, timeoutPromise]);
   } catch (e) {
-    console.error("❌ Presigned URL falhou:", e.message);
+    logger.error("❌ Presigned URL falhou:", e.message);
     return link;
   }
 }
@@ -226,7 +227,7 @@ async function renovarPresignedUrlsSheets(s3SignerClient) {
   const sheets = getSheetsClient();
   const bucket = process.env.BUCKET_NAME;
   if (!sheets || !bucket) {
-    console.warn(`⚠️  Renovação de URLs ignorada — Sheets ou BUCKET_NAME não configurados.`);
+    logger.warn(`⚠️  Renovação de URLs ignorada — Sheets ou BUCKET_NAME não configurados.`);
     return;
   }
   const { GetObjectCommand } = require("@aws-sdk/client-s3");
@@ -259,20 +260,20 @@ async function renovarPresignedUrlsSheets(s3SignerClient) {
         // regrava como fórmula HYPERLINK — célula fica "Ver comprovante" clicável
         atualizacoes.push({ range: `${SHEET_NAME}!K${i + 1}`, values: [[formulaComprovante(novaUrl)]] });
       } catch (e) {
-        console.warn(`⚠️  Não foi possível renovar URL para chave "${chave}": ${e.message}`);
+        logger.warn(`⚠️  Não foi possível renovar URL para chave "${chave}": ${e.message}`);
       }
     }
     if (atualizacoes.length === 0) {
-      console.log(`ℹ️  Renovação de URLs: nenhum link S3 encontrado na planilha.`);
+      logger.info(`ℹ️  Renovação de URLs: nenhum link S3 encontrado na planilha.`);
       return;
     }
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SHEET_ID,
       requestBody: { valueInputOption: "USER_ENTERED", data: atualizacoes },
     });
-    console.log(`✅ Renovação de presigned URLs — ${atualizacoes.length} link(s) atualizado(s).`);
+    logger.info(`✅ Renovação de presigned URLs — ${atualizacoes.length} link(s) atualizado(s).`);
   } catch (e) {
-    console.error(`❌ Erro na renovação de presigned URLs: ${e.message}`);
+    logger.error(`❌ Erro na renovação de presigned URLs: ${e.message}`);
   }
 }
 

@@ -8,12 +8,15 @@ const archiver = require("archiver");
 module.exports = function registerAdminRoutes(app, deps) {
   // deps has: auth, adminOnly, pgPool, dbAuditoria, dbClientes, dbRecibos, dbNotificacoes, dbConfig, find, findOne, insert, update, remove, count, findLimited, registrarAuditoria, maskCPF, getSheetsClient, sincronizarUsuariosParaSheets, bcrypt, ADMIN_USER, s3Client, withTimeout, JWT_SECRET, jwt, NAO_DELETADO, SHEET_ID, SHEET_NAME, linkParaSheets, s3SignerClient
 
-  // ── BACKUP DO BANCO DE DADOS ────────────────────────────────
+  // ── BACKUP DO BANCO DE DADOS (dump do Neon em JSON) ─────────
+  // Reescrito: a versão antiga zipava arquivos NeDB locais que não existem
+  // desde a migração pro Postgres — o botão retornava 404 sempre.
   app.get("/api/admin/backup-db", deps.auth, deps.adminOnly, async (req, res) => {
     try {
-      const dbDir = path.join(__dirname, "data");
-      const arquivos = ["recibos.db", "clientes.db"].filter(f => fs.existsSync(path.join(dbDir, f)));
-      if (arquivos.length === 0) return res.status(404).json({ erro: "Nenhum arquivo de banco encontrado." });
+      const tabelas = ["recibos", "clientes", "auditoria", "documentos"];
+      const dumps = await Promise.all(
+        tabelas.map(t => deps.pgPool.query(`SELECT * FROM ${t}`))
+      );
 
       const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
       res.setHeader("Content-Type", "application/zip");
@@ -22,9 +25,11 @@ module.exports = function registerAdminRoutes(app, deps) {
       const archive = archiver("zip", { zlib: { level: 9 } });
       archive.on("error", e => { logger.error("Erro backup ZIP:", e.message); });
       archive.pipe(res);
-      for (const f of arquivos) {
-        archive.file(path.join(dbDir, f), { name: f });
-      }
+      tabelas.forEach((t, i) => {
+        archive.append(JSON.stringify(dumps[i].rows, null, 1), { name: `${t}.json` });
+      });
+      archive.append(JSON.stringify({ gerado_em: new Date().toISOString(), origem: "Neon PostgreSQL", tabelas: tabelas.map((t, i) => ({ tabela: t, registros: dumps[i].rows.length })) }, null, 2), { name: "manifesto.json" });
+      deps.registrarAuditoria(req, "backup_db", "", { tabelas: tabelas.length });
       await archive.finalize();
     } catch (e) {
       logger.error("Erro ao gerar backup:", e.message);
