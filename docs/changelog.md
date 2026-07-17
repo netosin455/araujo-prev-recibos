@@ -15,9 +15,12 @@ Execução do `docs/planejamento-seguranca.md`:
 - **#7 Webhook LGPD** — CPF mascarado no payload; suporte a `WEBHOOK_SECRET` (header Authorization) opcional.
 - **#8 Auditoria de login** — todo login registra usuário, role, IP e timestamp na tabela auditoria (falha na auditoria nunca bloqueia o login).
 
+### Corrigido (continuação — Falha #3, fase 1)
+- **CSP endurecido nos blocos `<style>`**: `style-src-elem` agora é só `'self'` + fontes/CDN, **sem `unsafe-inline`** — bloco `<style>` injetado (o vetor forte de CSS injection) é bloqueado pelo navegador. O CSS que fichario.js e inicio.js injetavam via JS foi movido pro `css/main.css` e as funções de injeção removidas.
+- `style-src-attr 'unsafe-inline'` mantém os atributos `style=""` funcionando (são ~283 no HTML + centenas gerados por JS — o documento subestimou o escopo ao contar só o index.html). A migração desses atributos pra classes fica como fase 2, gradual; o `style-src` genérico permanece como fallback pra navegadores antigos.
+
 ### Observações
 - **#9 (soft delete de clientes)**: já estava implementada desde a Fase 3 — item do documento estava desatualizado.
-- **#3 (CSP sem unsafe-inline, ~283 estilos inline)**: adiada pra sessão dedicada, conforme o próprio cronograma do documento.
 - +3 testes (token_version defasada → 401, Bearer rejeitado, logout incrementa versão) — suite: **78 testes**.
 
 ---

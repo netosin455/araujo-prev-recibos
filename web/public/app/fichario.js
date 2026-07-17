@@ -15,43 +15,10 @@ const _FIC_LIMIT = 60;      // clientes por página
 const FIC_TIPOS = ["RG", "CPF", "Comprovante de residência", "Procuração", "Laudo médico", "CTPS", "Outro"];
 const _ficPodeExcluir = () => roleLogado === "admin" || roleLogado === "financeiro";
 
-// CSS injetado uma vez (hover, badges, agrupamento, lightbox)
-function _ficInjetarCSS() {
-  if (document.getElementById("fic-estilos")) return;
-  const s = document.createElement("style");
-  s.id = "fic-estilos";
-  s.textContent = `
-    .fic-titulo{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--dark);margin:0 0 2px}
-    .fic-card{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--card);cursor:pointer;transition:box-shadow .18s,transform .18s,border-color .18s}
-    .fic-card:hover{box-shadow:0 12px 28px -14px rgba(60,44,10,.32);transform:translateY(-2px);border-color:var(--border-strong)}
-    .fic-capa{height:118px;background:linear-gradient(135deg,#e6ddc9,#f3ecdc);position:relative;overflow:hidden}
-    .fic-capa img{width:100%;height:100%;object-fit:cover}
-    .fic-capa .fic-qtd{position:absolute;top:8px;right:8px;background:rgba(26,26,26,.72);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;display:flex;align-items:center;gap:4px}
-    .fic-capa .fic-vazia{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#a89b83;gap:5px}
-    .fic-grupo-tit{grid-column:1/-1;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:6px 0 -2px;display:flex;align-items:center;gap:8px}
-    .fic-grupo-tit::after{content:"";flex:1;height:1px;background:var(--gold-pale)}
-    .fic-doc{border:1px solid var(--border);border-radius:11px;overflow:hidden;background:#fff;transition:box-shadow .15s,transform .15s}
-    .fic-doc:hover{box-shadow:0 8px 20px -12px rgba(60,44,10,.3);transform:translateY(-1px)}
-    .fic-doc .fic-thumb{height:104px;background:#f0ebe1;overflow:hidden;cursor:zoom-in;position:relative}
-    .fic-doc .fic-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-    .fic-lb{position:fixed;inset:0;z-index:9999;background:rgba(20,16,8,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;animation:fic-fade .15s ease}
-    @keyframes fic-fade{from{opacity:0}to{opacity:1}}
-    .fic-lb-img{max-width:92vw;max-height:78vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);cursor:zoom-in;transition:transform .2s}
-    .fic-lb-frame{width:90vw;height:80vh;border:none;border-radius:8px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
-    .fic-lb-img.zoom{cursor:zoom-out;transform:scale(2)}
-    .fic-lb-cap{color:#f3ecdc;font-size:13px;margin-top:14px;text-align:center;max-width:90vw}
-    .fic-lb-cap b{color:var(--gold-light)}
-    .fic-lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-    .fic-lb-nav:hover{background:rgba(255,255,255,.28)}
-    .fic-lb-prev{left:18px}.fic-lb-next{right:18px}
-    .fic-lb-x{position:absolute;top:16px;right:18px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:20px;cursor:pointer}
-    .fic-lb-x:hover{background:rgba(255,255,255,.28)}
-    .fic-lb-count{position:absolute;top:20px;left:22px;color:#f3ecdc;font-size:13px;font-weight:600;background:rgba(0,0,0,.3);padding:4px 12px;border-radius:20px}
-    .fic-lb-pdf{display:flex;flex-direction:column;align-items:center;gap:14px;color:#f3ecdc}
-    .fic-lb-pdf i{font-size:64px;color:#e0b0a8}
-  `;
-  document.head.appendChild(s);
-}
+// CSS movido pra css/main.css (CSP sem unsafe-inline em <style> — Falha #3).
+// A função virou no-op e fica só pra compatibilidade de chamadas antigas.
+function _ficInjetarCSS() { /* estilos agora em css/main.css */ }
+
 
 function renderFichario() {
   _ficInjetarCSS();

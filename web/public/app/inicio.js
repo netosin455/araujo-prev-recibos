@@ -1,42 +1,7 @@
 // ── INÍCIO — painel-resumo. NÃO duplica o Administrativo: só resume os dados
 // já carregados (historicoRecibos, listaClientes) e linka pras telas de detalhe.
 
-function _dashCSS() {
-  if (document.getElementById("dash-estilos")) return;
-  const s = document.createElement("style");
-  s.id = "dash-estilos";
-  s.textContent = `
-    .dash-topo{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px;flex-wrap:wrap}
-    .dash-saud{font-family:'Cormorant Garamond',serif;font-size:27px;font-weight:600;line-height:1.1;margin:2px 0 0}
-    .dash-data{font-size:12.5px;color:var(--muted);margin-top:2px}
-    .dash-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:14px}
-    .dash-tile{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:15px 16px;box-shadow:0 1px 3px rgba(60,44,10,.05)}
-    .dash-tile .di{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;margin-bottom:10px}
-    .dash-tile .di i{font-size:15px}
-    .dt-g .di{background:var(--gold-pale);color:#8a6d1f}.dt-s .di{background:#e6f0ea;color:var(--success)}
-    .dt-e .di{background:#f6e7e4;color:var(--error)}.dt-d .di{background:#eee9df;color:var(--mid)}
-    .dash-tile .dl{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
-    .dash-tile .dv{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--dark);line-height:1.05;margin-top:2px;font-variant-numeric:tabular-nums}
-    .dash-tile .dd{font-size:11px;font-weight:600;margin-top:4px}
-    .dd.up{color:var(--success)}.dd.down{color:var(--error)}.dd.n{color:var(--muted)}
-    .dash-cols{display:grid;grid-template-columns:1.5fr 1fr;gap:13px}
-    .dash-panel{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:16px 18px;box-shadow:0 1px 3px rgba(60,44,10,.05)}
-    .dash-ph{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
-    .dash-ph h3{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;margin:0}
-    .dash-ph a{font-size:12px;color:#8a6d1f;font-weight:600;text-decoration:none;cursor:pointer}
-    .dash-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)}
-    .dash-row:first-child{border-top:none}
-    .dash-av{width:31px;height:31px;border-radius:9px;background:var(--gold-pale);color:#8a6d1f;display:grid;place-items:center;font-size:13px;font-weight:700;font-family:'Cormorant Garamond',serif;flex:none}
-    .dash-nome{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .dash-sub{font-size:10.5px;color:var(--muted)}
-    .dash-val{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--success);font-variant-numeric:tabular-nums;white-space:nowrap}
-    .dash-pill{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px}
-    .dash-pill.v{background:#f6e7e4;color:var(--error)}
-    .dash-empty{text-align:center;color:var(--muted);font-size:12px;padding:16px}
-    @media(max-width:720px){.dash-stats{grid-template-columns:repeat(2,1fr)}.dash-cols{grid-template-columns:1fr}}
-  `;
-  document.head.appendChild(s);
-}
+function _dashCSS() { /* estilos movidos pra css/main.css (CSP Falha #3) */ }
 
 function _dashMes(dataStr) {
   const p = String(dataStr || "").split("/");

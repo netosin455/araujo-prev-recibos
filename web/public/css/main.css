@@ -511,3 +511,63 @@
     #tela-assinatura .ass-erro{color:var(--error);font-size:12px;margin-top:8px;min-height:16px}
     #tela-assinatura .ass-pular{width:100%;margin-top:6px}
 
+
+/* ── Fichário (movido de fichario.js — CSP Falha #3) ── */
+.fic-titulo{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--dark);margin:0 0 2px}
+    .fic-card{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--card);cursor:pointer;transition:box-shadow .18s,transform .18s,border-color .18s}
+    .fic-card:hover{box-shadow:0 12px 28px -14px rgba(60,44,10,.32);transform:translateY(-2px);border-color:var(--border-strong)}
+    .fic-capa{height:118px;background:linear-gradient(135deg,#e6ddc9,#f3ecdc);position:relative;overflow:hidden}
+    .fic-capa img{width:100%;height:100%;object-fit:cover}
+    .fic-capa .fic-qtd{position:absolute;top:8px;right:8px;background:rgba(26,26,26,.72);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;display:flex;align-items:center;gap:4px}
+    .fic-capa .fic-vazia{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#a89b83;gap:5px}
+    .fic-grupo-tit{grid-column:1/-1;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:6px 0 -2px;display:flex;align-items:center;gap:8px}
+    .fic-grupo-tit::after{content:"";flex:1;height:1px;background:var(--gold-pale)}
+    .fic-doc{border:1px solid var(--border);border-radius:11px;overflow:hidden;background:#fff;transition:box-shadow .15s,transform .15s}
+    .fic-doc:hover{box-shadow:0 8px 20px -12px rgba(60,44,10,.3);transform:translateY(-1px)}
+    .fic-doc .fic-thumb{height:104px;background:#f0ebe1;overflow:hidden;cursor:zoom-in;position:relative}
+    .fic-doc .fic-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .fic-lb{position:fixed;inset:0;z-index:9999;background:rgba(20,16,8,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;animation:fic-fade .15s ease}
+    @keyframes fic-fade{from{opacity:0}to{opacity:1}}
+    .fic-lb-img{max-width:92vw;max-height:78vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);cursor:zoom-in;transition:transform .2s}
+    .fic-lb-frame{width:90vw;height:80vh;border:none;border-radius:8px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+    .fic-lb-img.zoom{cursor:zoom-out;transform:scale(2)}
+    .fic-lb-cap{color:#f3ecdc;font-size:13px;margin-top:14px;text-align:center;max-width:90vw}
+    .fic-lb-cap b{color:var(--gold-light)}
+    .fic-lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .fic-lb-nav:hover{background:rgba(255,255,255,.28)}
+    .fic-lb-prev{left:18px}.fic-lb-next{right:18px}
+    .fic-lb-x{position:absolute;top:16px;right:18px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:20px;cursor:pointer}
+    .fic-lb-x:hover{background:rgba(255,255,255,.28)}
+    .fic-lb-count{position:absolute;top:20px;left:22px;color:#f3ecdc;font-size:13px;font-weight:600;background:rgba(0,0,0,.3);padding:4px 12px;border-radius:20px}
+    .fic-lb-pdf{display:flex;flex-direction:column;align-items:center;gap:14px;color:#f3ecdc}
+    .fic-lb-pdf i{font-size:64px;color:#e0b0a8}
+
+/* ── Painel Início (movido de inicio.js — CSP Falha #3) ── */
+.dash-topo{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+    .dash-saud{font-family:'Cormorant Garamond',serif;font-size:27px;font-weight:600;line-height:1.1;margin:2px 0 0}
+    .dash-data{font-size:12.5px;color:var(--muted);margin-top:2px}
+    .dash-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:14px}
+    .dash-tile{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:15px 16px;box-shadow:0 1px 3px rgba(60,44,10,.05)}
+    .dash-tile .di{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;margin-bottom:10px}
+    .dash-tile .di i{font-size:15px}
+    .dt-g .di{background:var(--gold-pale);color:#8a6d1f}.dt-s .di{background:#e6f0ea;color:var(--success)}
+    .dt-e .di{background:#f6e7e4;color:var(--error)}.dt-d .di{background:#eee9df;color:var(--mid)}
+    .dash-tile .dl{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+    .dash-tile .dv{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--dark);line-height:1.05;margin-top:2px;font-variant-numeric:tabular-nums}
+    .dash-tile .dd{font-size:11px;font-weight:600;margin-top:4px}
+    .dd.up{color:var(--success)}.dd.down{color:var(--error)}.dd.n{color:var(--muted)}
+    .dash-cols{display:grid;grid-template-columns:1.5fr 1fr;gap:13px}
+    .dash-panel{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:16px 18px;box-shadow:0 1px 3px rgba(60,44,10,.05)}
+    .dash-ph{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+    .dash-ph h3{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;margin:0}
+    .dash-ph a{font-size:12px;color:#8a6d1f;font-weight:600;text-decoration:none;cursor:pointer}
+    .dash-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)}
+    .dash-row:first-child{border-top:none}
+    .dash-av{width:31px;height:31px;border-radius:9px;background:var(--gold-pale);color:#8a6d1f;display:grid;place-items:center;font-size:13px;font-weight:700;font-family:'Cormorant Garamond',serif;flex:none}
+    .dash-nome{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dash-sub{font-size:10.5px;color:var(--muted)}
+    .dash-val{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--success);font-variant-numeric:tabular-nums;white-space:nowrap}
+    .dash-pill{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px}
+    .dash-pill.v{background:#f6e7e4;color:var(--error)}
+    .dash-empty{text-align:center;color:var(--muted);font-size:12px;padding:16px}
+    @media(max-width:720px){.dash-stats{grid-template-columns:repeat(2,1fr)}.dash-cols{grid-template-columns:1fr}}

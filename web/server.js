@@ -138,7 +138,13 @@ app.use((req, res, next) => {
   res.setHeader("Content-Security-Policy",
     "default-src 'self'; " +
     "script-src 'self'; " +
+    // style-src-elem SEM 'unsafe-inline': blocos <style> injetados são bloqueados
+    // (o vetor forte de CSS injection). style-src-attr mantém os atributos style=""
+    // até a migração completa pra classes (Falha #3 — fase 2). O style-src genérico
+    // fica como fallback pra navegadores antigos que não conhecem -elem/-attr.
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
+    "style-src-elem 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
+    "style-src-attr 'unsafe-inline'; " +
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
     "img-src 'self' data: blob: https://*.amazonaws.com; " +
     "connect-src 'self' https://*.amazonaws.com; " +
