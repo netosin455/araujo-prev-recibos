@@ -1,16 +1,16 @@
-﻿<!--
-  TELA â€” web/public/index.html
-  Ã‰ o arquivo que o navegador abre. Define o visual do sistema.
+<!--
+  TELA — web/public/index.html
+  É o arquivo que o navegador abre. Define o visual do sistema.
 
   O QUE ESSE ARQUIVO FAZ:
-  - Estrutura a tela (sidebar, formulÃ¡rios, botÃµes, modais)
+  - Estrutura a tela (sidebar, formulários, botões, modais)
   - Define as cores e o estilo visual (CSS no bloco <style>)
   - Conecta com o comportamento (app.js) e o servidor (server.js)
 
   QUANDO MEXER AQUI:
-  - Mudar textos, labels ou tÃ­tulos
-  - Mudar cores ou visual (procure o bloco <style> no inÃ­cio)
-  - Adicionar ou remover campos no formulÃ¡rio
+  - Mudar textos, labels ou títulos
+  - Mudar cores ou visual (procure o bloco <style> no início)
+  - Adicionar ou remover campos no formulário
   - Adicionar novos itens no menu lateral
 -->
 <!DOCTYPE html>
@@ -18,7 +18,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araujo Prev â€” GestÃ£o de Recibos</title>
+  <title>Araujo Prev — Gestão de Recibos</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#1a1a1a" />
   <!-- PWA iOS -->
@@ -35,12 +35,12 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    /* â”€â”€ SCROLLBAR â”€â”€ */
+    /* ── SCROLLBAR ── */
     ::-webkit-scrollbar{width:6px;height:6px}
     ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:rgba(184,151,58,.3);border-radius:3px}
     ::-webkit-scrollbar-thumb:hover{background:rgba(184,151,58,.5)}
-    /* â”€â”€ SCREEN TRANSITIONS â”€â”€ */
+    /* ── SCREEN TRANSITIONS ── */
     .screen{display:none;animation:fadeSlideIn 0.3s cubic-bezier(.4,0,.2,1)}
     .screen.active{display:block}
     @keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -49,12 +49,12 @@
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
     @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
     @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-    /* â”€â”€ TOOLTIP â”€â”€ */
+    /* ── TOOLTIP ── */
     [data-tooltip]{position:relative;cursor:pointer}
     [data-tooltip]:hover:after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:10px;font-weight:500;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:1000;animation:fadeIn 0.15s ease;pointer-events:none}
     [data-tooltip]:hover:before{content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);border:4px solid transparent;border-top-color:#333;pointer-events:none;z-index:1000}
     .pulse{animation:pulse 1.2s ease-in-out infinite}
-    /* â”€â”€ SKELETON â”€â”€ */
+    /* ── SKELETON ── */
     .skeleton-box{background:linear-gradient(90deg,var(--border) 25%,var(--gold-pale) 50%,var(--border) 75%);background-size:200% 100%;animation:pulse 1.4s ease infinite;border-radius:6px;height:14px;margin-bottom:8px}
     .skeleton-box.w60{width:60%}.skeleton-box.w40{width:40%}.skeleton-box.w80{width:80%}
     :root{
@@ -62,7 +62,7 @@
       --dark:#1a1a1a;--dark2:#2c2c2c;--mid:#4d4d4d;--muted:#857f73;
       --border:#e7e1d6;--border-strong:#d8d0c0;--bg:#f4f0ea;--card:#ffffff;
       --success:#3d7a5e;--error:#8b2e2e;--sidebar-w:224px;
-      /* Design system â€” escala dourada (900->50) + semanticas em par claro/escuro */
+      /* Design system — escala dourada (900->50) + semanticas em par claro/escuro */
       --gold900:#3a2f11;--gold800:#5a4718;--gold700:#7a6220;--gold600:#9a7d2a;--gold500:#b8973a;--gold400:#cdb163;--gold200:#e6d3a0;--gold100:#f0e6c8;--gold50:#f8f1de;--gold-deep:#7a6220;
       --su50:#e6f0ea;--su600:#3d7a5e;--su700:#2c5a44;
       --er50:#f9ece9;--er600:#a53a2f;--er700:#7c281f;
@@ -75,7 +75,7 @@
     body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--dark);min-height:100vh;display:flex;font-size:13px}
     body.login-open{overflow:hidden;position:fixed;width:100%;height:100%;}
 
-    /* â”€â”€ LOGIN â”€â”€ */
+    /* ── LOGIN ── */
     #tela-login{
       position:fixed;top:0;left:0;width:100%;height:100dvh;
       background:linear-gradient(-45deg,#0f0f0f,#1a1510,#0d0d0d,#1a1510);
@@ -106,7 +106,7 @@
     .login-box button:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(184,151,58,.35)}
     #login-erro{color:var(--error);font-size:12px;margin-top:12px;display:none}
 
-    /* â”€â”€ SIDEBAR â”€â”€ */
+    /* ── SIDEBAR ── */
     .sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,#141414 0%,#0f0f0f 100%);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;border-right:1px solid rgba(184,151,58,.08)}
     .sidebar-logo{padding:26px 20px 22px;border-bottom:1px solid rgba(184,151,58,.12);text-align:center;position:relative}
     .sidebar-logo::after{content:'';position:absolute;bottom:-1px;left:20%;right:20%;height:1px;background:linear-gradient(90deg,transparent,rgba(184,151,58,.3),transparent)}
@@ -134,25 +134,25 @@
     .global-dropdown-item span{color:var(--muted);font-size:11px}
     #usuario-logado{color:rgba(255,255,255,0.45);font-size:11px;padding:10px 20px;border-top:1px solid rgba(255,255,255,0.05)}
 
-    /* â”€â”€ MAIN â”€â”€ */
+    /* ── MAIN ── */
     .main{margin-left:var(--sidebar-w);flex:1;min-height:100vh;display:flex;flex-direction:column}
     .topbar{background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:15px 32px;display:flex;align-items:center;justify-content:space-between}
     .topbar-title{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:700;color:var(--dark);letter-spacing:0.3px}
     .topbar-badge{font-size:11px;color:var(--gold);font-weight:600;background:var(--gold-pale);padding:5px 14px;border-radius:20px;border:1px solid rgba(184,151,58,0.25);letter-spacing:0.5px}
     .content{flex:1;padding:32px;overflow-y:auto}
 
-    /* â”€â”€ TELAS â”€â”€ */
+    /* ── TELAS ── */
 
-    /* â”€â”€ FORM SECTION â”€â”€ */
+    /* ── FORM SECTION ── */
     .form-section-title{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin:24px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--gold-pale);display:flex;align-items:center;gap:6px}
     .form-section-title i{font-size:14px;color:var(--gold-light)}
     [data-theme="dark"] .form-section-title{border-bottom-color:rgba(184,151,58,0.2)}
 
-    /* â”€â”€ CARD â”€â”€ */
+    /* ── CARD ── */
     .card{background:var(--card);border-radius:var(--radius);padding:28px 32px;box-shadow:var(--shadow);border:1px solid var(--border);max-width:640px}
     .card-title{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--dark);margin-bottom:24px;padding-bottom:14px;border-bottom:1px solid var(--border)}
 
-    /* â”€â”€ FORM â”€â”€ */
+    /* ── FORM ── */
     .form-group{margin-bottom:16px}
     label{display:block;font-size:10px;font-weight:600;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.8px}
     input,select{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'Inter',sans-serif;transition:all 0.18s;outline:none;background:white;color:var(--dark)}
@@ -185,7 +185,7 @@
     input.input-error,select.input-error{border-color:var(--error)!important;background:#fdf0f0;transition:border-color 0.2s,background 0.2s}
     [data-theme="dark"] input.input-error,[data-theme="dark"] select.input-error{background:#2a1515}
 
-    /* â”€â”€ HISTÃ“RICO â”€â”€ */
+    /* ── HISTÓRICO ── */
     .search-wrap{display:flex;gap:12px;margin-bottom:20px;align-items:center;flex-wrap:wrap}
     .search-box{position:relative;flex:1;max-width:400px}
     .search-box input{padding-left:36px}
@@ -201,7 +201,7 @@
     .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
     .empty-state .icon{font-size:40px;margin-bottom:12px}
 
-    /* â”€â”€ ADMIN â”€â”€ */
+    /* ── ADMIN ── */
     .admin-tabs{display:flex;gap:4px;margin-bottom:28px;background:white;padding:4px;border-radius:var(--radius);box-shadow:var(--shadow);border:1.5px solid var(--border);width:fit-content}
     .admin-tab{padding:8px 22px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .18s var(--ease);border:none;background:none;font-family:'Inter',sans-serif;letter-spacing:.3px}
     .admin-tab.active{background:linear-gradient(135deg,#252525,#1a1a1a);color:white;box-shadow:0 2px 8px rgba(0,0,0,.18)}
@@ -210,7 +210,7 @@
     .skeleton-card{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:8px}
     .skeleton-line{border-radius:4px;background:linear-gradient(90deg,var(--border) 25%,#f0ece4 50%,var(--border) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite}
     @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-    /* CalendÃ¡rio */
+    /* Calendário */
     .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
     .cal-header{text-align:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;padding:6px 0}
     .cal-day{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:8px 6px;min-height:60px;cursor:pointer;transition:all 0.15s;position:relative}
@@ -265,7 +265,7 @@
     .badge-gold{background:var(--gold-pale);color:var(--gold);border:1px solid rgba(184,151,58,0.2)}
     .badge-green{background:#edf7f2;color:var(--success);border:1px solid rgba(61,122,94,0.2)}
 
-    /* â”€â”€ CLIENTES â”€â”€ */
+    /* ── CLIENTES ── */
     .cliente-card{background:white;border:1px solid var(--border);border-radius:14px;margin-bottom:11px;overflow:hidden}
     .cliente-card:hover{border-color:var(--border-md);box-shadow:0 10px 26px -16px rgba(58,47,17,.30)}
     .cliente-header{padding:14px 20px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:background 0.18s}
@@ -276,7 +276,7 @@
     .cliente-body{display:none;border-top:1px solid var(--border);padding:16px 20px;background:#fdfcfa}
     .cliente-body.open{display:block}
 
-    /* â”€â”€ MODAL â”€â”€ */
+    /* ── MODAL ── */
     .modal{display:flex;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);z-index:1000;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s ease}
     .modal.active{opacity:1;pointer-events:auto}
     .modal.active .modal-content{transform:translateY(0) scale(1)}
@@ -290,7 +290,7 @@
     .detail-label{width:40%;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;padding-top:1px}
     .detail-value{flex:1;color:var(--dark);font-weight:500}
 
-    /* â”€â”€ TEMA ESCURO â”€â”€ */
+    /* ── TEMA ESCURO ── */
     [data-theme="dark"]{--gold:#d4af5a;--gold-light:#e8c97a;--gold-pale:#2a2310;--dark:#e8e8e8;--dark2:#1e1e1e;--mid:#999;--muted:#6b6b6b;--border:#333;--border-strong:#444;--bg:#0a0a0a;--card:#161616;--success:#5db887;--error:#e06060;--shadow:0 1px 2px rgba(0,0,0,.3),0 2px 8px rgba(0,0,0,.35);--shadow-hover:0 2px 6px rgba(0,0,0,.4),0 12px 28px rgba(0,0,0,.45);--shadow-lg:0 12px 40px rgba(0,0,0,.55)}
     [data-theme="dark"] body{background:var(--bg);color:var(--dark)}
     [data-theme="dark"] .btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a1a1a}
@@ -313,7 +313,7 @@
     [data-theme="dark"] td{color:var(--dark)}
     [data-theme="dark"] .btn-secondary{background:#252525;border-color:var(--border);color:#d0d0d0}
 
-    /* â”€â”€ ABAS CLIENTE â”€â”€ */
+    /* ── ABAS CLIENTE ── */
     .cliente-tabs{display:flex;gap:3px;margin-bottom:12px;background:var(--bg);padding:3px;border-radius:var(--radius-sm);width:fit-content}
     .cliente-tab{padding:6px 16px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:var(--muted);border:none;background:none;font-family:'Inter',sans-serif;transition:all 0.18s}
     .cliente-tab.active{background:var(--dark);color:white;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
@@ -326,7 +326,7 @@
     .tab-total{font-size:13px;font-weight:700;margin-top:10px;padding:8px 12px;background:var(--bg);border-radius:var(--radius-sm);display:inline-block}
     .secao-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin:14px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 
-    /* â”€â”€ COMPROVANTE UPLOAD â”€â”€ */
+    /* ── COMPROVANTE UPLOAD ── */
     .comprovante-label{display:flex;align-items:center;gap:10px;padding:12px 16px;border:2px dashed var(--border);border-radius:8px;cursor:pointer;font-size:13px;color:var(--mid);transition:all 0.2s;background:var(--bg);font-weight:500}
     .comprovante-label:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-pale)}
     .comprovante-label.has-file{border-color:var(--success);color:var(--success);background:#edf7f2;border-style:solid}
@@ -334,7 +334,7 @@
     [data-theme="dark"] .comprovante-label{background:#252525;border-color:#444}
     [data-theme="dark"] .comprovante-label.has-file{background:#1a2e22}
 
-    /* â”€â”€ TOAST â”€â”€ */
+    /* ── TOAST ── */
     #toast{position:fixed;bottom:28px;right:28px;z-index:9999;background:#1a1a1a;color:white;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 30px rgba(0,0,0,0.35);max-width:360px;transform:translateY(calc(100% + 60px));transition:transform 0.3s cubic-bezier(.4,0,.2,1);font-size:13px;border:1px solid rgba(184,151,58,0.3)}
     #toast.show{transform:translateY(0)}
     #toast.success{background:#1a3a24;border-color:rgba(61,122,94,0.5)}
@@ -382,7 +382,7 @@
     #notif-footer button{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 8px;font-size:11px;transition:color 0.2s}
     #notif-footer button:hover{color:var(--gold)}
 
-    /* â”€â”€ MOBILE â”€â”€ */
+    /* ── MOBILE ── */
     /* Bottom Nav */
     .bottom-nav{display:none}
     .bn-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:6px 4px 8px;color:rgba(255,255,255,0.4);cursor:pointer;transition:color 0.2s;gap:3px}
@@ -400,18 +400,18 @@
       .sidebar{display:none}
       .bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:58px;background:var(--dark2);border-top:1px solid rgba(184,151,58,0.3);z-index:200;box-shadow:0 -2px 16px rgba(0,0,0,0.5);padding-bottom:env(safe-area-inset-bottom)}
 
-      /* ConteÃºdo principal */
+      /* Conteúdo principal */
       .main{margin-left:0;min-height:100vh;padding-bottom:70px}
       .topbar{padding:10px 16px}
       .topbar-title{font-size:17px}
       .content{padding:12px}
 
-      /* Cards e formulÃ¡rios */
+      /* Cards e formulários */
       .card{padding:16px 14px;max-width:100%}
       .form-row{grid-template-columns:1fr}
       .form-row.three{grid-template-columns:1fr}
 
-      /* Inputs e botÃµes com Ã¡rea de toque maior */
+      /* Inputs e botões com área de toque maior */
       input,select{padding:12px 14px;font-size:15px}
       button{min-height:42px}
       .btn-sm{font-size:12px;min-height:38px}
@@ -421,7 +421,7 @@
       .dash-card{padding:14px}
       .dash-card .value{font-size:18px}
 
-      /* HistÃ³rico â€” botÃ£o Ver em destaque, resto compacto */
+      /* Histórico — botão Ver em destaque, resto compacto */
       .recibo-item{flex-direction:column;align-items:flex-start;gap:8px;padding:12px 14px}
       .recibo-num{font-size:11px}
       .recibo-nome{font-size:15px}
@@ -429,7 +429,7 @@
       .recibo-actions button[data-action="ver"],.recibo-actions button.btn-gold{flex:1 1 100%;min-height:44px;font-size:13px}
       .recibo-actions button:not([data-action="ver"]):not(.btn-gold){flex:1;font-size:11px;padding:6px 4px;min-height:38px}
 
-      /* BotÃµes de aÃ§Ã£o do formulÃ¡rio */
+      /* Botões de ação do formulário */
       .btn-group{flex-direction:column}
       .btn-primary,.btn-gold{width:100%}
 
@@ -443,14 +443,14 @@
       .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
       table{font-size:12px;min-width:500px}
       th,td{padding:10px 12px;white-space:nowrap}
-      /* Tabela dentro do card cliente nÃ£o deve ter min-width */
+      /* Tabela dentro do card cliente não deve ter min-width */
       .cliente-body table{min-width:unset;width:100%}
       .cliente-body th,.cliente-body td{padding:8px 6px;font-size:11px;white-space:normal}
-      /* BotÃ£o X dos filtros fica inline com os inputs de data */
+      /* Botão X dos filtros fica inline com os inputs de data */
       .search-wrap>div{flex-wrap:nowrap !important}
       #filtro-data-ini,#filtro-data-fim{width:100% !important;flex:1}
 
-      /* Modal desliza de baixo â€” mais natural no mobile */
+      /* Modal desliza de baixo — mais natural no mobile */
       .modal{align-items:flex-end}
       .modal-content{margin:0;width:100%;padding:20px;max-height:88vh;border-radius:16px 16px 0 0;transform:translateY(24px) scale(1)}
       .modal.active .modal-content{transform:translateY(0) scale(1)}
@@ -458,7 +458,7 @@
       /* Login */
       .login-box{width:92%;padding:28px 20px}
 
-      /* Abas admin â€” scroll horizontal, sem quebrar linha */
+      /* Abas admin — scroll horizontal, sem quebrar linha */
       .admin-tabs{overflow-x:auto;flex-wrap:nowrap;width:100%;-webkit-overflow-scrolling:touch;scrollbar-width:none}
       .admin-tabs::-webkit-scrollbar{display:none}
       .admin-tab{flex:0 0 auto;white-space:nowrap;text-align:center;padding:10px 16px;min-height:44px}
@@ -466,12 +466,12 @@
       /* Toast acima da bottom nav */
       #toast{bottom:70px;right:12px;left:12px;max-width:unset}
 
-      /* DRE â€” coluna Ãºnica + canvas maior */
+      /* DRE — coluna única + canvas maior */
       .dre-grid{grid-template-columns:1fr !important}
       .dre-grid .table-wrap[style*="grid-column:span 2"]{grid-column:span 1 !important}
       #grafico-dre{min-height:220px}
 
-      /* Admin grids (RelatÃ³rios, Analytics, ProjeÃ§Ã£o, EscritÃ³rios, ResponsÃ¡veis) â€” coluna Ãºnica */
+      /* Admin grids (Relatórios, Analytics, Projeção, Escritórios, Responsáveis) — coluna única */
       #admin-relatorios>div[style*="grid-template-columns"],
       #admin-analytics>div[style*="grid-template-columns"],
       #admin-projecao>div[style*="grid-template-columns"],
@@ -483,10 +483,10 @@
       #admin-escritorios [style*="grid-column:span 2"],
       #admin-responsaveis [style*="grid-column:span 2"]{grid-column:span 1 !important}
 
-      /* Filtros avanÃ§ados â€” inputs de valor deixam de ter largura fixa */
+      /* Filtros avançados — inputs de valor deixam de ter largura fixa */
       #filtro-avancado-min,#filtro-avancado-max{width:100% !important}
 
-      /* CalendÃ¡rio â€” cÃ©lulas menores e mais tÃ¡cteis */
+      /* Calendário — células menores e mais tácteis */
       .cal-day{min-height:44px;padding:4px 3px}
       .cal-header{font-size:10px;padding:4px 0}
       .cal-day-num{font-size:11px}
@@ -511,7 +511,7 @@
       .card{padding:14px 12px}
     }
 
-    /* â”€â”€ PADRÃ•ES GLOBAIS REFINADOS â”€â”€ */
+    /* ── PADRÕES GLOBAIS REFINADOS ── */
     .card,.table-wrap,.dash-card,.cliente-card,.recibo-item{border-width:1px}
     label,th{letter-spacing:.4px}
     button:focus-visible,.nav-item:focus-visible,.bn-item:focus-visible,
@@ -529,10 +529,10 @@
     <div class="login-box">
       <img src="logo.png" alt="Logo" id="logo-sidebar" />
       <h1>ARAUJO PREV</h1>
-      <p>A ARAUJO SERVIÃ‡OS LTDA ME â€” Sistema de Recibos</p>
+      <p>A ARAUJO SERVIÇOS LTDA ME — Sistema de Recibos</p>
       <div class="form-group">
-        <label for="login-usuario">UsuÃ¡rio</label>
-        <input id="login-usuario" type="text" placeholder="Digite seu usuÃ¡rio" autocomplete="username" />
+        <label for="login-usuario">Usuário</label>
+        <input id="login-usuario" type="text" placeholder="Digite seu usuário" autocomplete="username" />
       </div>
       <div class="form-group">
         <label for="login-senha">Senha</label>
@@ -547,7 +547,7 @@
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="firm-name">ARAUJO PREV</div>
-      <div class="firm-sub">A ARAUJO SERVIÃ‡OS LTDA ME</div>
+      <div class="firm-sub">A ARAUJO SERVIÇOS LTDA ME</div>
     </div>
     <div class="sidebar-search-wrap">
       <input id="busca-global" type="text" placeholder="Buscar... (Ctrl+K)" autocomplete="off" />
@@ -555,29 +555,29 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Documentos</div>
-      <div class="nav-item active" id="nav-inicio"><span class="icon"><i class="bi bi-house-door-fill"></i></span> InÃ­cio</div>
+      <div class="nav-item active" id="nav-inicio"><span class="icon"><i class="bi bi-house-door-fill"></i></span> Início</div>
       <div class="nav-item" id="nav-gerar" data-tooltip="Ctrl+N"><span class="icon"><i class="bi bi-receipt"></i></span> Gerar Recibo</div>
-      <div class="nav-item" id="nav-historico" data-tooltip="Ctrl+H"><span class="icon"><i class="bi bi-clock-history"></i></span> HistÃ³rico</div>
-      <div class="nav-section">GestÃ£o</div>
+      <div class="nav-item" id="nav-historico" data-tooltip="Ctrl+H"><span class="icon"><i class="bi bi-clock-history"></i></span> Histórico</div>
+      <div class="nav-section">Gestão</div>
       <div class="nav-item" id="nav-clientes" data-tooltip="Ctrl+C"><span class="icon"><i class="bi bi-people-fill"></i></span> Clientes<span id="badge-clientes-atraso" class="nav-badge" style="display:none"></span></div>
-      <div class="nav-item" id="nav-fichario"><span class="icon"><i class="bi bi-folder2-open"></i></span> FichÃ¡rio</div>
+      <div class="nav-item" id="nav-fichario"><span class="icon"><i class="bi bi-folder2-open"></i></span> Fichário</div>
       <div class="nav-item" id="nav-admin" data-tooltip="Ctrl+A"><span class="icon"><i class="bi bi-bar-chart-fill"></i></span> Administrativo</div>
       <div class="nav-section">Sistema</div>
-      <div class="nav-item" id="nav-usuarios" style="display:none"><span class="icon"><i class="bi bi-person-gear"></i></span> UsuÃ¡rios</div>
+      <div class="nav-item" id="nav-usuarios" style="display:none"><span class="icon"><i class="bi bi-person-gear"></i></span> Usuários</div>
       <div class="nav-item" id="nav-backup"><span class="icon"><i class="bi bi-download"></i></span> Backup</div>
       <div class="nav-item" id="nav-restaurar"><span class="icon"><i class="bi bi-upload"></i></span> Restaurar</div>
       <input type="file" id="input-restaurar" accept=".json" style="display:none">
     </nav>
-    <div id="usuario-logado">Logado como: <strong id="nome-usuario">â€”</strong><br><span id="perfil-usuario" style="font-size:11px;opacity:0.7"></span></div>
+    <div id="usuario-logado">Logado como: <strong id="nome-usuario">—</strong><br><span id="perfil-usuario" style="font-size:11px;opacity:0.7"></span></div>
     <div class="nav-item" id="nav-sair" style="margin-bottom:4px"><span class="icon"><i class="bi bi-box-arrow-right"></i></span> Sair</div>
-    <div class="sidebar-footer">Araujo Prev Â© 2026</div>
+    <div class="sidebar-footer">Araujo Prev © 2026</div>
   </aside>
 
-  <!-- BOTTOM NAV (sÃ³ mobile) -->
+  <!-- BOTTOM NAV (só mobile) -->
   <nav class="bottom-nav" id="bottom-nav">
     <div class="bn-item active" id="bn-inicio">
       <i class="bi bi-house-door-fill"></i>
-      <span>InÃ­cio</span>
+      <span>Início</span>
     </div>
     <div class="bn-item" id="bn-gerar">
       <i class="bi bi-receipt"></i>
@@ -585,7 +585,7 @@
     </div>
     <div class="bn-item" id="bn-historico">
       <i class="bi bi-clock-history"></i>
-      <span>HistÃ³rico</span>
+      <span>Histórico</span>
     </div>
     <div class="bn-item" id="bn-clientes">
       <i class="bi bi-people-fill"></i>
@@ -593,7 +593,7 @@
     </div>
     <div class="bn-item" id="bn-fichario">
       <i class="bi bi-folder2-open"></i>
-      <span>FichÃ¡rio</span>
+      <span>Fichário</span>
     </div>
     <div class="bn-item" id="bn-admin">
       <i class="bi bi-bar-chart-fill"></i>
@@ -601,7 +601,7 @@
     </div>
     <div class="bn-item" id="bn-usuarios" style="display:none">
       <i class="bi bi-person-gear"></i>
-      <span>UsuÃ¡rios</span>
+      <span>Usuários</span>
     </div>
     <div class="bn-item" id="bn-sair">
       <i class="bi bi-box-arrow-right"></i>
@@ -613,8 +613,8 @@
     <div class="topbar">
       <div class="topbar-title" id="topbar-title">Gerar Recibo</div>
       <div style="display:flex;align-items:center;gap:10px">
-        <div class="topbar-badge" id="num-recibo">NÂº 0001/2026</div>
-        <button id="btn-notificacoes" data-tooltip="NotificaÃ§Ãµes">
+        <div class="topbar-badge" id="num-recibo">Nº 0001/2026</div>
+        <button id="btn-notificacoes" data-tooltip="Notificações">
           <i class="bi bi-bell-fill"></i>
           <span id="notif-badge">0</span>
         </button>
@@ -625,11 +625,11 @@
     <!-- Notification Center Dropdown -->
     <div id="notif-dropdown">
       <div id="notif-header">
-        <div><h3>NotificaÃ§Ãµes</h3></div>
+        <div><h3>Notificações</h3></div>
         <span class="notif-count" id="notif-count-text">0 pendentes</span>
       </div>
       <div id="notif-lista">
-        <div id="notif-empty"><i class="bi bi-bell-slash-fill"></i>Nenhuma notificaÃ§Ã£o</div>
+        <div id="notif-empty"><i class="bi bi-bell-slash-fill"></i>Nenhuma notificação</div>
       </div>
       <div id="notif-footer">
         <button id="btn-marcar-lidas" title="Marcar tudo como lido"><i class="bi bi-check2-all"></i> Marcar tudo como lido</button>
@@ -654,10 +654,10 @@
       <div id="screen-gerar" class="screen">
         <div class="card">
           <div id="edit-mode-banner">
-            <span><i class="bi bi-pencil-fill"></i> Modo de ediÃ§Ã£o â€” Recibo <strong id="edit-num-banner"></strong></span>
+            <span><i class="bi bi-pencil-fill"></i> Modo de edição — Recibo <strong id="edit-num-banner"></strong></span>
             <button class="btn-danger btn-sm" id="btn-cancelar-edicao">Cancelar</button>
           </div>
-          <div class="card-title">Novo Recibo de HonorÃ¡rios</div>
+          <div class="card-title">Novo Recibo de Honorários</div>
 
           <div class="form-section-title"><i class="bi bi-person-badge"></i> Dados do Cliente</div>
           <div class="form-group">
@@ -671,7 +671,7 @@
               <input id="cpf" type="text" maxlength="18" />
             </div>
             <div class="form-group">
-              <label for="municipio_uf">MunicÃ­pio / UF</label>
+              <label for="municipio_uf">Município / UF</label>
               <input id="municipio_uf" type="text" style="text-transform:uppercase" />
             </div>
           </div>
@@ -686,7 +686,7 @@
             </div>
           </div>
 
-          <div class="form-section-title"><i class="bi bi-cash-coin"></i> Valores e ReferÃªncia</div>
+          <div class="form-section-title"><i class="bi bi-cash-coin"></i> Valores e Referência</div>
           <div class="form-group">
             <label for="valor">Valor Recebido (R$)</label>
             <input id="valor" type="text" />
@@ -695,9 +695,9 @@
             <label for="motivo_pagamento">Motivo de Pagamento</label>
             <select id="motivo_pagamento">
               <option value="">Selecione...</option>
-              <option value="AÃ§Ã£o judicial">AÃ§Ã£o judicial</option>
-              <option value="AÃ§Ã£o administrativa">AÃ§Ã£o administrativa</option>
-              <option value="HonorÃ¡rios AdvocatÃ­cios">HonorÃ¡rios AdvocatÃ­cios</option>
+              <option value="Ação judicial">Ação judicial</option>
+              <option value="Ação administrativa">Ação administrativa</option>
+              <option value="Honorários Advocatícios">Honorários Advocatícios</option>
               <option value="Consultoria">Consultoria</option>
             </select>
           </div>
@@ -707,8 +707,8 @@
               <input id="complemento" type="text" />
             </div>
             <div class="form-group" style="flex:1">
-              <label>ReferÃªncia <span style="font-weight:400;text-transform:none;letter-spacing:0">(gaveta)</span>
-                <button type="button" id="btn-ref-padrao-recibo" title="Salvar como minha referÃªncia padrÃ£o" style="display:none;background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
+              <label>Referência <span style="font-weight:400;text-transform:none;letter-spacing:0">(gaveta)</span>
+                <button type="button" id="btn-ref-padrao-recibo" title="Salvar como minha referência padrão" style="display:none;background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
               </label>
               <input id="referencia" type="text" style="text-transform:uppercase" maxlength="20" />
             </div>
@@ -720,9 +720,9 @@
             <div class="form-row three">
               <input id="dia" type="number" min="1" max="31" />
               <select id="mes">
-                <option value="">MÃªs</option>
+                <option value="">Mês</option>
                 <option value="01">Janeiro</option><option value="02">Fevereiro</option>
-                <option value="03">MarÃ§o</option><option value="04">Abril</option>
+                <option value="03">Março</option><option value="04">Abril</option>
                 <option value="05">Maio</option><option value="06">Junho</option>
                 <option value="07">Julho</option><option value="08">Agosto</option>
                 <option value="09">Setembro</option><option value="10">Outubro</option>
@@ -737,19 +737,19 @@
               <select id="forma_pagamento">
                 <option value="">Selecione...</option>
                 <option value="Pix">Pix</option>
-                <option value="DepÃ³sito lotÃ©rica">DepÃ³sito lotÃ©rica</option>
-                <option value="DepÃ³sito caixa">DepÃ³sito caixa</option>
-                <option value="DepÃ³sito BB">DepÃ³sito BB</option>
+                <option value="Depósito lotérica">Depósito lotérica</option>
+                <option value="Depósito caixa">Depósito caixa</option>
+                <option value="Depósito BB">Depósito BB</option>
                 <option value="TED">TED</option>
-                <option value="TransferÃªncia bancÃ¡ria">TransferÃªncia bancÃ¡ria</option>
+                <option value="Transferência bancária">Transferência bancária</option>
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="Cheque">Cheque</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="escritorio">EscritÃ³rio <span style="color:var(--error);font-weight:700">*</span></label>
+              <label for="escritorio">Escritório <span style="color:var(--error);font-weight:700">*</span></label>
               <select id="escritorio">
-                <option value="">Selecione o escritÃ³rio</option>
+                <option value="">Selecione o escritório</option>
                 <option value="Terra Rica - PR">Terra Rica - PR</option>
                 <option value="Teodoro Sampaio - SP">Teodoro Sampaio - SP</option>
                 <option value="Presidente Venceslau - SP">Presidente Venceslau - SP</option>
@@ -765,7 +765,7 @@
 
           <div class="form-section-title"><i class="bi bi-file-earmark-text"></i> Documento</div>
           <div class="form-group">
-            <label>Comprovante de depÃ³sito <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+            <label>Comprovante de depósito <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
             <label for="comprovante" class="comprovante-label" id="comprovante-label">
               <i class="bi bi-upload"></i> <span id="comprovante-label-text">Escolher arquivo (imagem ou PDF)</span>
             </label>
@@ -805,7 +805,7 @@
         </div>
       </div>
 
-      <!-- HISTÃ“RICO -->
+      <!-- HISTÓRICO -->
       <div id="screen-historico" class="screen">
         <div class="search-wrap">
           <div class="search-box">
@@ -815,19 +815,19 @@
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0;white-space:nowrap">De</label>
             <input id="filtro-data-ini" type="date" style="width:140px" />
-            <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0;white-space:nowrap">AtÃ©</label>
+            <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0;white-space:nowrap">Até</label>
             <input id="filtro-data-fim" type="date" style="width:140px" />
             <button class="btn-secondary btn-sm" id="btn-limpar-data"><i class="bi bi-x-lg"></i></button>
           </div>
           <span id="historico-count" style="color:var(--muted);font-size:12px;white-space:nowrap"></span>
           <div id="batch-actions" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap" class="batch-actions">
             <label style="font-size:11px;color:var(--muted);white-space:nowrap" id="batch-count-label">0 selecionados</label>
-            <select id="sel-selecao-rapida" style="font-size:11px;padding:4px 8px;height:auto;width:auto" title="SeleÃ§Ã£o rÃ¡pida">
-              <option value="">Selecionarâ€¦</option>
-              <option value="visiveis">VisÃ­veis</option>
+            <select id="sel-selecao-rapida" style="font-size:11px;padding:4px 8px;height:auto;width:auto" title="Seleção rápida">
+              <option value="">Selecionar…</option>
+              <option value="visiveis">Visíveis</option>
               <option value="filtrados">Todos os filtrados</option>
-              <option value="mes">Deste mÃªs</option>
-              <option value="limpar">Limpar seleÃ§Ã£o</option>
+              <option value="mes">Deste mês</option>
+              <option value="limpar">Limpar seleção</option>
             </select>
             <button class="btn-secondary btn-sm" id="btn-select-all"><i class="bi bi-check2-square"></i> Todos</button>
             <button class="btn-secondary btn-sm" id="btn-exportar-zip" disabled><i class="bi bi-file-zip"></i> ZIP</button>
@@ -837,23 +837,23 @@
           </div>
         </div>
         <div id="filtros-avancados-wrap" style="margin-bottom:12px">
-          <button class="btn-secondary btn-sm" id="btn-toggle-filtros-avancados" style="font-size:11px"><i class="bi bi-sliders"></i> Filtros avanÃ§ados <i class="bi bi-chevron-down" id="icon-filtros-avancados"></i></button>
+          <button class="btn-secondary btn-sm" id="btn-toggle-filtros-avancados" style="font-size:11px"><i class="bi bi-sliders"></i> Filtros avançados <i class="bi bi-chevron-down" id="icon-filtros-avancados"></i></button>
           <div id="filtros-avancados" style="display:none;margin-top:10px">
             <div class="filtros" style="background:var(--card);padding:14px;border-radius:var(--radius-sm);border:1px solid var(--border)">
-              <div class="form-group"><label>EscritÃ³rio</label><select id="filtro-avancado-escritorio"><option value="">Todos</option></select></div>
+              <div class="form-group"><label>Escritório</label><select id="filtro-avancado-escritorio"><option value="">Todos</option></select></div>
               <div class="form-group"><label>Forma de Pagamento</label>
                 <select id="filtro-avancado-forma">
                   <option value="">Todas</option>
                   <option value="Pix">Pix</option>
                   <option value="Dinheiro">Dinheiro</option>
-                  <option value="TransferÃªncia">TransferÃªncia</option>
+                  <option value="Transferência">Transferência</option>
                   <option value="Boleto">Boleto</option>
                   <option value="Cheque">Cheque</option>
                 </select>
               </div>
-              <div class="form-group"><label>ResponsÃ¡vel</label><select id="filtro-avancado-responsavel"><option value="">Todos</option></select></div>
-              <div class="form-group"><label>Valor mÃ­nimo</label><input id="filtro-avancado-min" type="text" placeholder="0,00" style="width:100px" /></div>
-              <div class="form-group"><label>Valor mÃ¡ximo</label><input id="filtro-avancado-max" type="text" placeholder="0,00" style="width:100px" /></div>
+              <div class="form-group"><label>Responsável</label><select id="filtro-avancado-responsavel"><option value="">Todos</option></select></div>
+              <div class="form-group"><label>Valor mínimo</label><input id="filtro-avancado-min" type="text" placeholder="0,00" style="width:100px" /></div>
+              <div class="form-group"><label>Valor máximo</label><input id="filtro-avancado-max" type="text" placeholder="0,00" style="width:100px" /></div>
               <div style="display:flex;gap:8px;align-items:center;margin-top:18px;flex-wrap:wrap">
                 <button class="btn-gold btn-sm" id="btn-salvar-filtro"><i class="bi bi-bookmark-plus"></i> Salvar filtro</button>
                 <button class="btn-secondary btn-sm" id="btn-limpar-filtros-avancados"><i class="bi bi-x-circle"></i> Limpar</button>
@@ -882,7 +882,7 @@
         <div id="clientes-grid"></div>
       </div>
 
-      <!-- FICHÃRIO -->
+      <!-- FICHÁRIO -->
       <div id="screen-fichario" class="screen"></div>
 
       <!-- ADMINISTRATIVO -->
@@ -890,14 +890,14 @@
         <div class="admin-tabs">
           <button class="admin-tab active" data-tab="dashboard">Dashboard</button>
           <button class="admin-tab" data-tab="financeiro">Financeiro</button>
-          <button class="admin-tab" data-tab="relatorios">RelatÃ³rios</button>
-          <button class="admin-tab" data-tab="inadimplencia">InadimplÃªncia</button>
+          <button class="admin-tab" data-tab="relatorios">Relatórios</button>
+          <button class="admin-tab" data-tab="inadimplencia">Inadimplência</button>
           <button class="admin-tab" data-tab="analytics">Analytics</button>
-          <button class="admin-tab" data-tab="projecao">ProjeÃ§Ã£o</button>
-          <button class="admin-tab" data-tab="escritorios">Por EscritÃ³rio</button>
-          <button class="admin-tab" data-tab="responsaveis">Por ResponsÃ¡vel</button>
+          <button class="admin-tab" data-tab="projecao">Projeção</button>
+          <button class="admin-tab" data-tab="escritorios">Por Escritório</button>
+          <button class="admin-tab" data-tab="responsaveis">Por Responsável</button>
           <button class="admin-tab" data-tab="dre">DRE</button>
-          <button class="admin-tab" data-tab="calendario">CalendÃ¡rio</button>
+          <button class="admin-tab" data-tab="calendario">Calendário</button>
           <button class="admin-tab admin-tab-auditoria" data-tab="auditoria" style="display:none">Auditoria</button>
         </div>
         <div id="admin-dashboard" class="admin-panel active">
@@ -906,7 +906,7 @@
           </div>
           <div class="cards-grid">
             <div class="dash-card green">
-              <div class="label">Total do MÃªs</div>
+              <div class="label">Total do Mês</div>
               <div class="value" id="card-mes">R$ 0,00</div>
               <div class="sub" id="card-mes-qtd">0 recibos</div>
             </div>
@@ -916,7 +916,7 @@
               <div class="sub" id="card-ano-qtd">0 recibos</div>
             </div>
             <div class="dash-card dark">
-              <div class="label">Ticket MÃ©dio</div>
+              <div class="label">Ticket Médio</div>
               <div class="value" id="card-ticket">R$ 0,00</div>
               <div class="sub">por recibo</div>
             </div>
@@ -928,35 +928,35 @@
           </div>
           <div class="cards-grid" style="margin-bottom:20px">
             <div class="dash-card" id="kpi-variacao-card">
-              <div class="label">VariaÃ§Ã£o do MÃªs</div>
-              <div class="value" id="card-variacao" style="font-size:20px">â€”</div>
-              <div class="sub" id="card-variacao-sub">vs mÃªs anterior</div>
+              <div class="label">Variação do Mês</div>
+              <div class="value" id="card-variacao" style="font-size:20px">—</div>
+              <div class="sub" id="card-variacao-sub">vs mês anterior</div>
             </div>
             <div class="dash-card red">
               <div class="label">Clientes Inadimplentes</div>
-              <div class="value" id="card-inadimplentes">â€”</div>
+              <div class="value" id="card-inadimplentes">—</div>
               <div class="sub" id="card-inadimplentes-sub">parcelas em atraso</div>
             </div>
             <div class="dash-card" style="border-top-color:#c07a2a">
               <div class="label">Parcelas Vencendo</div>
-              <div class="value" id="card-parcelas-vencendo">â€”</div>
-              <div class="sub" id="card-parcelas-vencendo-sub">prÃ³ximos 7 dias</div>
+              <div class="value" id="card-parcelas-vencendo">—</div>
+              <div class="sub" id="card-parcelas-vencendo-sub">próximos 7 dias</div>
             </div>
             <div class="dash-card" style="border-top-color:var(--muted)">
               <div class="label">Clientes Novos</div>
-              <div class="value" id="card-clientes-novos">â€”</div>
-              <div class="sub">este mÃªs</div>
+              <div class="value" id="card-clientes-novos">—</div>
+              <div class="sub">este mês</div>
             </div>
             <div class="dash-card" style="border-top-color:#6b7280">
               <div class="label">Crescimento YoY</div>
-              <div class="value" id="card-yoy" style="font-size:20px">â€”</div>
+              <div class="value" id="card-yoy" style="font-size:20px">—</div>
               <div class="sub">vs ano anterior</div>
             </div>
           </div>
-          <!-- META DO MÃŠS + RECEITA RECORRENTE/AVULSA -->
+          <!-- META DO MÊS + RECEITA RECORRENTE/AVULSA -->
           <div class="cards-grid" style="margin-bottom:20px">
             <div class="dash-card" id="card-meta" style="grid-column:span 2">
-              <div class="label"><i class="bi bi-bullseye"></i> Meta do MÃªs</div>
+              <div class="label"><i class="bi bi-bullseye"></i> Meta do Mês</div>
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
                 <input type="text" id="meta-input" placeholder="R$ 0,00" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px">
                 <button class="btn-gold btn-sm" id="meta-salvar"><i class="bi bi-check"></i></button>
@@ -967,12 +967,12 @@
             <div class="dash-card" style="border-top-color:#059669">
               <div class="label"><i class="bi bi-arrow-repeat"></i> Recorrente</div>
               <div class="value" id="card-rec-corrente" style="font-size:16px">R$ 0,00</div>
-              <div class="sub" style="font-size:10px">do mÃªs</div>
+              <div class="sub" style="font-size:10px">do mês</div>
             </div>
             <div class="dash-card" style="border-top-color:#94a3b8">
               <div class="label"><i class="bi bi-lightning"></i> Avulsa</div>
               <div class="value" id="card-rec-avulsa" style="font-size:16px">R$ 0,00</div>
-              <div class="sub" style="font-size:10px">do mÃªs</div>
+              <div class="sub" style="font-size:10px">do mês</div>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
@@ -981,7 +981,7 @@
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px"><i class="bi bi-cash-stack"></i> Fluxo de Caixa (a receber)</div>
               <div style="display:flex;flex-direction:column;gap:8px">
                 <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
-                  <span style="font-size:12px;color:var(--muted)">AtÃ© 30 dias</span>
+                  <span style="font-size:12px;color:var(--muted)">Até 30 dias</span>
                   <span class="value" id="fluxo-30" style="color:var(--success);font-weight:700">R$ 0,00</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
@@ -1001,27 +1001,27 @@
             </div>
           </div>
           <div class="table-wrap" style="padding:24px;margin-bottom:20px">
-            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">Faturamento por MÃªs</div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">Faturamento por Mês</div>
             <canvas id="grafico-mensal" height="100"></canvas>
           </div>
           <div class="table-wrap">
-            <table><thead><tr><th>PerÃ­odo</th><th>Qtd</th><th>Total</th><th>Ticket MÃ©dio</th><th>YoY</th></tr></thead>
+            <table><thead><tr><th>Período</th><th>Qtd</th><th>Total</th><th>Ticket Médio</th><th>YoY</th></tr></thead>
             <tbody id="tabela-mensal"></tbody></table>
           </div>
         </div>
         <div id="admin-financeiro" class="admin-panel">
           <div class="filtros">
-            <div class="form-group"><label>MÃªs</label>
+            <div class="form-group"><label>Mês</label>
               <select id="filtro-mes"><option value="">Todos</option>
-                <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">MarÃ§o</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
               </select>
             </div>
             <div class="form-group"><label>Ano</label><select id="filtro-ano"></select></div>
-            <div class="form-group"><label>ResponsÃ¡vel</label><select id="filtro-responsavel"><option value="">Todos</option></select></div>
+            <div class="form-group"><label>Responsável</label><select id="filtro-responsavel"><option value="">Todos</option></select></div>
             <button class="btn-gold btn-sm" id="btn-aplicar-filtros" style="margin-top:18px">Filtrar</button>
           </div>
           <div class="table-wrap">
-            <table><thead><tr><th>NÂº</th><th>Cliente</th><th>Data</th><th>Valor</th><th>ResponsÃ¡vel</th><th>Ref.</th></tr></thead>
+            <table><thead><tr><th>Nº</th><th>Cliente</th><th>Data</th><th>Valor</th><th>Responsável</th><th>Ref.</th></tr></thead>
             <tbody id="tabela-financeiro"></tbody></table>
             <div class="table-footer">
               <span id="financeiro-count">0 recibos</span>
@@ -1032,21 +1032,21 @@
         <div id="admin-relatorios" class="admin-panel">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div class="card" style="max-width:none">
-              <div class="card-title"><i class="bi bi-file-text"></i> RelatÃ³rio Geral</div>
+              <div class="card-title"><i class="bi bi-file-text"></i> Relatório Geral</div>
               <div class="form-row">
-                <div class="form-group"><label>MÃªs</label>
-                  <select id="rel-mes"><option value="">Todos</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">MarÃ§o</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
+                <div class="form-group"><label>Mês</label>
+                  <select id="rel-mes"><option value="">Todos</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
                 </div>
                 <div class="form-group"><label>Ano</label><select id="rel-ano"></select></div>
               </div>
-              <div class="form-group"><label>ResponsÃ¡vel</label><select id="rel-responsavel"><option value="">Todos</option></select></div>
+              <div class="form-group"><label>Responsável</label><select id="rel-responsavel"><option value="">Todos</option></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
                 <button class="btn-success btn-sm" id="btn-exportar-excel"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
                 <button class="btn-primary btn-sm" id="btn-exportar-pdf"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
               </div>
             </div>
             <div class="card" style="max-width:none">
-              <div class="card-title"><i class="bi bi-person"></i> RelatÃ³rio por Cliente</div>
+              <div class="card-title"><i class="bi bi-person"></i> Relatório por Cliente</div>
               <div class="form-group"><label>Ano</label><select id="rel-cliente-ano"></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
                 <button class="btn-success btn-sm" id="btn-exportar-excel-clientes"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
@@ -1055,11 +1055,11 @@
             </div>
 
             <div class="card" style="max-width:none">
-              <div class="card-title"><i class="bi bi-people"></i> RelatÃ³rio por ResponsÃ¡vel</div>
-              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Desempenho de cada responsÃ¡vel: qtd de recibos e total emitido.</p>
+              <div class="card-title"><i class="bi bi-people"></i> Relatório por Responsável</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Desempenho de cada responsável: qtd de recibos e total emitido.</p>
               <div class="form-row">
-                <div class="form-group"><label>MÃªs</label>
-                  <select id="rel-resp-mes"><option value="">Todos</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">MarÃ§o</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
+                <div class="form-group"><label>Mês</label>
+                  <select id="rel-resp-mes"><option value="">Todos</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
                 </div>
                 <div class="form-group"><label>Ano</label><select id="rel-resp-ano"></select></div>
               </div>
@@ -1071,7 +1071,7 @@
 
             <div class="card" style="max-width:none;grid-column:span 2">
               <div class="card-title"><i class="bi bi-graph-up"></i> Resumo Executivo</div>
-              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">VisÃ£o geral do ano: faturamento mensal, top clientes e responsÃ¡veis.</p>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Visão geral do ano: faturamento mensal, top clientes e responsáveis.</p>
               <div class="form-group"><label>Ano</label><select id="rel-exec-ano"></select></div>
               <div style="display:flex;gap:8px;margin-top:16px">
                 <button class="btn-primary btn-sm" id="btn-exportar-pdf-exec"><i class="bi bi-file-earmark-pdf"></i> PDF Executivo</button>
@@ -1080,24 +1080,24 @@
 
             <div class="card somente-financeiro" style="max-width:none;grid-column:span 2;border:1.5px solid var(--gold)">
               <div class="card-title"><i class="bi bi-people-fill"></i> Cadastrar Clientes dos Recibos</div>
-              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">LÃª todos os recibos jÃ¡ cadastrados e cria automaticamente o cadastro dos clientes que ainda nÃ£o tÃªm registro. Clientes jÃ¡ cadastrados sÃ£o ignorados.</p>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Lê todos os recibos já cadastrados e cria automaticamente o cadastro dos clientes que ainda não têm registro. Clientes já cadastrados são ignorados.</p>
               <button class="btn-gold btn-sm" id="btn-importar-clientes-recibos"><i class="bi bi-person-plus-fill"></i> Cadastrar agora</button>
               <div id="importar-clientes-status" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
             </div>
 
             <div class="card somente-financeiro" style="max-width:none;grid-column:span 2;border:1px solid var(--success,#22c55e)">
-              <div class="card-title"><i class="bi bi-building"></i> Normalizar EscritÃ³rios</div>
-              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Padroniza os nomes de escritÃ³rio em todos os recibos antigos (Terra Rica, Teodoro Sampaio, Presidente Venceslau, Primavera, Ivinhema). Execute uma vez para limpar os dados.</p>
+              <div class="card-title"><i class="bi bi-building"></i> Normalizar Escritórios</div>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Padroniza os nomes de escritório em todos os recibos antigos (Terra Rica, Teodoro Sampaio, Presidente Venceslau, Primavera, Ivinhema). Execute uma vez para limpar os dados.</p>
               <button class="btn-success btn-sm" id="btn-normalizar-escritorios"><i class="bi bi-arrow-repeat"></i> Normalizar agora</button>
               <div id="normalizar-escritorios-status" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
             </div>
 
             <div class="card somente-financeiro" style="max-width:none;grid-column:span 2;border:1px solid var(--warning,#f59e0b)">
               <div class="card-title"><i class="bi bi-cloud-upload"></i> Sincronizar com Google Sheets</div>
-              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Envia todos os recibos do banco que ainda nÃ£o estÃ£o na planilha. Use quando a planilha estiver desatualizada.</p>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Envia todos os recibos do banco que ainda não estão na planilha. Use quando a planilha estiver desatualizada.</p>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <button class="btn-gold btn-sm" id="btn-sync-sheets"><i class="bi bi-arrow-repeat"></i> Sincronizar agora</button>
-                <button class="btn-secondary btn-sm" id="btn-importar-de-sheets"><i class="bi bi-cloud-download"></i> Importar planilha â†’ banco</button>
+                <button class="btn-secondary btn-sm" id="btn-importar-de-sheets"><i class="bi bi-cloud-download"></i> Importar planilha → banco</button>
                 <button class="btn-danger btn-sm" id="btn-reescrever-planilha"><i class="bi bi-arrow-clockwise"></i> Limpar e reescrever do zero</button>
               </div>
               <div id="sync-sheets-resultado" style="margin-top:12px;font-size:13px;display:none"></div>
@@ -1105,7 +1105,7 @@
 
             <div class="card somente-financeiro" style="max-width:none;grid-column:span 2">
               <div class="card-title"><i class="bi bi-database-down"></i> Backup do Banco de Dados</div>
-              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Baixa um ZIP com os dados completos do banco (recibos e clientes). Use para backup manual antes de manutenÃ§Ãµes.</p>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Baixa um ZIP com os dados completos do banco (recibos e clientes). Use para backup manual antes de manutenções.</p>
               <button class="btn-primary btn-sm" id="btn-backup-db"><i class="bi bi-download"></i> Baixar backup do banco</button>
               <div id="backup-db-status" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
             </div>
@@ -1130,14 +1130,14 @@
           </div>
         </div>
 
-        <!-- â”€â”€ ANALYTICS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ── ANALYTICS ─────────────────────────────────── -->
         <div id="admin-analytics" class="admin-panel">
 
           <!-- Barra de filtros + exportar -->
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:22px">
             <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">De</label>
             <select id="analytics-de" style="padding:6px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:'Inter',sans-serif;background:white;color:var(--dark);outline:none"></select>
-            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">AtÃ©</label>
+            <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">Até</label>
             <select id="analytics-ate" style="padding:6px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:'Inter',sans-serif;background:white;color:var(--dark);outline:none"></select>
             <span id="analytics-periodo-label" style="font-size:11px;color:var(--muted);margin-left:4px"></span>
             <div style="display:flex;gap:8px;margin-left:auto">
@@ -1152,10 +1152,10 @@
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
 
-            <!-- GrÃ¡fico de receita mensal (perÃ­odo personalizado) -->
+            <!-- Gráfico de receita mensal (período personalizado) -->
             <div class="table-wrap" style="padding:24px;grid-column:span 2">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">
-                Receita por MÃªs â€” PerÃ­odo Selecionado
+                Receita por Mês — Período Selecionado
               </div>
               <canvas id="grafico-analytics-mensal" height="80"></canvas>
             </div>
@@ -1168,18 +1168,18 @@
               <div id="analytics-top5"></div>
             </div>
 
-            <!-- Resumo rÃ¡pido -->
+            <!-- Resumo rápido -->
             <div class="table-wrap" style="padding:24px">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:18px">
-                Resumo do PerÃ­odo
+                Resumo do Período
               </div>
               <div id="analytics-resumo" style="display:flex;flex-direction:column;gap:14px"></div>
             </div>
 
-            <!-- Por ResponsÃ¡vel â€” grÃ¡fico + tabela -->
+            <!-- Por Responsável — gráfico + tabela -->
             <div class="table-wrap" style="padding:24px">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">
-                Receita por ResponsÃ¡vel
+                Receita por Responsável
               </div>
               <canvas id="grafico-responsavel" height="160"></canvas>
               <div id="responsavel-status" style="color:var(--muted);font-size:12px;padding:12px 0;display:none"></div>
@@ -1197,23 +1197,23 @@
               <div id="formas-pag-legenda" style="margin-top:14px"></div>
             </div>
 
-            <!-- GrÃ¡fico multi-ano -->
+            <!-- Gráfico multi-ano -->
             <div class="table-wrap" style="padding:24px;grid-column:span 2">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">
-                Comparativo Multi-Ano â€” Jan a Dez
+                Comparativo Multi-Ano — Jan a Dez
               </div>
               <canvas id="grafico-multi-ano" height="90"></canvas>
               <div id="multi-ano-legenda" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:11px"></div>
             </div>
 
-            <!-- Ranking de clientes com ticket mÃ©dio -->
+            <!-- Ranking de clientes com ticket médio -->
             <div class="table-wrap" style="grid-column:span 2">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;padding:20px 20px 12px">
-                Ranking de Clientes â€” Ticket MÃ©dio
+                Ranking de Clientes — Ticket Médio
               </div>
               <table>
                 <thead>
-                  <tr><th>#</th><th>Cliente</th><th>Qtd</th><th>Total Pago</th><th>Ticket MÃ©dio</th></tr>
+                  <tr><th>#</th><th>Cliente</th><th>Qtd</th><th>Total Pago</th><th>Ticket Médio</th></tr>
                 </thead>
                 <tbody id="analytics-ticket-tbody"></tbody>
               </table>
@@ -1222,7 +1222,7 @@
           </div>
         </div>
 
-        <!-- â”€â”€ DRE SIMPLIFICADO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ── DRE SIMPLIFICADO ───────────────────────────── -->
         <div id="admin-dre" class="admin-panel">
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:22px">
             <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">Ano</label>
@@ -1234,12 +1234,12 @@
           <div class="dre-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div class="table-wrap" style="padding:24px;grid-column:span 2">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px">
-                DemonstraÃ§Ã£o do Resultado do ExercÃ­cio â€” <span id="dre-titulo-ano"></span>
+                Demonstração do Resultado do Exercício — <span id="dre-titulo-ano"></span>
               </div>
               <div id="dre-status" style="color:var(--muted);font-size:13px;padding:16px 0"></div>
               <div id="dre-wrap" style="display:none">
                 <table>
-                  <thead><tr><th>MÃªs</th><th>Qtd Recibos</th><th>Receita Bruta</th><th>Receita Acumulada</th><th>Ticket MÃ©dio</th></tr></thead>
+                  <thead><tr><th>Mês</th><th>Qtd Recibos</th><th>Receita Bruta</th><th>Receita Acumulada</th><th>Ticket Médio</th></tr></thead>
                   <tbody id="dre-tbody"></tbody>
                   <tfoot id="dre-tfoot"></tfoot>
                 </table>
@@ -1247,7 +1247,7 @@
             </div>
             <div class="table-wrap" style="padding:24px">
               <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">
-                DistribuiÃ§Ã£o Mensal
+                Distribuição Mensal
               </div>
               <canvas id="grafico-dre" height="180" style="max-height:220px"></canvas>
             </div>
@@ -1260,16 +1260,16 @@
           </div>
         </div>
 
-        <!-- â”€â”€ PROJEÃ‡ÃƒO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ── PROJEÇÃO ─────────────────────────────────── -->
         <div id="admin-projecao" class="admin-panel">
           <div id="projecao-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
           <div id="projecao-wrap" style="display:none">
             <div class="table-wrap" style="padding:24px;margin-bottom:20px">
-              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">Parcelas a Receber â€” PrÃ³ximos 6 Meses</div>
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:16px">Parcelas a Receber — Próximos 6 Meses</div>
               <canvas id="grafico-projecao" height="120"></canvas>
             </div>
             <div class="table-wrap">
-              <table><thead><tr><th>MÃªs</th><th>Valor Previsto</th><th>Qtd Parcelas</th></tr></thead>
+              <table><thead><tr><th>Mês</th><th>Valor Previsto</th><th>Qtd Parcelas</th></tr></thead>
               <tbody id="tabela-projecao"></tbody></table>
               <div class="table-footer">
                 <span id="projecao-total" style="color:var(--success)">Total: R$ 0,00</span>
@@ -1278,13 +1278,13 @@
           </div>
         </div>
 
-        <!-- â”€â”€ POR ESCRITÃ“RIO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ── POR ESCRITÓRIO ─────────────────────────── -->
         <div id="admin-escritorios" class="admin-panel">
           <div id="escritorios-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
           <div id="escritorios-wrap" style="display:none">
             <div class="table-wrap">
               <table>
-                <thead><tr><th>EscritÃ³rio</th><th>Receita Total</th><th>Qtd Recibos</th><th>Qtd Clientes</th><th>Ticket MÃ©dio</th></tr></thead>
+                <thead><tr><th>Escritório</th><th>Receita Total</th><th>Qtd Recibos</th><th>Qtd Clientes</th><th>Ticket Médio</th></tr></thead>
                 <tbody id="tabela-escritorios"></tbody>
               </table>
               <div class="table-footer">
@@ -1294,13 +1294,13 @@
           </div>
         </div>
 
-        <!-- â”€â”€ POR RESPONSÃVEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ── POR RESPONSÁVEL ────────────────────────── -->
         <div id="admin-responsaveis" class="admin-panel">
           <div id="responsaveis-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
           <div id="responsaveis-wrap" style="display:none">
             <div class="table-wrap">
               <table>
-                <thead><tr><th>#</th><th>ResponsÃ¡vel</th><th>Qtd Recibos</th><th>Receita Total</th><th>Ticket MÃ©dio</th><th>ParticipaÃ§Ã£o</th></tr></thead>
+                <thead><tr><th>#</th><th>Responsável</th><th>Qtd Recibos</th><th>Receita Total</th><th>Ticket Médio</th><th>Participação</th></tr></thead>
                 <tbody id="tabela-responsaveis"></tbody>
               </table>
               <div class="table-footer">
@@ -1310,30 +1310,30 @@
           </div>
         </div>
 
-        <!-- â”€â”€ CALENDÃRIO DE VENCIMENTOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ── CALENDÁRIO DE VENCIMENTOS ──────────────── -->
         <div id="admin-calendario" class="admin-panel">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
             <button id="btn-cal-prev" class="btn-secondary btn-sm"><i class="bi bi-chevron-left"></i></button>
-            <div id="cal-mes-label" style="font-size:15px;font-weight:700;min-width:120px;text-align:center">â€”</div>
+            <div id="cal-mes-label" style="font-size:15px;font-weight:700;min-width:120px;text-align:center">—</div>
             <button id="btn-cal-next" class="btn-secondary btn-sm"><i class="bi bi-chevron-right"></i></button>
-            <span style="font-size:11px;color:var(--muted);margin-left:8px"><span style="display:inline-block;width:10px;height:10px;background:var(--error);border-radius:50%;vertical-align:middle;margin-right:4px"></span>Atrasado&nbsp;&nbsp;<span style="display:inline-block;width:10px;height:10px;background:#c07a2a;border-radius:50%;vertical-align:middle;margin-right:4px"></span>Vence hoje/amanhÃ£&nbsp;&nbsp;<span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:50%;vertical-align:middle;margin-right:4px"></span>Futuro</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:8px"><span style="display:inline-block;width:10px;height:10px;background:var(--error);border-radius:50%;vertical-align:middle;margin-right:4px"></span>Atrasado&nbsp;&nbsp;<span style="display:inline-block;width:10px;height:10px;background:#c07a2a;border-radius:50%;vertical-align:middle;margin-right:4px"></span>Vence hoje/amanhã&nbsp;&nbsp;<span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:50%;vertical-align:middle;margin-right:4px"></span>Futuro</span>
           </div>
           <div id="calendario-grid" class="cal-grid"></div>
           <div id="cal-detalhe" style="margin-top:20px"></div>
         </div>
 
-        <!-- â”€â”€ AUDITORIA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+        <!-- ── AUDITORIA ──────────────────────────────── -->
         <div id="admin-auditoria" class="admin-panel">
           <div class="filtros" style="margin-bottom:16px">
-            <div class="form-group"><label>UsuÃ¡rio</label><input id="audit-filtro-usuario" type="text" placeholder="Filtrar por usuÃ¡rio" style="width:140px" /></div>
-            <div class="form-group"><label>AÃ§Ã£o</label><input id="audit-filtro-acao" type="text" placeholder="Filtrar por aÃ§Ã£o" style="width:140px" /></div>
+            <div class="form-group"><label>Usuário</label><input id="audit-filtro-usuario" type="text" placeholder="Filtrar por usuário" style="width:140px" /></div>
+            <div class="form-group"><label>Ação</label><input id="audit-filtro-acao" type="text" placeholder="Filtrar por ação" style="width:140px" /></div>
             <button class="btn-secondary btn-sm" id="btn-limpar-audit" style="align-self:flex-end">Limpar</button>
           </div>
           <div id="auditoria-status" style="color:var(--muted);font-size:13px;padding:20px 0">Carregando...</div>
           <div id="auditoria-wrap" style="display:none">
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Data/Hora</th><th>UsuÃ¡rio</th><th>AÃ§Ã£o</th><th>Detalhe</th></tr></thead>
+                <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhe</th></tr></thead>
                 <tbody id="tabela-auditoria"></tbody>
               </table>
               <div class="table-footer"><span id="auditoria-count" style="color:var(--muted)">0 registros</span></div>
@@ -1343,29 +1343,29 @@
 
       </div>
 
-      <!-- USUÃRIOS -->
+      <!-- USUÁRIOS -->
       <div id="screen-usuarios" class="screen">
         <div class="card" style="max-width:500px">
-          <div class="card-title">Gerenciar UsuÃ¡rios</div>
+          <div class="card-title">Gerenciar Usuários</div>
           <div id="lista-usuarios" style="margin-bottom:24px"></div>
           <div style="border-top:1px solid var(--border);padding-top:20px">
-            <div style="font-size:12px;font-weight:600;margin-bottom:14px;color:var(--mid)">ADICIONAR USUÃRIO</div>
+            <div style="font-size:12px;font-weight:600;margin-bottom:14px;color:var(--mid)">ADICIONAR USUÁRIO</div>
             <div class="form-row">
-              <div class="form-group"><label>UsuÃ¡rio</label><input id="novo-usuario" type="text" /></div>
+              <div class="form-group"><label>Usuário</label><input id="novo-usuario" type="text" /></div>
               <div class="form-group"><label>Senha</label><input id="nova-senha" type="password" /></div>
             </div>
             <div class="form-group">
               <label>Perfil</label>
               <select id="novo-role">
                 <option value="financeiro">Financeiro (cria e edita recibos)</option>
-                <option value="recepcao">RecepÃ§Ã£o (somente cria recibos)</option>
-                <option value="precatorios">PrecatÃ³rios (somente painel admin)</option>
+                <option value="recepcao">Recepção (somente cria recibos)</option>
+                <option value="precatorios">Precatórios (somente painel admin)</option>
               </select>
             </div>
             <div class="form-group" id="novo-escritorio-group" style="display:none">
-              <label>EscritÃ³rio <span style="color:var(--error);font-weight:700">*</span></label>
+              <label>Escritório <span style="color:var(--error);font-weight:700">*</span></label>
               <select id="novo-escritorio">
-                <option value="">Selecione o escritÃ³rio</option>
+                <option value="">Selecione o escritório</option>
                 <option value="Terra Rica - PR">Terra Rica - PR</option>
                 <option value="Teodoro Sampaio - SP">Teodoro Sampaio - SP</option>
                 <option value="Presidente Venceslau - SP">Presidente Venceslau - SP</option>
@@ -1381,16 +1381,16 @@
     </div>
   </div>
 
-  <!-- Modal editar usuÃ¡rio -->
+  <!-- Modal editar usuário -->
   <div id="modal-editar-usuario" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-usuario-titulo">
     <div class="modal-content" style="max-width:400px">
       <div class="modal-header">
-        <h2 id="modal-usuario-titulo">Editar UsuÃ¡rio</h2>
+        <h2 id="modal-usuario-titulo">Editar Usuário</h2>
         <button class="modal-close" aria-label="Fechar" id="btn-fechar-modal-usuario"><i class="bi bi-x-lg"></i></button>
       </div>
       <input type="hidden" id="edit-user-id" />
       <div class="form-group" style="margin-top:16px">
-        <label>Nome de usuÃ¡rio</label>
+        <label>Nome de usuário</label>
         <input id="edit-user-nome" type="text" />
       </div>
       <div class="form-group">
@@ -1401,14 +1401,14 @@
         <label>Perfil</label>
         <select id="edit-user-role">
           <option value="financeiro">Financeiro (cria e edita recibos)</option>
-          <option value="recepcao">RecepÃ§Ã£o (somente cria recibos)</option>
-          <option value="precatorios">PrecatÃ³rios (somente painel admin)</option>
+          <option value="recepcao">Recepção (somente cria recibos)</option>
+          <option value="precatorios">Precatórios (somente painel admin)</option>
         </select>
       </div>
       <div class="form-group" id="edit-escritorio-group" style="display:none">
-        <label>EscritÃ³rio <span style="color:var(--error);font-weight:700">*</span></label>
+        <label>Escritório <span style="color:var(--error);font-weight:700">*</span></label>
         <select id="edit-user-escritorio">
-          <option value="">Selecione o escritÃ³rio</option>
+          <option value="">Selecione o escritório</option>
           <option value="Terra Rica - PR">Terra Rica - PR</option>
           <option value="Teodoro Sampaio - SP">Teodoro Sampaio - SP</option>
           <option value="Presidente Venceslau - SP">Presidente Venceslau - SP</option>
@@ -1423,7 +1423,7 @@
     </div>
   </div>
 
-  <!-- Modal cadastro/ediÃ§Ã£o de cliente -->
+  <!-- Modal cadastro/edição de cliente -->
   <div id="modal-cliente" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-cliente-titulo">
     <div class="modal-content" style="max-width:540px">
       <div class="modal-header">
@@ -1450,22 +1450,22 @@
             <input id="cliente-telefone" type="text" placeholder="(44) 99999-9999" />
           </div>
           <div class="form-group">
-            <label>MunicÃ­pio / UF <span style="color:var(--error);font-weight:700">*</span></label>
+            <label>Município / UF <span style="color:var(--error);font-weight:700">*</span></label>
             <input id="cliente-municipio" type="text" style="text-transform:uppercase" placeholder="Ex: Terra Rica - PR" />
           </div>
         </div>
         <div class="form-group">
-          <label>EndereÃ§o</label>
-          <input id="cliente-endereco" type="text" style="text-transform:uppercase" placeholder="Rua, nÃºmero, bairro" />
+          <label>Endereço</label>
+          <input id="cliente-endereco" type="text" style="text-transform:uppercase" placeholder="Rua, número, bairro" />
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Firma / EscritÃ³rio</label>
-            <input id="cliente-firma" type="text" style="text-transform:uppercase" placeholder="Ex: EscritÃ³rio Terra Rica" />
+            <label>Firma / Escritório</label>
+            <input id="cliente-firma" type="text" style="text-transform:uppercase" placeholder="Ex: Escritório Terra Rica" />
           </div>
           <div class="form-group">
-            <label>ReferÃªncia
-              <button type="button" id="btn-salvar-ref-padrao" title="Salvar como minha referÃªncia padrÃ£o" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
+            <label>Referência
+              <button type="button" id="btn-salvar-ref-padrao" title="Salvar como minha referência padrão" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:13px;vertical-align:middle" tabindex="-1"><i class="bi bi-pin"></i></button>
             </label>
             <input id="cliente-referencia" type="text" style="text-transform:uppercase" maxlength="20" placeholder="Ex: MAI/2026" />
           </div>
@@ -1474,11 +1474,11 @@
         <div class="secao-label" style="margin-top:16px">Contrato e parcelas</div>
         <div class="form-row">
           <div class="form-group">
-            <label>Valor do benefÃ­cio (R$) <span style="color:var(--error);font-weight:700">*</span></label>
+            <label>Valor do benefício (R$) <span style="color:var(--error);font-weight:700">*</span></label>
             <input id="cliente-valor-beneficio" type="text" placeholder="0,00" />
           </div>
           <div class="form-group">
-            <label>NÂº de benefÃ­cios devidos <span style="color:var(--error);font-weight:700">*</span></label>
+            <label>Nº de benefícios devidos <span style="color:var(--error);font-weight:700">*</span></label>
             <input id="cliente-num-beneficios" type="number" min="1" placeholder="Ex: 4" />
           </div>
         </div>
@@ -1494,21 +1494,21 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>NÂº de parcelas <span style="color:var(--error);font-weight:700">*</span></label>
+            <label>Nº de parcelas <span style="color:var(--error);font-weight:700">*</span></label>
             <input id="cliente-num-parcelas" type="number" min="1" placeholder="Ex: 24" />
           </div>
         </div>
         <div id="cliente-parcela-preview" style="margin-bottom:10px"></div>
 
-        <div class="secao-label" style="margin-top:18px">ObservaÃ§Ãµes</div>
+        <div class="secao-label" style="margin-top:18px">Observações</div>
         <div id="cliente-observacoes-lista" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
         <div id="cliente-obs-add" style="display:none;margin-bottom:12px">
           <div style="display:flex;gap:8px;align-items:flex-start">
-            <textarea id="cliente-obs-texto" rows="2" placeholder="Digite a observaÃ§Ã£o..." style="flex:1;resize:vertical;padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit"></textarea>
+            <textarea id="cliente-obs-texto" rows="2" placeholder="Digite a observação..." style="flex:1;resize:vertical;padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit"></textarea>
             <button class="btn-secondary btn-sm" id="btn-confirmar-obs" style="margin-top:2px;white-space:nowrap">Adicionar</button>
           </div>
         </div>
-        <button class="btn-secondary btn-sm" id="btn-toggle-obs" style="font-size:11px;margin-bottom:12px"><i class="bi bi-plus-circle"></i> Adicionar observaÃ§Ã£o</button>
+        <button class="btn-secondary btn-sm" id="btn-toggle-obs" style="font-size:11px;margin-bottom:12px"><i class="bi bi-plus-circle"></i> Adicionar observação</button>
 
         <div style="display:flex;gap:10px;margin-top:16px">
           <button class="btn-gold" id="btn-salvar-cliente">Salvar</button>
@@ -1539,16 +1539,16 @@
             <input id="pag-data-recebimento" type="date" />
           </div>
           <div class="form-group">
-            <label>Data de depÃ³sito <span style="color:var(--error);font-weight:700">*</span></label>
+            <label>Data de depósito <span style="color:var(--error);font-weight:700">*</span></label>
             <input id="pag-data-deposito" type="date" />
           </div>
         </div>
         <div class="form-group">
-          <label>NÂº do recibo vinculado <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+          <label>Nº do recibo vinculado <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
           <input id="pag-recibo-num" type="text" placeholder="Ex: 0042/2026" style="text-transform:uppercase" />
         </div>
         <div class="form-group">
-          <label>ObservaÃ§Ã£o <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+          <label>Observação <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
           <textarea id="pag-observacao" rows="2" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'Inter',sans-serif;resize:vertical;outline:none" placeholder="Ex: pagamento parcelado"></textarea>
         </div>
         <div style="display:flex;gap:10px;margin-top:8px">
@@ -1579,17 +1579,17 @@
       </div>
       <div id="modal-govbr-body" style="padding:16px 0">
         <img src="https://www.gov.br/++theme++padrao_govbr/img/govbr-colorido-b.png" alt="Gov.br" id="img-govbr" style="height:40px;margin-bottom:20px" />
-        <p style="font-size:13px;color:var(--muted);margin-bottom:20px">O cliente serÃ¡ redirecionado para o Gov.br para autenticar e assinar o recibo digitalmente.</p>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px">O cliente será redirecionado para o Gov.br para autenticar e assinar o recibo digitalmente.</p>
         <div id="govbr-status-box" style="display:none;background:#edf7f2;border:1px solid #c0e0d0;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--success);text-align:left"></div>
         <button class="btn-gold" id="btn-govbr-assinar" style="width:100%;font-size:14px;padding:14px">
           <i class="bi bi-shield-check"></i> Assinar com Gov.br
         </button>
-        <p style="font-size:10px;color:var(--muted);margin-top:12px">Requer conta Gov.br nÃ­vel prata ou ouro</p>
+        <p style="font-size:10px;color:var(--muted);margin-top:12px">Requer conta Gov.br nível prata ou ouro</p>
       </div>
     </div>
   </div>
 
-  <!-- Modal upload comprovante (recepÃ§Ã£o) -->
+  <!-- Modal upload comprovante (recepção) -->
   <div id="modal-upload-comprovante" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-upload-titulo">
     <div class="modal-content" style="max-width:480px;width:95%">
       <div class="modal-header">
@@ -1628,7 +1628,7 @@
       <div class="busca-global-input-wrap">
         <i class="bi bi-search" style="color:var(--muted);font-size:16px"></i>
         <input id="busca-modal-input" type="text" placeholder="Buscar cliente ou recibo..." autocomplete="off" />
-        <kbd style="font-size:10px;color:var(--muted);background:var(--border);border-radius:4px;padding:2px 6px;flex-shrink:0">â†‘â†“ â†µ Esc</kbd>
+        <kbd style="font-size:10px;color:var(--muted);background:var(--border);border-radius:4px;padding:2px 6px;flex-shrink:0">↑↓ ↵ Esc</kbd>
       </div>
       <div id="busca-modal-resultados" class="busca-global-resultados">
         <div style="padding:20px 18px;color:var(--muted);font-size:12px;text-align:center">Digite para buscar clientes e recibos...</div>
@@ -1649,8 +1649,8 @@
         <textarea id="whatsapp-lote-msg" style="width:100%;min-height:100px;padding:10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;resize:vertical" placeholder="Digite a mensagem... Use {nome}, {valor}, {dias} como placeholders."></textarea>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        <button class="btn-secondary btn-sm" id="whatsapp-msg-padrao">Mensagem PadrÃ£o</button>
-        <button class="btn-secondary btn-sm" id="whatsapp-msg-cobranca">CobranÃ§a</button>
+        <button class="btn-secondary btn-sm" id="whatsapp-msg-padrao">Mensagem Padrão</button>
+        <button class="btn-secondary btn-sm" id="whatsapp-msg-cobranca">Cobrança</button>
         <button class="btn-secondary btn-sm" id="whatsapp-msg-acordo">Proposta de Acordo</button>
       </div>
       <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;margin-bottom:12px">
@@ -1679,10 +1679,10 @@
       <div class="ass-card">
         <h1 class="ass-titulo">Assinatura de Recibo</h1>
         <p class="ass-sub">Confira os dados abaixo e assine no quadro.</p>
-        <div class="ass-linha"><span class="ass-rot">Recibo NÂº</span><span class="ass-val" id="ass-num">â€”</span></div>
-        <div class="ass-linha"><span class="ass-rot">Valor</span><span class="ass-val ass-valor" id="ass-valor">â€”</span></div>
-        <div class="ass-linha"><span class="ass-rot">Data</span><span class="ass-val" id="ass-data">â€”</span></div>
-        <div class="ass-linha"><span class="ass-rot">CPF/CNPJ</span><span class="ass-val" id="ass-cpf">â€”</span></div>
+        <div class="ass-linha"><span class="ass-rot">Recibo Nº</span><span class="ass-val" id="ass-num">—</span></div>
+        <div class="ass-linha"><span class="ass-rot">Valor</span><span class="ass-val ass-valor" id="ass-valor">—</span></div>
+        <div class="ass-linha"><span class="ass-rot">Data</span><span class="ass-val" id="ass-data">—</span></div>
+        <div class="ass-linha"><span class="ass-rot">CPF/CNPJ</span><span class="ass-val" id="ass-cpf">—</span></div>
 
         <label class="ass-label" for="ass-nome">Confirme seu nome completo</label>
         <input type="text" id="ass-nome" class="ass-input" autocomplete="name" placeholder="Seu nome completo">
@@ -1690,7 +1690,7 @@
         <label class="ass-label">Sua assinatura</label>
         <div class="assinatura-canvas-wrap">
           <canvas id="assinatura-canvas"></canvas>
-          <div class="assinatura-baseline"><span class="assinatura-baseline-x">âœ—</span></div>
+          <div class="assinatura-baseline"><span class="assinatura-baseline-x">✗</span></div>
           <div class="ass-hint" id="assinatura-hint">Assine sobre a linha</div>
         </div>
 
@@ -1701,10 +1701,10 @@
 
         <label class="ass-check">
           <input type="checkbox" id="ass-aceite">
-          <span>Declaro que sou a pessoa identificada acima e que li e concordo com o conteÃºdo deste recibo.</span>
+          <span>Declaro que sou a pessoa identificada acima e que li e concordo com o conteúdo deste recibo.</span>
         </label>
         <div class="ass-erro" id="assinatura-erro"></div>
-        <button class="btn-secondary ass-pular" id="btn-assinatura-pular"><i class="bi bi-clock-history"></i> NÃ£o assinar agora</button>
+        <button class="btn-secondary ass-pular" id="btn-assinatura-pular"><i class="bi bi-clock-history"></i> Não assinar agora</button>
       </div>
     </div>
   </div>
