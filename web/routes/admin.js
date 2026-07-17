@@ -112,9 +112,11 @@ module.exports = function registerAdminRoutes(app, deps) {
   app.get("/api/admin/lixeira", deps.auth, deps.adminOnly, async (req, res) => {
     try {
       const DELETADO = { deletado_em: { $exists: true } };
+      // Só os 10 mais recentes de cada — a lixeira é pra recuperar exclusão
+      // acidental recente, não pra navegar o histórico inteiro (isso é a auditoria)
       const [recibos, clientes] = await Promise.all([
-        deps.findLimited(deps.dbRecibos, DELETADO, { deletado_em: -1 }, 100),
-        deps.findLimited(deps.dbClientes, DELETADO, { deletado_em: -1 }, 100),
+        deps.findLimited(deps.dbRecibos, DELETADO, { deletado_em: -1 }, 10),
+        deps.findLimited(deps.dbClientes, DELETADO, { deletado_em: -1 }, 10),
       ]);
       res.json({
         recibos: recibos.map(r => ({ id: r.id, num: r.num, nome: r.nome, valor: r.valor, data: r.data, deletado_em: r.deletado_em, deletado_por: r.deletado_por })),

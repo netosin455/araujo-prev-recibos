@@ -5,7 +5,7 @@
 ## [2026-07-17] — Fase 3: Lixeira com restauração (admin)
 
 ### Adicionado
-- **Card "Lixeira"** no painel Configurações (visível só para admin): lista recibos e clientes soft-deletados (até 100 de cada, mais recentes primeiro) com quem excluiu e quando, e botão Restaurar.
+- **Card "Lixeira"** no painel Configurações (visível só para admin): lista os 10 últimos recibos e 10 últimos clientes soft-deletados (mais recentes primeiro) com quem excluiu e quando, e botão Restaurar.
 - **`GET /api/admin/lixeira`** e **`POST /api/admin/lixeira/:tipo/:id/restaurar`** (adminOnly). Restaurar limpa `deletado_em`/`deletado_por` e registra auditoria (`restaurar_recibo`/`restaurar_cliente`).
 - **Proteção de conflito de numeração**: restaurar um recibo cujo número já pertence a um recibo ativo é bloqueado com 409 (o índice único de `num` só vale para ativos).
 
