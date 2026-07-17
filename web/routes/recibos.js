@@ -189,7 +189,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       const ts = typeof timestamp === "number" ? timestamp : (Date.now());
       const doc = await deps.insert(deps.dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio, motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp: ts });
       deps.registrarAuditoria(req, "criar_recibo", doc._id, { num, nome, escritorio, valor, cpf: deps.maskCPF(cpf) });
-      registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante }).catch(e => logger.error("Erro sheets (ignorado):", e));
+      registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante }, deps.s3SignerClient).catch(e => logger.error("Erro sheets (ignorado):", e));
       dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia }).catch(e => logger.error("Erro webhook (ignorado):", e));
       // Auto-marca a primeira parcela pendente do cliente como paga
       try {
@@ -248,7 +248,7 @@ module.exports = function registerReciboRoutes(app, deps) {
     deps.registrarAuditoria(req, "editar_recibo", req.params.id, { campos_alterados: campos_alterados.map(c => c.campo) });
     const recibo = await deps.findOne(deps.dbRecibos, { _id: req.params.id });
     if (recibo && recibo.num) {
-      atualizarNoSheets(recibo.num, recibo);
+      atualizarNoSheets(recibo.num, recibo, deps.s3SignerClient);
     }
     res.json({ ok: true });
   });
@@ -320,6 +320,11 @@ module.exports = function registerReciboRoutes(app, deps) {
       if (!link_comprovante) return res.status(400).json({ erro: "link_comprovante eh obrigatorio." });
       await deps.update(deps.dbRecibos, { _id: req.params.id }, { link_comprovante });
       const verificado = await deps.findOne(deps.dbRecibos, { _id: req.params.id });
+      // Reflete o comprovante na planilha (link já clicável) — falha não bloqueia
+      if (verificado?.num) {
+        atualizarNoSheets(verificado.num, verificado, deps.s3SignerClient)
+          .catch(e => logger.warn("Sheets ignorado no comprovante: " + e.message));
+      }
       res.json({ ok: true, link: verificado?.link_comprovante || "" });
     } catch (err) {
       logger.error("Erro ao atualizar comprovante:", err);
@@ -363,7 +368,7 @@ module.exports = function registerReciboRoutes(app, deps) {
 
       const doc = await deps.insert(deps.dbRecibos, novoRecibo);
       deps.registrarAuditoria(req, "criar_recibo_recorrente", doc._id, { num: newNum, origem_num: original.num });
-      const sheetsResult = await registrarNoSheets({ ...novoRecibo, num_recibo: newNum });
+      const sheetsResult = await registrarNoSheets({ ...novoRecibo, num_recibo: newNum }, deps.s3SignerClient);
       dispararWebhook(novoRecibo);
       res.json({ id: doc._id, num: newNum, data: newData, sheets_ok: sheetsResult === true });
     } catch (e) {

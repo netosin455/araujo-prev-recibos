@@ -83,7 +83,10 @@ function sanitizarLinkParaSheets(link) {
   return link;
 }
 
-async function registrarNoSheets(dados) {
+// s3SignerClient (opcional): quando informado, o link do comprovante já entra na
+// planilha como URL assinada clicável (7 dias) em vez do caminho relativo — o
+// cron renovarPresignedUrlsSheets continua renovando semanalmente.
+async function registrarNoSheets(dados, s3SignerClient) {
   const sheets = getSheetsClient();
   if (!sheets) return false;
   try {
@@ -97,6 +100,10 @@ async function registrarNoSheets(dados) {
       ? MESES[parseInt(mp, 10) - 1] || MESES[mesAtual]
       : MESES[mesAtual];
 
+    const linkCel = s3SignerClient
+      ? await linkParaSheets(sanitizarLinkParaSheets(dados.link_comprovante), s3SignerClient)
+      : sanitizarLinkParaSheets(dados.link_comprovante);
+
     const linha = [
       carimbo,
       dados.nome || "",
@@ -108,7 +115,7 @@ async function registrarNoSheets(dados) {
       dados.motivo_pagamento || dados.complemento || "Honorários Advocatícios",
       dados.escritorio || "",
       "",
-      sanitizarLinkParaSheets(dados.link_comprovante),
+      linkCel,
       mesPagamento,
       dados.num_recibo || "",
       dados.emitido_por || "",
@@ -135,7 +142,7 @@ async function registrarNoSheets(dados) {
   }
 }
 
-async function atualizarNoSheets(num, dados) {
+async function atualizarNoSheets(num, dados, s3SignerClient) {
   const sheets = getSheetsClient();
   if (!sheets) return;
   try {
@@ -148,6 +155,9 @@ async function atualizarNoSheets(num, dados) {
     if (idx === -1) return;
     const rowNum = 4 + idx;
     const mes = MESES[new Date().getMonth()];
+    const linkCel = s3SignerClient
+      ? await linkParaSheets(sanitizarLinkParaSheets(dados.link_comprovante), s3SignerClient)
+      : sanitizarLinkParaSheets(dados.link_comprovante);
     const linha = [
       undefined,
       dados.nome || "",
@@ -159,7 +169,7 @@ async function atualizarNoSheets(num, dados) {
       dados.motivo_pagamento || dados.complemento || "",
       dados.escritorio || "",
       "",
-      sanitizarLinkParaSheets(dados.link_comprovante),
+      linkCel,
       mes,
       num,
       dados.emitido_por || "",

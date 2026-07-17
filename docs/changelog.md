@@ -2,6 +2,14 @@
 
 ---
 
+## [2026-07-17] — Planilha: link do comprovante já nasce clicável
+
+### Corrigido
+- **Coluna K (comprovante) da planilha** recebia o caminho relativo `/api/comprovante-s3/...` (texto morto) e só virava link quando o cron de renovação rodava. Agora `registrarNoSheets`/`atualizarNoSheets` geram a **URL assinada (7 dias) na hora** — com `USER_ENTERED` o Sheets auto-linka, então a célula já nasce clicável. O cron semanal continua renovando antes de expirar; sem o signer configurado, cai no comportamento antigo.
+- **Anexar comprovante depois (PATCH) agora reflete na planilha** — antes o link só chegava no Sheets em sincronizações completas.
+
+---
+
 ## [2026-07-17] — Desfazer exclusão de cliente (toast) — fecha revisão do planejamento
 
 ### Adicionado
