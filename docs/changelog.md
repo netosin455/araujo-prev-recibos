@@ -2,6 +2,15 @@
 
 ---
 
+## [2026-07-17] — Desfazer exclusão de cliente (toast) — fecha revisão do planejamento
+
+### Adicionado
+- **`POST /api/clientes/:id/desfazer-exclusao`** — espelho do desfazer de recibos: quem excluiu desfaz em até 15 min (admin sempre), com auditoria `desfazer_exclusao_cliente` (CPF mascarado). O toast de exclusão de cliente agora tem botão **Desfazer**.
+- A restauração pelo admin já existia via Lixeira (`/api/admin/lixeira/clientes/:id/restaurar`) — a revisão externa não a tinha localizado.
+- +3 testes (404/403/410/200) — suite: **81 testes**.
+
+---
+
 ## [2026-07-17] — Planejamento de Segurança: falhas 1, 2, 4, 5, 6, 7 e 8 corrigidas
 
 Execução do `docs/planejamento-seguranca.md`:

@@ -180,16 +180,30 @@ async function excluirCliente(id, cadastro) {
   const ativas = parcelas.filter(p => p.status !== "pago").length;
   const msg = ativas > 0
     ? `Este cliente tem ${ativas} parcela${ativas!==1?"s":""} pendente${ativas!==1?"s":""}. Deseja excluir mesmo assim?`
-    : `Excluir o cliente "${cadastro.nome}"? Esta aÃ§Ã£o nÃ£o pode ser desfeita.`;
+    : `Excluir o cliente "${cadastro.nome}"? (dá pra desfazer em até 15 min)`;
   if (!confirm(msg)) return;
   const res = await api("DELETE", `/api/clientes/${id}`);
   if (!res || !res.ok) {
     const data = res ? await res.json().catch(() => ({})) : {};
     mostrarToast(data.erro || "Erro ao excluir cliente.", null, "error"); return;
   }
-  mostrarToast("Cliente excluÃ­do.", null, "success");
+  mostrarToast(`Cliente "${cadastro.nome}" excluído.`, () => desfazerExclusaoCliente(id), "success", "Desfazer");
   await carregarClientes();
   renderClientes();
+}
+
+// Desfaz a exclusão recente (janela de 15 min no backend) — toast "Desfazer"
+async function desfazerExclusaoCliente(id) {
+  const res = await api("POST", `/api/clientes/${id}/desfazer-exclusao`);
+  if (!res || !res.ok) {
+    let msg = "Erro ao desfazer.";
+    try { msg = (await res.json()).erro || msg; } catch {}
+    mostrarToast(msg, null, "error");
+    return;
+  }
+  await carregarClientes();
+  renderClientes();
+  mostrarToast("Cliente restaurado!", null, "success");
 }
 
 // â”€â”€ DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

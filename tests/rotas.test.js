@@ -355,6 +355,48 @@ describe("POST /api/recibos/:id/desfazer-exclusao", () => {
   });
 });
 
+// ── Desfazer exclusão de CLIENTE (espelho do de recibos) ───
+describe("POST /api/clientes/:id/desfazer-exclusao", () => {
+  let ctx, fakes;
+  beforeEach(() => {
+    fakes = criarFakes();
+    ctx = criarApp(fakes);
+    require("../web/routes/clientes")(ctx.app, ctx.deps);
+  });
+
+  it("cliente não excluído retorna 404", async () => {
+    fakes.dados.findOne.clientes = [{ _id: "c1", nome: "Maria" }];
+    const res = await request(ctx.app).post("/api/clientes/c1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`);
+    assert.equal(res.status, 404);
+  });
+
+  it("outro usuário não desfaz (403); janela expirada dá 410", async () => {
+    fakes.dados.findOne.clientes = [
+      { _id: "c1", nome: "Maria", deletado_em: new Date().toISOString(), deletado_por: "outra-pessoa" },
+      { _id: "c1", nome: "Maria", deletado_em: new Date(Date.now() - 20 * 60 * 1000).toISOString(), deletado_por: "maria" },
+    ];
+    const r1 = await request(ctx.app).post("/api/clientes/c1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`);
+    assert.equal(r1.status, 403);
+    const r2 = await request(ctx.app).post("/api/clientes/c1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`);
+    assert.equal(r2.status, 410);
+  });
+
+  it("quem excluiu desfaz dentro da janela (200) e audita com CPF mascarado", async () => {
+    fakes.dados.findOne.clientes = [
+      { _id: "c1", nome: "Maria", cpf: "52998224725", deletado_em: new Date().toISOString(), deletado_por: "maria" },
+    ];
+    const res = await request(ctx.app).post("/api/clientes/c1/desfazer-exclusao")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`);
+    assert.equal(res.status, 200);
+    assert.equal(fakes.chamadas.update[0].upd.deletado_em, null);
+    assert.equal(fakes.chamadas.auditoria[0].acao, "desfazer_exclusao_cliente");
+    assert.equal(fakes.chamadas.auditoria[0].extra.cpf, "***");
+  });
+});
+
 // ── Login (rota real, banco mockado) ───────────────────────
 describe("POST /api/login", () => {
   function appLogin(usuarioNoBanco) {

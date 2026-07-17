@@ -253,6 +253,30 @@ const logger = require("../services/logger");
     }
   });
 
+  // ── DESFAZER EXCLUSÃO (janela curta, quem excluiu) ─────────
+  // Espelho do desfazer de recibos: quem excluiu desfaz em até 15 min pelo
+  // toast "Desfazer"; admin desfaz sempre (também via Lixeira).
+  app.post("/api/clientes/:id/desfazer-exclusao", deps.auth, deps.financeiroOnly, async (req, res) => {
+    try {
+      const cliente = await deps.findOne(deps.dbClientes, { _id: req.params.id });
+      if (!cliente || !cliente.deletado_em) return res.status(404).json({ erro: "Cliente não está excluído." });
+      const ehAdmin = req.user.username === deps.ADMIN_USER;
+      if (!ehAdmin && cliente.deletado_por !== req.user.username) {
+        return res.status(403).json({ erro: "Só quem excluiu (ou o admin) pode desfazer." });
+      }
+      const idadeMs = Date.now() - new Date(cliente.deletado_em).getTime();
+      if (!ehAdmin && (!isFinite(idadeMs) || idadeMs > 15 * 60 * 1000)) {
+        return res.status(410).json({ erro: "Janela de desfazer expirou. Peça ao admin para restaurar pela Lixeira." });
+      }
+      await deps.update(deps.dbClientes, { _id: req.params.id }, { deletado_em: null, deletado_por: null });
+      deps.registrarAuditoria(req, "desfazer_exclusao_cliente", req.params.id, { nome: cliente.nome, cpf: deps.maskCPF(cliente.cpf || "") });
+      res.json({ ok: true });
+    } catch (e) {
+      logger.error("Erro ao desfazer exclusão de cliente:", e.message);
+      res.status(500).json({ erro: "Erro ao desfazer exclusão." });
+    }
+  });
+
   // ── OBSERVAÇÕES DE CLIENTE ─────────────────────────────────
   app.post("/api/clientes/:id/observacoes", deps.auth, deps.financeiroOnly, async (req, res) => {
     try {
