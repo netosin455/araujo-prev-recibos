@@ -1,4 +1,5 @@
 module.exports = function registerClienteRoutes(app, deps) {
+const logger = require("../services/logger");
   // deps contains: { auth, adminOnly, financeiroOnly, semPrecatorios, semRecepcao, pgPool, dbClientes, NAO_DELETADO, find, findOne, insert, update, remove, count, enriquecerCliente, registrarAuditoria, maskCPF, validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado }
 
   // ── LISTAGEM PAGINADA (movida de server.js na Fase 1) ──────
@@ -20,7 +21,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
       res.json(await deps.enriquecerCliente(cliente));
     } catch (e) {
-      console.error("Erro ao buscar cliente por CPF:", e.message);
+      logger.error("Erro ao buscar cliente por CPF:", e.message);
       res.status(500).json({ erro: "Erro ao buscar cliente." });
     }
   });
@@ -53,7 +54,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       if (!cliente) return res.status(404).json({ erro: "Cliente não encontrado." });
       res.json(await deps.enriquecerCliente(cliente));
     } catch (e) {
-      console.error("Erro ao buscar cliente:", e.message);
+      logger.error("Erro ao buscar cliente:", e.message);
       res.status(500).json({ erro: "Erro ao buscar cliente." });
     }
   });
@@ -141,7 +142,7 @@ module.exports = function registerClienteRoutes(app, deps) {
     });
     res.json(await deps.enriquecerCliente(doc));
     } catch (e) {
-      console.error("Erro ao criar cliente:", e.message);
+      logger.error("Erro ao criar cliente:", e.message);
       res.status(500).json({ erro: "Erro ao criar cliente." });
     }
   });
@@ -218,7 +219,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       const atualizado = await deps.findOne(deps.dbClientes, { _id: req.params.id });
       res.json(await deps.enriquecerCliente(atualizado));
     } catch (e) {
-      console.error("Erro ao atualizar cliente:", e.message);
+      logger.error("Erro ao atualizar cliente:", e.message);
       res.status(500).json({ erro: "Erro ao atualizar cliente." });
     }
   });
@@ -231,7 +232,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       await deps.update(deps.dbClientes, { _id: req.params.id }, { auto_recibo: auto_recibo === true });
       res.json({ auto_recibo: auto_recibo === true });
     } catch (e) {
-      console.error("Erro ao atualizar auto-recibo:", e.message);
+      logger.error("Erro ao atualizar auto-recibo:", e.message);
       res.status(500).json({ erro: "Erro ao atualizar auto-recibo." });
     }
   });
@@ -247,7 +248,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       deps.registrarAuditoria(req, "excluir_cliente", req.params.id, { nome: cliente.nome, cpf: deps.maskCPF(cliente.cpf) });
       res.json({ ok: true });
     } catch (e) {
-      console.error("Erro ao excluir cliente:", e.message);
+      logger.error("Erro ao excluir cliente:", e.message);
       res.status(500).json({ erro: "Erro ao excluir cliente." });
     }
   });
@@ -270,7 +271,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       const atualizado = await deps.findOne(deps.dbClientes, { _id: req.params.id });
       res.json(await deps.enriquecerCliente(atualizado));
     } catch (e) {
-      console.error("Erro ao salvar observação:", e.message);
+      logger.error("Erro ao salvar observação:", e.message);
       res.status(500).json({ erro: "Erro ao salvar observação." });
     }
   });
@@ -289,7 +290,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       const atualizado = await deps.findOne(deps.dbClientes, { _id: req.params.id });
       res.json(await deps.enriquecerCliente(atualizado));
     } catch (e) {
-      console.error("Erro ao remover observação:", e.message);
+      logger.error("Erro ao remover observação:", e.message);
       res.status(500).json({ erro: "Erro ao remover observação." });
     }
   });
@@ -316,7 +317,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       const atualizado = await deps.findOne(deps.dbClientes, { _id: req.params.id });
       res.json(await deps.enriquecerCliente(atualizado));
     } catch (e) {
-      console.error("Erro ao registrar lembrete:", e.message);
+      logger.error("Erro ao registrar lembrete:", e.message);
       res.status(500).json({ erro: "Erro ao registrar lembrete." });
     }
   });
@@ -355,7 +356,7 @@ module.exports = function registerClienteRoutes(app, deps) {
       const salvo = await deps.findOne(deps.dbClientes, { _id: req.params.id });
       res.json(await deps.enriquecerCliente(salvo));
     } catch (e) {
-      console.error("Erro ao atualizar parcela:", e.message);
+      logger.error("Erro ao atualizar parcela:", e.message);
       res.status(500).json({ erro: "Erro ao atualizar parcela." });
     }
   });

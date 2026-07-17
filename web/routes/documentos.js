@@ -1,4 +1,5 @@
 // Fichário — documentos (fotos/PDFs) por cliente.
+const logger = require("../services/logger");
 // Arquivos ficam no S3 (privado, acessados por URL assinada temporária).
 // As FOTOS já chegam redimensionadas do navegador (canvas): o "arquivo" é a
 // versão reduzida e o "thumb" é a miniatura leve — a grade carrega rápido e o
@@ -87,7 +88,7 @@ module.exports = function registerDocumentoRoutes(app, deps) {
           criado_por: req.user.username, criado_em: new Date().toISOString(),
         });
       } catch (e) {
-        console.error("Erro ao salvar documento:", e.message);
+        logger.error("Erro ao salvar documento:", e.message);
         res.status(500).json({ erro: "Erro ao salvar o documento." });
       }
     });
@@ -111,7 +112,7 @@ module.exports = function registerDocumentoRoutes(app, deps) {
       })));
       res.json({ documentos });
     } catch (e) {
-      console.error("Erro ao listar documentos:", e.message);
+      logger.error("Erro ao listar documentos:", e.message);
       res.status(500).json({ erro: "Erro ao listar documentos." });
     }
   });
@@ -132,7 +133,7 @@ module.exports = function registerDocumentoRoutes(app, deps) {
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", `attachment; filename="documentos_${cpf}.zip"`);
       const archive = archiver("zip", { zlib: { level: 6 } });
-      archive.on("error", e => { console.error("Erro archiver docs:", e.message); });
+      archive.on("error", e => { logger.error("Erro archiver docs:", e.message); });
       archive.pipe(res);
 
       const semAcento = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w.-]+/g, "_");
@@ -145,13 +146,13 @@ module.exports = function registerDocumentoRoutes(app, deps) {
           const nomeArq = `${String(i + 1).padStart(2, "0")}_${semAcento(d.tipo)}_${semAcento(d.nome).slice(0, 60)}${ext}`;
           archive.append(obj.Body, { name: nomeArq });
         } catch (e) {
-          console.error(`Erro ao baixar doc ${d.id} do S3:`, e.message);
+          logger.error(`Erro ao baixar doc ${d.id} do S3:`, e.message);
         }
       }
       deps.registrarAuditoria(req, "exportar_docs_cliente", cpf, { cpf: deps.maskCPF(cpf), total: rows.length });
       await archive.finalize();
     } catch (e) {
-      console.error("Erro no ZIP de documentos:", e.message);
+      logger.error("Erro no ZIP de documentos:", e.message);
       if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar ZIP de documentos." });
     }
   });
@@ -174,7 +175,7 @@ module.exports = function registerDocumentoRoutes(app, deps) {
       deps.registrarAuditoria(req, "excluir_documento", req.params.id, { nome: rows[0].nome });
       res.json({ ok: true });
     } catch (e) {
-      console.error("Erro ao excluir documento:", e.message);
+      logger.error("Erro ao excluir documento:", e.message);
       res.status(500).json({ erro: "Erro ao excluir documento." });
     }
   });
@@ -212,7 +213,7 @@ module.exports = function registerDocumentoRoutes(app, deps) {
       })));
       res.json({ clientes, temMais });
     } catch (e) {
-      console.error("Erro ao buscar fichário:", e.message);
+      logger.error("Erro ao buscar fichário:", e.message);
       res.status(500).json({ erro: "Erro ao buscar clientes." });
     }
   });
@@ -234,7 +235,7 @@ module.exports = function registerDocumentoRoutes(app, deps) {
       res.send(buf);
     } catch (e) {
       if (e.code === "ENOENT") return res.status(404).json({ erro: "Arquivo não encontrado no espelho local." });
-      console.error("Erro ao servir arquivo local:", e.message);
+      logger.error("Erro ao servir arquivo local:", e.message);
       res.status(500).json({ erro: "Erro ao servir arquivo." });
     }
   });

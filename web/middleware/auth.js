@@ -5,12 +5,21 @@ module.exports = function createAuthMiddleware(deps) {
   const { jwt, JWT_SECRET, ADMIN_USER, pgPool } = deps;
 
   async function auth(req, res, next) {
-    const token = req.cookies?.token || (req.headers.authorization || "").split(" ")[1];
+    // Só cookie httpOnly — o fallback via header Authorization foi removido
+    // (SEC — Falha #4): header pode ser setado por JS, cookie httpOnly não.
+    const token = req.cookies?.token;
     if (!token) return res.status(401).json({ erro: "Não autorizado" });
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      const { rows } = await pgPool.query("SELECT id FROM users WHERE id = $1", [payload.id]);
+      const { rows } = await pgPool.query(
+        "SELECT id, token_version FROM users WHERE id = $1 AND deleted_at IS NULL",
+        [payload.id]
+      );
       if (!rows[0]) return res.status(401).json({ erro: "Sessão inválida, faça login novamente" });
+      // token_version defasada = logout aconteceu depois que este token foi emitido
+      if ((rows[0].token_version || 0) !== (payload.token_version || 0)) {
+        return res.status(401).json({ erro: "Sessão expirada, faça login novamente" });
+      }
       req.user = payload;
       next();
     } catch {

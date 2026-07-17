@@ -1,4 +1,5 @@
 // ============================================================
+const logger = require("../services/logger");
 // routes/misc.js — Upload de comprovantes e relatórios
 // (notificações → routes/notificacoes.js; Gov.br → routes/govbr.js)
 // ============================================================
@@ -54,7 +55,7 @@ module.exports = function registerMiscRoutes(app, deps) {
       deps.fs.writeFileSync(deps.path.join(uploadsDir, nomeArquivo), req.file.buffer);
       res.json({ link: `/api/comprovante/${nomeArquivo}` });
     } catch (e) {
-      console.error("Erro upload comprovante:", e);
+      logger.error("Erro upload comprovante:", e);
       res.status(500).json({ erro: "Erro ao salvar comprovante: " + e.message });
     }
   });
@@ -70,7 +71,7 @@ module.exports = function registerMiscRoutes(app, deps) {
       res.setHeader("Content-Type", obj.ContentType || "application/octet-stream");
       obj.Body.pipe(res);
     } catch (e) {
-      console.error("Erro ao servir comprovante S3:", e);
+      logger.error("Erro ao servir comprovante S3:", e);
       res.status(404).json({ erro: "Arquivo não encontrado." });
     }
   });
@@ -127,7 +128,7 @@ module.exports = function registerMiscRoutes(app, deps) {
       relatorio.sort((a, b) => b.valor_em_aberto - a.valor_em_aberto);
       res.json({ total_inadimplentes: relatorio.length, relatorio });
     } catch (e) {
-      console.error("Erro ao gerar relatório de inadimplência:", e.message);
+      logger.error("Erro ao gerar relatório de inadimplência:", e.message);
       res.status(500).json({ erro: "Erro ao gerar relatório." });
     }
   });
@@ -162,7 +163,7 @@ module.exports = function registerMiscRoutes(app, deps) {
       const resultado = Object.entries(mapa).map(([mes, valor]) => ({ mes, valor: Math.round(valor * 100) / 100 }));
       res.json(resultado);
     } catch (e) {
-      console.error("Erro ao gerar projeção:", e.message);
+      logger.error("Erro ao gerar projeção:", e.message);
       res.status(500).json({ erro: "Erro ao gerar projeção." });
     }
   });
@@ -190,7 +191,7 @@ module.exports = function registerMiscRoutes(app, deps) {
         .sort((a, b) => b.receita - a.receita);
       res.json(resultado);
     } catch (e) {
-      console.error("Erro ao gerar relatório por escritório:", e.message);
+      logger.error("Erro ao gerar relatório por escritório:", e.message);
       res.status(500).json({ erro: "Erro ao gerar relatório." });
     }
   });
@@ -240,7 +241,7 @@ module.exports = function registerMiscRoutes(app, deps) {
         delta_clientes:          delta(clientesAnterior, clientesMes),
       });
     } catch (e) {
-      console.error("Erro ao gerar resumo-mes:", e.message);
+      logger.error("Erro ao gerar resumo-mes:", e.message);
       res.status(500).json({ erro: "Erro ao gerar resumo do mês." });
     }
   });
@@ -270,7 +271,7 @@ module.exports = function registerMiscRoutes(app, deps) {
         .sort((a, b) => b.receita_total - a.receita_total);
       res.json(resultado);
     } catch (e) {
-      console.error("Erro ao gerar relatório por responsável:", e.message);
+      logger.error("Erro ao gerar relatório por responsável:", e.message);
       res.status(500).json({ erro: "Erro ao gerar relatório." });
     }
   });
@@ -302,7 +303,7 @@ module.exports = function registerMiscRoutes(app, deps) {
         .sort((a, b) => b.receita - a.receita);
       res.json(resultado);
     } catch (e) {
-      console.error("Erro ao gerar relatório de formas de pagamento:", e.message);
+      logger.error("Erro ao gerar relatório de formas de pagamento:", e.message);
       res.status(500).json({ erro: "Erro ao gerar relatório." });
     }
   });
@@ -334,7 +335,7 @@ module.exports = function registerMiscRoutes(app, deps) {
         }));
       res.json(resultado);
     } catch (e) {
-      console.error("Erro ao gerar comparativo-anos:", e.message);
+      logger.error("Erro ao gerar comparativo-anos:", e.message);
       res.status(500).json({ erro: "Erro ao gerar comparativo de anos." });
     }
   });
@@ -376,7 +377,7 @@ module.exports = function registerMiscRoutes(app, deps) {
       });
       res.json({ ano, meses, total_ano: Math.round(acumulado * 100) / 100 });
     } catch (e) {
-      console.error("Erro ao gerar DRE:", e.message);
+      logger.error("Erro ao gerar DRE:", e.message);
       res.status(500).json({ erro: "Erro ao gerar DRE." });
     }
   });

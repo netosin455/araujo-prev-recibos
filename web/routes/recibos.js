@@ -1,4 +1,5 @@
 const { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, BorderStyle, Table, TableRow, TableCell, WidthType } = require("docx");
+const logger = require("../services/logger");
 const PDFDocument = require("pdfkit");
 const archiver = require("archiver");
 const { registrarNoSheets, atualizarNoSheets } = require("../services/google-sheets");
@@ -36,12 +37,14 @@ module.exports = function registerReciboRoutes(app, deps) {
     const url = process.env.WEBHOOK_URL;
     if (!url) return;
 
+    // CPF mascarado no payload (LGPD — SEC Falha #7): identifica o cliente sem
+    // expor o número completo a um endpoint externo
     const payload = JSON.stringify({
       evento: "recibo_gerado",
       recibo: {
         num:             dadosRecibo.num,
         nome:            dadosRecibo.nome,
-        cpf:             dadosRecibo.cpf,
+        cpf:             deps.maskCPF(dadosRecibo.cpf || ""),
         valor:           dadosRecibo.valor,
         data:            dadosRecibo.data,
         forma_pagamento: dadosRecibo.forma_pagamento || "",
@@ -52,28 +55,33 @@ module.exports = function registerReciboRoutes(app, deps) {
       timestamp: new Date().toISOString(),
     });
 
+    // Autenticação opcional do webhook via segredo compartilhado
+    const headersWebhook = { "Content-Type": "application/json", "User-Agent": "AraujoPrev-Webhook/1.0" };
+    if (process.env.WEBHOOK_SECRET) headersWebhook["Authorization"] = `Bearer ${process.env.WEBHOOK_SECRET}`;
+
+    // Logs sem a URL (pode conter chave secreta na query string — SEC Falha #5)
     const MAX_TENTATIVAS = 3;
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
       try {
         const resp = await deps.fetchWithTimeout(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: headersWebhook,
           body: payload,
         }, 10000);
         if (resp.ok) {
-          console.log(`[${new Date().toISOString()}] ✅ Webhook disparado → ${url} (status ${resp.status}, tentativa ${tentativa})`);
+          logger.info(`✅ Webhook disparado (status ${resp.status}, tentativa ${tentativa})`);
           return;
         }
-        console.warn(`[${new Date().toISOString()}] ⚠️  Webhook → ${url} retornou status ${resp.status} (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
+        logger.warn(`⚠️  Webhook retornou status ${resp.status} (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
       } catch (e) {
-        console.warn(`[${new Date().toISOString()}] ⚠️  Webhook → ${url} falhou: ${e.message} (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
+        logger.warn(`⚠️  Webhook falhou: ${e.message} (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
       }
       if (tentativa < MAX_TENTATIVAS) {
         const delay = Math.pow(4, tentativa - 1) * 1000;
         await new Promise(r => setTimeout(r, delay));
       }
     }
-    console.error(`[${new Date().toISOString()}] ❌ Webhook permanentemente falhou após ${MAX_TENTATIVAS} tentativas → ${url} (recibo: ${dadosRecibo.num})`);
+    logger.error(`❌ Webhook permanentemente falhou após ${MAX_TENTATIVAS} tentativas (recibo: ${dadosRecibo.num})`);
   }
 
   // ── ROTAS RECIBOS ──────────────────────────────────────────
@@ -181,8 +189,8 @@ module.exports = function registerReciboRoutes(app, deps) {
       const ts = typeof timestamp === "number" ? timestamp : (Date.now());
       const doc = await deps.insert(deps.dbRecibos, { num, nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio, motivo_pagamento: motivo_pagamento||"", link_comprovante: link_comprovante||"", timestamp: ts });
       deps.registrarAuditoria(req, "criar_recibo", doc._id, { num, nome, escritorio, valor, cpf: deps.maskCPF(cpf) });
-      registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante }).catch(e => console.error("Erro sheets (ignorado):", e));
-      dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia }).catch(e => console.error("Erro webhook (ignorado):", e));
+      registrarNoSheets({ num_recibo: num, nome, cpf, municipio_uf, valor, data, complemento, referencia, emitido_por, forma_pagamento, escritorio, motivo_pagamento, link_comprovante }).catch(e => logger.error("Erro sheets (ignorado):", e));
+      dispararWebhook({ num, nome, cpf, municipio_uf, valor, data, emitido_por, forma_pagamento, escritorio, referencia }).catch(e => logger.error("Erro webhook (ignorado):", e));
       // Auto-marca a primeira parcela pendente do cliente como paga
       try {
         const cliente = await deps.findOne(deps.dbClientes, { cpf, ...deps.NAO_DELETADO });
@@ -206,11 +214,11 @@ module.exports = function registerReciboRoutes(app, deps) {
           }
         }
       } catch (e) {
-        console.error("Erro ao auto-marcar parcela (ignorado):", e.message);
+        logger.error("Erro ao auto-marcar parcela (ignorado):", e.message);
       }
       res.json({ id: doc._id });
     } catch (err) {
-      console.error("Erro em POST /api/recibos:", err);
+      logger.error("Erro em POST /api/recibos:", err);
       // 23505 = violação de UNIQUE (número de recibo já usado). Com a reserva
       // atômica isso não deve mais acontecer, mas se acontecer o usuário recebe
       // uma mensagem clara (em vez do "Erro interno" genérico) e pode refazer.
@@ -279,7 +287,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       deps.registrarAuditoria(req, "desfazer_exclusao_recibo", req.params.id, { num: recibo.num, nome: recibo.nome });
       res.json({ ok: true });
     } catch (e) {
-      console.error("Erro ao desfazer exclusão:", e.message);
+      logger.error("Erro ao desfazer exclusão:", e.message);
       res.status(500).json({ erro: "Erro ao desfazer exclusão." });
     }
   });
@@ -297,7 +305,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       await deps.update(deps.dbRecibos, { _id: req.params.id }, { assinatura_govbr: { metodo: "local", nome_assinante: nomeAssinante, assinado_em: new Date().toLocaleString("pt-BR"), imagem: assinatura }, assinatura_status: "assinado" });
       res.json({ ok: true });
     } catch (err) {
-      console.error("Erro ao salvar assinatura:", err);
+      logger.error("Erro ao salvar assinatura:", err);
       res.status(500).json({ erro: "Erro ao salvar assinatura." });
     }
   });
@@ -314,7 +322,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       const verificado = await deps.findOne(deps.dbRecibos, { _id: req.params.id });
       res.json({ ok: true, link: verificado?.link_comprovante || "" });
     } catch (err) {
-      console.error("Erro ao atualizar comprovante:", err);
+      logger.error("Erro ao atualizar comprovante:", err);
       res.status(500).json({ erro: "Erro ao atualizar comprovante." });
     }
   });
@@ -359,7 +367,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       dispararWebhook(novoRecibo);
       res.json({ id: doc._id, num: newNum, data: newData, sheets_ok: sheetsResult === true });
     } catch (e) {
-      console.error("Erro ao criar recibo recorrente:", e.message);
+      logger.error("Erro ao criar recibo recorrente:", e.message);
       res.status(500).json({ erro: "Erro ao criar recibo recorrente." });
     }
   });
@@ -405,7 +413,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       res.setHeader("Content-Disposition", `attachment; filename="recibos_${Date.now()}.zip"`);
 
       const archive = archiver("zip", { zlib: { level: 6 } });
-      archive.on("error", e => { console.error("Erro archiver:", e.message); });
+      archive.on("error", e => { logger.error("Erro archiver:", e.message); });
       archive.pipe(res);
 
       for (const id of ids) {
@@ -416,13 +424,13 @@ module.exports = function registerReciboRoutes(app, deps) {
           const nomeArq = `recibo_${(recibo.num || id).replace(/[\/\\]/g, "-")}_${(recibo.nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").toLowerCase()}.pdf`;
           archive.append(buf, { name: nomeArq });
         } catch (e) {
-          console.error(`Erro ao gerar PDF do recibo ${id}:`, e.message);
+          logger.error(`Erro ao gerar PDF do recibo ${id}:`, e.message);
         }
       }
 
       await archive.finalize();
     } catch (e) {
-      console.error("Erro ao exportar ZIP:", e.message);
+      logger.error("Erro ao exportar ZIP:", e.message);
       if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar arquivo ZIP." });
     }
   });
@@ -440,7 +448,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       }
       res.json({ status: job.status, prontos: job.prontos, total: job.total, url, erro: job.erro || null });
     } catch (e) {
-      console.error("Erro no status da exportação:", e.message);
+      logger.error("Erro no status da exportação:", e.message);
       res.status(500).json({ erro: "Erro ao consultar status." });
     }
   });
@@ -619,7 +627,7 @@ module.exports = function registerReciboRoutes(app, deps) {
         res.send(buf);
       }
     } catch (e) {
-      console.error("Erro ao gerar recibo:", e.message);
+      logger.error("Erro ao gerar recibo:", e.message);
       res.status(500).json({ erro: "Erro ao gerar documento." });
     }
   });
@@ -658,7 +666,7 @@ module.exports = function registerReciboRoutes(app, deps) {
       }
       res.json({ mensagem: enviados + " e-mail(s) enviado(s) com sucesso." });
     } catch (err) {
-      console.error("Erro no batch email:", err);
+      logger.error("Erro no batch email:", err);
       res.status(500).json({ erro: "Erro ao enviar e-mails em lote." });
     }
   });

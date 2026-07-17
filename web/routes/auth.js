@@ -1,8 +1,9 @@
 // ============================================================
+const logger = require("../services/logger");
 // routes/auth.js — Login, logout, me, preferências do usuário
 // ============================================================
 module.exports = function registerAuthRoutes(app, deps) {
-  const { pgPool, jwt, JWT_SECRET, bcrypt } = deps;
+  const { pgPool, jwt, JWT_SECRET, bcrypt, loginLimiter } = deps;
 
   /**
    * @openapi
@@ -40,7 +41,7 @@ module.exports = function registerAuthRoutes(app, deps) {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-  app.post("/api/login", async (req, res) => {
+  app.post("/api/login", loginLimiter, async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ erro: "Preencha usuário e senha" });
     if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ erro: "Dados inválidos" });
@@ -49,7 +50,12 @@ module.exports = function registerAuthRoutes(app, deps) {
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.status(401).json({ erro: "Usuário ou senha incorretos" });
     }
-    const token = jwt.sign({ id: user.id, username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" }, JWT_SECRET, { expiresIn: "30d" });
+    // token_version dentro do JWT: logout incrementa a versão no banco e todos
+    // os tokens antigos do usuário morrem na hora (SEC — Falha #2)
+    const token = jwt.sign({
+      id: user.id, username: user.username, role: user.role || "financeiro",
+      escritorio: user.escritorio || "", token_version: user.token_version || 0,
+    }, JWT_SECRET, { expiresIn: "30d" });
     const isSecure = req.headers["x-forwarded-proto"] === "https" || req.protocol === "https";
     res.cookie("token", token, {
       httpOnly: true,
@@ -57,10 +63,25 @@ module.exports = function registerAuthRoutes(app, deps) {
       sameSite: "strict",
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
+    // Auditoria de login com IP de origem — nunca bloqueia o login se falhar
+    try {
+      await deps.insert(deps.dbAuditoria, {
+        ts: new Date().toISOString(),
+        usuario: user.username,
+        role: user.role || "financeiro",
+        acao: "login",
+        entidade_id: user.id,
+        dados: { ip: req.headers["x-forwarded-for"] || req.ip || "" },
+      });
+    } catch (e) { logger.error("Auditoria de login falhou:", e.message); }
     res.json({ username: user.username, role: user.role || "financeiro", escritorio: user.escritorio || "" });
   });
 
-  app.post("/api/logout", (req, res) => {
+  app.post("/api/logout", deps.auth, async (req, res) => {
+    // Invalida TODOS os tokens do usuário (token_version) — não só o cookie local
+    try {
+      await pgPool.query("UPDATE users SET token_version = token_version + 1 WHERE id = $1", [req.user.id]);
+    } catch (e) { logger.error("Erro ao invalidar tokens no logout:", e.message); }
     res.clearCookie("token", { httpOnly: true, sameSite: "strict" });
     res.json({ ok: true });
   });

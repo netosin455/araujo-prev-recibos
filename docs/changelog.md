@@ -2,6 +2,26 @@
 
 ---
 
+## [2026-07-17] — Planejamento de Segurança: falhas 1, 2, 4, 5, 6, 7 e 8 corrigidas
+
+Execução do `docs/planejamento-seguranca.md`:
+
+### Corrigido
+- **#1 (crítica) Rate limiter no login** — `loginLimiter` (10 tentativas/15min por IP) agora aplicado na rota `POST /api/login`; estava definido mas nunca usado. Verificado: 11ª tentativa retorna 429.
+- **#2 (crítica) Logout invalida tokens** — `token_version` na tabela users, incluída no JWT e validada no middleware; logout incrementa a versão e mata TODOS os tokens do usuário na hora (token roubado morre no logout). Tokens atuais seguem válidos (claim ausente = versão 0) — ninguém é deslogado no deploy.
+- **#4 Authorization Bearer removido** — middleware aceita só cookie httpOnly. Únicos usuários de Bearer eram scripts Python de importação já quebrados desde a migração pra cookie (podem usar `requests.Session()` se voltarem).
+- **#5 console.* → logger** — 78 ocorrências em `routes/*.js` migradas pro logger estruturado (timestamp ISO + nível); URL do webhook removida dos logs (podia conter chave na query string).
+- **#6 Error handler** — mensagem fixa no lugar de `err.message` (não ecoa detalhes internos).
+- **#7 Webhook LGPD** — CPF mascarado no payload; suporte a `WEBHOOK_SECRET` (header Authorization) opcional.
+- **#8 Auditoria de login** — todo login registra usuário, role, IP e timestamp na tabela auditoria (falha na auditoria nunca bloqueia o login).
+
+### Observações
+- **#9 (soft delete de clientes)**: já estava implementada desde a Fase 3 — item do documento estava desatualizado.
+- **#3 (CSP sem unsafe-inline, ~283 estilos inline)**: adiada pra sessão dedicada, conforme o próprio cronograma do documento.
+- +3 testes (token_version defasada → 401, Bearer rejeitado, logout incrementa versão) — suite: **78 testes**.
+
+---
+
 ## [2026-07-17] — Fichário: paginação corrigida, ZIP do cliente, lixeira de documentos, índice
 
 ### Corrigido

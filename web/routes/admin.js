@@ -20,14 +20,14 @@ module.exports = function registerAdminRoutes(app, deps) {
       res.setHeader("Content-Disposition", `attachment; filename="backup_db_${ts}.zip"`);
 
       const archive = archiver("zip", { zlib: { level: 9 } });
-      archive.on("error", e => { console.error("Erro backup ZIP:", e.message); });
+      archive.on("error", e => { logger.error("Erro backup ZIP:", e.message); });
       archive.pipe(res);
       for (const f of arquivos) {
         archive.file(path.join(dbDir, f), { name: f });
       }
       await archive.finalize();
     } catch (e) {
-      console.error("Erro ao gerar backup:", e.message);
+      logger.error("Erro ao gerar backup:", e.message);
       if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar backup." });
     }
   });
@@ -38,7 +38,7 @@ module.exports = function registerAdminRoutes(app, deps) {
       const { rows } = await deps.pgPool.query("SELECT id, username, role, escritorio, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC");
       res.json(rows);
     } catch (e) {
-      console.error("Erro ao listar usuários:", e.message);
+      logger.error("Erro ao listar usuários:", e.message);
       res.status(500).json({ erro: "Erro ao listar usuários." });
     }
   });
@@ -56,11 +56,11 @@ module.exports = function registerAdminRoutes(app, deps) {
         [username, hash, role || "financeiro", escritorio || "", new Date().toISOString()]
       );
       deps.registrarAuditoria(req, "criar_usuario", rows[0].id, { username, role: role || "financeiro" });
-      deps.sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
+      deps.sincronizarUsuariosParaSheets().catch(e => logger.error("❌ Sync Sheets falhou:", e.message));
       res.json({ id: rows[0].id, username });
     } catch (e) {
       if (e.code === "23505") return res.status(400).json({ erro: "Usuário já existe" });
-      console.error("Erro ao criar usuário:", e.message);
+      logger.error("Erro ao criar usuário:", e.message);
       res.status(500).json({ erro: "Erro ao criar usuário." });
     }
   });
@@ -85,10 +85,10 @@ module.exports = function registerAdminRoutes(app, deps) {
           [username, role || "financeiro", escritorio || "", req.params.id]
         );
       }
-      deps.sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
+      deps.sincronizarUsuariosParaSheets().catch(e => logger.error("❌ Sync Sheets falhou:", e.message));
       res.json({ ok: true });
     } catch (e) {
-      console.error("Erro ao atualizar usuário:", e.message);
+      logger.error("Erro ao atualizar usuário:", e.message);
       res.status(500).json({ erro: "Erro ao atualizar usuário." });
     }
   });
@@ -100,10 +100,10 @@ module.exports = function registerAdminRoutes(app, deps) {
       if (rows[0].username === deps.ADMIN_USER) return res.status(400).json({ erro: "Não é possível remover o admin." });
       await deps.pgPool.query("UPDATE users SET deleted_at=NOW() WHERE id=$1", [req.params.id]);
       deps.registrarAuditoria(req, "excluir_usuario", req.params.id, { username: rows[0].username });
-      deps.sincronizarUsuariosParaSheets().catch(e => console.error("❌ Sync Sheets falhou:", e.message));
+      deps.sincronizarUsuariosParaSheets().catch(e => logger.error("❌ Sync Sheets falhou:", e.message));
       res.json({ ok: true });
     } catch (e) {
-      console.error("Erro ao excluir usuário:", e.message);
+      logger.error("Erro ao excluir usuário:", e.message);
       res.status(500).json({ erro: "Erro ao excluir usuário." });
     }
   });
@@ -128,7 +128,7 @@ module.exports = function registerAdminRoutes(app, deps) {
         documentos: docsRes.rows.map(d => ({ id: d.id, nome: d.nome, tipo: d.tipo, cpf: deps.maskCPF(d.cliente_cpf || ""), deletado_em: d.deletado_em })),
       });
     } catch (e) {
-      console.error("Erro ao listar lixeira:", e.message);
+      logger.error("Erro ao listar lixeira:", e.message);
       res.status(500).json({ erro: "Erro ao listar lixeira." });
     }
   });
@@ -161,7 +161,7 @@ module.exports = function registerAdminRoutes(app, deps) {
         tipo === "recibos" ? { num: doc.num, nome: doc.nome } : { nome: doc.nome, cpf: deps.maskCPF(doc.cpf || "") });
       res.json({ ok: true });
     } catch (e) {
-      console.error("Erro ao restaurar da lixeira:", e.message);
+      logger.error("Erro ao restaurar da lixeira:", e.message);
       res.status(500).json({ erro: "Erro ao restaurar registro." });
     }
   });
@@ -229,14 +229,14 @@ module.exports = function registerAdminRoutes(app, deps) {
       });
 
       const rangeEscrito = appendResult.data.updates?.updatedRange || "desconhecido";
-      console.log(`✅ Sync forçado: ${linhas.length} recibo(s) escritos no range ${rangeEscrito}.`);
+      logger.info(`✅ Sync forçado: ${linhas.length} recibo(s) escritos no range ${rangeEscrito}.`);
       res.json({
         ok: true,
         enviados: linhas.length,
         mensagem: `${linhas.length} recibo(s) adicionados. Total no banco: ${todos.length}. Na planilha antes: ${naPlilha.size}. Escrito em: ${rangeEscrito}.`
       });
     } catch (e) {
-      console.error("❌ Erro no sync forçado para Sheets:", e.message);
+      logger.error("❌ Erro no sync forçado para Sheets:", e.message);
       res.status(500).json({ erro: "Erro ao sincronizar planilha." });
     }
   });

@@ -51,6 +51,7 @@ function criarApp(fakes) {
   const mw = require("../web/middleware/auth")({ jwt, JWT_SECRET, ADMIN_USER, pgPool: fakes.pgPool });
   const deps = {
     ...mw,
+    loginLimiter: (req, res, next) => next(), // rate limiter real testado em produção; aqui passa direto
     pgPool: fakes.pgPool, jwt, JWT_SECRET, bcrypt,
     dbRecibos: "recibos", dbClientes: "clientes", dbAuditoria: "auditoria",
     dbNotificacoes: "notificacoes", dbConfig: "config",
@@ -98,6 +99,44 @@ describe("middleware auth (cookie httpOnly)", () => {
   it("token inválido retorna 401", async () => {
     const res = await request(app).delete("/api/recibos/r1").set("Cookie", "token=lixo");
     assert.equal(res.status, 401);
+  });
+
+  it("token com token_version defasada retorna 401 (logout invalida tokens)", async () => {
+    const fakes = criarFakes();
+    // banco diz versão 1; o JWT foi emitido com versão 0 → sessão morta
+    fakes.pgPool.query = async (sql) =>
+      ({ rows: /FROM users/.test(String(sql)) ? [{ id: "u1", token_version: 1 }] : [] });
+    const ctx = criarApp(fakes);
+    require("../web/routes/recibos")(ctx.app, ctx.deps);
+    const res = await request(ctx.app).delete("/api/recibos/r1")
+      .set("Cookie", `token=${tokenPara({ ...FINANCEIRO, token_version: 0 })}`);
+    assert.equal(res.status, 401);
+  });
+
+  it("token via header Authorization NÃO é mais aceito (só cookie)", async () => {
+    const res = await request(app).delete("/api/recibos/r1")
+      .set("Authorization", `Bearer ${tokenPara(FINANCEIRO)}`);
+    assert.equal(res.status, 401);
+  });
+});
+
+// ── Logout invalida todos os tokens ────────────────────────
+describe("POST /api/logout", () => {
+  it("incrementa token_version no banco", async () => {
+    const fakes = criarFakes();
+    const updates = [];
+    fakes.pgPool.query = async (sql, params) => {
+      if (/UPDATE users SET token_version/.test(String(sql))) { updates.push(params); return { rows: [] }; }
+      if (/FROM users/.test(String(sql))) return { rows: [{ id: "u1", token_version: 0 }] };
+      return { rows: [] };
+    };
+    const ctx = criarApp(fakes);
+    require("../web/routes/auth")(ctx.app, ctx.deps);
+    const res = await request(ctx.app).post("/api/logout")
+      .set("Cookie", `token=${tokenPara({ ...FINANCEIRO, token_version: 0 })}`);
+    assert.equal(res.status, 200);
+    assert.equal(updates.length, 1, "deve incrementar token_version");
+    assert.deepEqual(updates[0], ["u1"]);
   });
 });
 

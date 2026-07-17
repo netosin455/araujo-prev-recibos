@@ -251,7 +251,8 @@ app.use((err, req, res, next) => {
     return res.status(413).json({ erro: "Arquivo muito grande. Maximo permitido: 5MB." });
   }
   if (err.name === "MulterError" || err.message?.startsWith("Tipo de arquivo")) {
-    return res.status(400).json({ erro: err.message });
+    // Mensagem fixa — nunca ecoar err.message ao cliente (SEC Falha #6)
+    return res.status(400).json({ erro: "Arquivo inválido. Use JPEG, PNG, WebP, GIF, PDF ou XML." });
   }
   logger.error("Erro interno:", err);
   res.status(500).json({ erro: "Erro interno do servidor." });

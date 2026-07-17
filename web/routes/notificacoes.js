@@ -1,4 +1,5 @@
 // ============================================================
+const logger = require("../services/logger");
 // routes/notificacoes.js — Central de notificações + e-mails
 // (configuração SMTP local + envio de recibo/inadimplência).
 // Movido de routes/misc.js na Fase 1 da refatoração.
@@ -30,7 +31,7 @@ module.exports = function registerNotificacoesRoutes(app, deps) {
 
   async function enviarEmail({ to, subject, html, attachments = [] }) {
     if (!smtpConfigurado()) {
-      console.warn("⚠️  SMTP não configurado — e-mail não enviado.");
+      logger.warn("⚠️  SMTP não configurado — e-mail não enviado.");
       return false;
     }
     const transporter = criarTransporter();
@@ -42,10 +43,10 @@ module.exports = function registerNotificacoesRoutes(app, deps) {
         html,
         attachments,
       });
-      console.log(`✅ E-mail enviado para ${to} — messageId: ${info.messageId}`);
+      logger.info(`✅ E-mail enviado para ${to} — messageId: ${info.messageId}`);
       return true;
     } catch (e) {
-      console.error(`❌ Falha ao enviar e-mail para ${to}: ${e.message}`);
+      logger.error(`❌ Falha ao enviar e-mail para ${to}: ${e.message}`);
       return false;
     }
   }
@@ -60,7 +61,7 @@ module.exports = function registerNotificacoesRoutes(app, deps) {
       }
       return html;
     } catch (e) {
-      console.error(`❌ Erro ao carregar template ${nome}: ${e.message}`);
+      logger.error(`❌ Erro ao carregar template ${nome}: ${e.message}`);
       return null;
     }
   }
@@ -118,7 +119,7 @@ module.exports = function registerNotificacoesRoutes(app, deps) {
       const naoLidas = notificacoes.filter(n => !n.lido).length;
       res.json({ notificacoes: notificacoes.slice(0, 50), naoLidas });
     } catch (err) {
-      console.error("Erro ao buscar notificações:", err);
+      logger.error("Erro ao buscar notificações:", err);
       res.status(500).json({ erro: "Erro ao buscar notificações" });
     }
   });
@@ -218,10 +219,10 @@ module.exports = function registerNotificacoesRoutes(app, deps) {
 
       if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configurações SMTP." });
 
-      console.log(`[${new Date().toISOString()}] E-mail de inadimplência enviado por ${req.user.username} — ${inadimplentes.length} clientes`);
+      logger.info(`[${new Date().toISOString()}] E-mail de inadimplência enviado por ${req.user.username} — ${inadimplentes.length} clientes`);
       res.json({ ok: true, inadimplentes: inadimplentes.length, destinatario: adminEmail });
     } catch (e) {
-      console.error("❌ Erro ao gerar relatório de inadimplência por e-mail:", e.message);
+      logger.error("❌ Erro ao gerar relatório de inadimplência por e-mail:", e.message);
       res.status(500).json({ erro: "Erro interno ao processar relatório." });
     }
   });
@@ -313,10 +314,10 @@ module.exports = function registerNotificacoesRoutes(app, deps) {
 
       if (!ok) return res.status(502).json({ erro: "Falha ao enviar e-mail. Verifique as configurações SMTP." });
 
-      console.log(`[${new Date().toISOString()}] Recibo ${numRecibo} enviado por e-mail para ${emailDest} por ${req.user.username}`);
+      logger.info(`[${new Date().toISOString()}] Recibo ${numRecibo} enviado por e-mail para ${emailDest} por ${req.user.username}`);
       res.json({ ok: true, destinatario: emailDest });
     } catch (e) {
-      console.error("❌ Erro ao enviar recibo por e-mail:", e.message);
+      logger.error("❌ Erro ao enviar recibo por e-mail:", e.message);
       res.status(500).json({ erro: "Erro interno ao processar envio." });
     }
   });

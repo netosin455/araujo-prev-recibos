@@ -51,7 +51,7 @@ module.exports = function registerGovbrRoutes(app, deps) {
 
       res.json({ url: `${GOVBR_BASE_URL}/authorize?${params.toString()}` });
     } catch (e) {
-      console.error("Erro ao iniciar Gov.br:", e.message);
+      logger.error("Erro ao iniciar Gov.br:", e.message);
       res.status(500).json({ erro: "Erro interno ao iniciar autenticação Gov.br." });
     }
   });
@@ -67,7 +67,7 @@ module.exports = function registerGovbrRoutes(app, deps) {
         : error === "access_denied"
           ? "Acesso negado pelo usuário no Gov.br."
           : `Erro retornado pelo Gov.br: ${error}`;
-      console.warn(`[${agora}] Gov.br callback — erro retornado pelo provedor: ${mensagem}`);
+      logger.warn(`[${agora}] Gov.br callback — erro retornado pelo provedor: ${mensagem}`);
       return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent(mensagem)}`);
     }
 
@@ -77,15 +77,15 @@ module.exports = function registerGovbrRoutes(app, deps) {
     );
     const stateData = stateRows[0] ? { recibo_id: stateRows[0].recibo_id, user: stateRows[0].username, expires: new Date(stateRows[0].expira_em).getTime() } : null;
     if (!stateData) {
-      console.warn(`[${agora}] Gov.br callback — state desconhecido ou já utilizado: ${state}`);
+      logger.warn(`[${agora}] Gov.br callback — state desconhecido ou já utilizado: ${state}`);
       return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("Sessão expirada ou inválida. Inicie o processo novamente.")}`);
     }
     if (Date.now() > stateData.expires) {
-      console.warn(`[${agora}] Gov.br callback — state expirado para usuário ${stateData.user}`);
+      logger.warn(`[${agora}] Gov.br callback — state expirado para usuário ${stateData.user}`);
       return res.redirect(`/govbr-erro.html?msg=${encodeURIComponent("Sessão Gov.br expirada (limite de 10 minutos). Tente novamente.")}`);
     }
 
-    console.log(`[${agora}] Gov.br callback — iniciando troca de code por token para recibo ${stateData.recibo_id} (usuário: ${stateData.user})`);
+    logger.info(`[${agora}] Gov.br callback — iniciando troca de code por token para recibo ${stateData.recibo_id} (usuário: ${stateData.user})`);
 
     try {
       // Troca code por token
@@ -102,7 +102,7 @@ module.exports = function registerGovbrRoutes(app, deps) {
       }, 15000);
       const tokenData = await tokenRes.json();
       if (!tokenData.access_token) {
-        console.error(`[${agora}] Gov.br callback — token não recebido. Resposta: ${JSON.stringify(tokenData)}`);
+        logger.error(`[${agora}] Gov.br callback — token não recebido. Resposta: ${JSON.stringify(tokenData)}`);
         throw new Error("Token de acesso não recebido. Verifique as credenciais Gov.br ou tente novamente.");
       }
 
@@ -124,11 +124,11 @@ module.exports = function registerGovbrRoutes(app, deps) {
       };
 
       await deps.update(deps.dbRecibos, { _id: stateData.recibo_id }, { assinatura_govbr: assinatura });
-      console.log(`[${new Date().toISOString()}] ✅ Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante} (CPF: ${assinatura.cpf_assinante || "n/d"}) — usuário do sistema: ${stateData.user}`);
+      logger.info(`[${new Date().toISOString()}] ✅ Recibo ${stateData.recibo_id} assinado via Gov.br por ${assinatura.nome_assinante} (CPF: ${assinatura.cpf_assinante || "n/d"}) — usuário do sistema: ${stateData.user}`);
 
       res.redirect(`/?govbr_ok=1&recibo_id=${stateData.recibo_id}`);
     } catch (e) {
-      console.error(`[${new Date().toISOString()}] ❌ Erro no callback Gov.br para recibo ${stateData?.recibo_id}: ${e.message}`);
+      logger.error(`[${new Date().toISOString()}] ❌ Erro no callback Gov.br para recibo ${stateData?.recibo_id}: ${e.message}`);
       const msgUsuario = e.message.includes("Token") || e.message.includes("userinfo")
         ? "Falha na comunicação com Gov.br. Tente novamente em instantes."
         : e.message;

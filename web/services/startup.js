@@ -196,6 +196,9 @@ async function initDb() {
   await pgPool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL
   `);
+  await pgPool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0
+  `);
   // Tabela de states OAuth Gov.br â€” TTL gerenciado por expira_em (SEC-012)
   await pgPool.query(`
     CREATE TABLE IF NOT EXISTS govbr_states (
