@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-07-17] — Fase 1 da refatoração: server.js vira entry point
+
+### Refatorado
+- **`web/server.js` reduzido de ~2791 para ~285 linhas** — agora só faz configuração (env, Neon, S3, multer, middlewares), montagem das rotas modularizadas e `app.listen`.
+- Rotas soltas movidas para os módulos existentes: `routes/govbr.js` (OAuth Gov.br + assinatura) e `routes/notificacoes.js` (SMTP/notificações) criados; `routes/admin.js`, `routes/clientes.js` e `routes/misc.js` receberam as rotas que ainda estavam no server.js.
+- Novos serviços: `services/helpers.js` (parseBRL, gerarParcelas, recalcularResumo, validarCPF/CNPJ, enriquecerCliente, maskCPF etc.), `services/email.js` (transporter SMTP), `services/startup.js` (initDb, migrações, sincronizações com Sheets) e `services/cron.js` (cron jobs + health check `/api/health`).
+
+### Corrigido
+- **`ADMIN_PASS` não era injetado em `services/startup.js`** — o `initDb()` lançava `ReferenceError` no boot, abortando a criação/atualização do usuário admin e as normalizações de dados. Agora o server.js passa `ADMIN_PASS` ao factory do startup.
+- **Logger descartava mensagens de erro** — chamadas no estilo `logger.error("msg:", e.message)` (string como 2º argumento) perdiam o detalhe do erro; o logger agora concatena strings/números à mensagem e serializa `Error` passado diretamente.
+
+---
+
 ## [2026-07-10] — Tela inicial "Início" (painel-resumo)
 
 ### Adicionado

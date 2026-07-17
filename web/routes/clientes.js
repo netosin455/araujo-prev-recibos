@@ -1,6 +1,19 @@
 module.exports = function registerClienteRoutes(app, deps) {
   // deps contains: { auth, adminOnly, financeiroOnly, semPrecatorios, semRecepcao, pgPool, dbClientes, NAO_DELETADO, find, findOne, insert, update, remove, count, enriquecerCliente, registrarAuditoria, maskCPF, validarCPF, validarCNPJ, gerarParcelas, recalcularResumo, inicializarParcelasLegado }
 
+  // ── LISTAGEM PAGINADA (movida de server.js na Fase 1) ──────
+  app.get("/api/clientes", deps.auth, async (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
+    const offset = parseInt(req.query.offset) || 0;
+    const { rows } = await deps.pgPool.query(
+      `SELECT * FROM ${deps.dbClientes} WHERE deletado_em IS NULL ORDER BY nome ASC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+    const total = await deps.count(deps.dbClientes, deps.NAO_DELETADO);
+    const enriquecidos = await Promise.all(rows.map(r => ({ ...r, _id: r.id })).map(deps.enriquecerCliente));
+    res.json({ clientes: enriquecidos, total, limit, offset });
+  });
+
   app.get("/api/clientes/cpf/:cpf", deps.auth, async (req, res) => {
     try {
       const cliente = await deps.findOne(deps.dbClientes, { cpf: req.params.cpf });

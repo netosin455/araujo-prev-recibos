@@ -4,7 +4,13 @@ function now() { return new Date().toISOString(); }
 
 function log(level, msg, meta) {
   const entry = { ts: now(), level, msg };
-  if (meta && typeof meta === "object") {
+  // Tolerância a chamadas no estilo console.error("msg:", e.message) —
+  // string/número como meta é concatenado à mensagem em vez de descartado
+  if (typeof meta === "string" || typeof meta === "number") {
+    entry.msg = `${msg} ${meta}`;
+  } else if (meta instanceof Error) {
+    entry.error = { message: meta.message, stack: meta.stack?.split("\n").slice(0, 4).map(s => s.trim()) };
+  } else if (meta && typeof meta === "object") {
     if (meta.err instanceof Error) {
       entry.error = { message: meta.err.message, stack: meta.err.stack?.split("\n").slice(0, 4).map(s => s.trim()) };
       delete meta.err;
