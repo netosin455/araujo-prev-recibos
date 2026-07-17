@@ -1,34 +1,4 @@
-)
-  - Conecta com o comportamento (app.js) e o servidor (server.js)
-
-  QUANDO MEXER AQUI:
-  - Mudar textos, labels ou títulos
-  - Mudar cores ou visual (procure o bloco <style> no início)
-  - Adicionar ou remover campos no formulário
-  - Adicionar novos itens no menu lateral
--->
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Araujo Prev — Gestão de Recibos</title>
-  <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#1a1a1a" />
-  <!-- PWA iOS -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Araujo Prev" />
-  <link rel="apple-touch-icon" href="logo.png" />
-  <!-- PWA Android -->
-  <meta name="mobile-web-app-capable" content="yes" />
-  <script src="sw-register.js" defer></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0}
     /* ── SCROLLBAR ── */
     ::-webkit-scrollbar{width:6px;height:6px}
     ::-webkit-scrollbar-track{background:transparent}
@@ -515,29 +485,29 @@
     .dash-card,.recibo-item,.cliente-card,.nav-item{transition:all .2s var(--ease)}
     .topbar{position:sticky;top:0;z-index:50;backdrop-filter:saturate(1.2)}
 
-/* ── Tela de assinatura (movido do index.html na Fase 2) ── */
 #tela-assinatura{position:fixed;inset:0;z-index:99999;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:16px;box-sizing:border-box}
-#tela-assinatura.active{display:flex}
-#tela-assinatura .ass-wrap{width:100%;max-width:560px}
-#tela-assinatura .ass-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.05)}
-#tela-assinatura .ass-titulo{font-size:17px;font-weight:700;margin:0 0 4px;color:var(--dark)}
-#tela-assinatura .ass-sub{color:var(--muted);font-size:12px;margin:0 0 14px}
-#tela-assinatura .ass-linha{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:13px}
-#tela-assinatura .ass-linha:nth-of-type(4){border-bottom:none}
-#tela-assinatura .ass-rot{color:var(--muted)}
-#tela-assinatura .ass-val{font-weight:600;text-align:right;color:var(--dark)}
-#tela-assinatura .ass-valor{color:var(--success);font-weight:700}
-#tela-assinatura .ass-label{display:block;font-size:10px;font-weight:600;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px}
-#tela-assinatura .ass-input{width:100%;padding:12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;background:#fff;box-sizing:border-box}
-#tela-assinatura .ass-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,151,58,.15)}
-.assinatura-canvas-wrap{position:relative;width:100%;height:210px;background:#fff;border:2px dashed var(--gold);border-radius:10px;overflow:hidden;margin-top:6px;touch-action:none}
-#assinatura-canvas{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none;position:relative;z-index:2}
-.assinatura-baseline{position:absolute;left:7%;right:7%;bottom:26%;border-bottom:2px solid #d8cfba;z-index:1;pointer-events:none}
-.assinatura-baseline .assinatura-baseline-x{position:absolute;left:-2px;bottom:1px;color:#c4ba9f;font-size:22px;font-weight:700;line-height:1}
-#tela-assinatura .ass-hint{position:absolute;left:0;right:0;top:18%;display:flex;align-items:center;justify-content:center;color:#c9c2b4;font-size:13px;pointer-events:none;z-index:1}
-.assinatura-footer{display:flex;gap:10px;justify-content:center;padding:14px 0 0}
-.assinatura-footer button{flex:1;padding:14px;font-size:14px}
-#tela-assinatura .ass-check{display:flex;align-items:flex-start;gap:10px;margin-top:16px;font-size:13px;color:var(--dark)}
-#tela-assinatura .ass-check input{width:20px;height:20px;margin-top:1px;flex-shrink:0}
-#tela-assinatura .ass-erro{color:var(--error);font-size:12px;margin-top:8px;min-height:16px}
-#tela-assinatura .ass-pular{width:100%;margin-top:6px}
+    #tela-assinatura.active{display:flex}
+    #tela-assinatura .ass-wrap{width:100%;max-width:560px}
+    #tela-assinatura .ass-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.05)}
+    #tela-assinatura .ass-titulo{font-size:17px;font-weight:700;margin:0 0 4px;color:var(--dark)}
+    #tela-assinatura .ass-sub{color:var(--muted);font-size:12px;margin:0 0 14px}
+    #tela-assinatura .ass-linha{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:13px}
+    #tela-assinatura .ass-linha:nth-of-type(4){border-bottom:none}
+    #tela-assinatura .ass-rot{color:var(--muted)}
+    #tela-assinatura .ass-val{font-weight:600;text-align:right;color:var(--dark)}
+    #tela-assinatura .ass-valor{color:var(--success);font-weight:700}
+    #tela-assinatura .ass-label{display:block;font-size:10px;font-weight:600;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px}
+    #tela-assinatura .ass-input{width:100%;padding:12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;background:#fff;box-sizing:border-box}
+    #tela-assinatura .ass-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,151,58,.15)}
+    .assinatura-canvas-wrap{position:relative;width:100%;height:210px;background:#fff;border:2px dashed var(--gold);border-radius:10px;overflow:hidden;margin-top:6px;touch-action:none}
+    #assinatura-canvas{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none;position:relative;z-index:2}
+    .assinatura-baseline{position:absolute;left:7%;right:7%;bottom:26%;border-bottom:2px solid #d8cfba;z-index:1;pointer-events:none}
+    .assinatura-baseline .assinatura-baseline-x{position:absolute;left:-2px;bottom:1px;color:#c4ba9f;font-size:22px;font-weight:700;line-height:1}
+    #tela-assinatura .ass-hint{position:absolute;left:0;right:0;top:18%;display:flex;align-items:center;justify-content:center;color:#c9c2b4;font-size:13px;pointer-events:none;z-index:1}
+    .assinatura-footer{display:flex;gap:10px;justify-content:center;padding:14px 0 0}
+    .assinatura-footer button{flex:1;padding:14px;font-size:14px}
+    #tela-assinatura .ass-check{display:flex;align-items:flex-start;gap:10px;margin-top:16px;font-size:13px;color:var(--dark)}
+    #tela-assinatura .ass-check input{width:20px;height:20px;margin-top:1px;flex-shrink:0}
+    #tela-assinatura .ass-erro{color:var(--error);font-size:12px;margin-top:8px;min-height:16px}
+    #tela-assinatura .ass-pular{width:100%;margin-top:6px}
+
