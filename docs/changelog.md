@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-07-17] — Fase 5: testes de integração das rotas reais
+
+### Adicionado
+- **`tests/rotas.test.js`** (19 testes, supertest): monta os módulos reais de `routes/*` num Express de teste com Postgres mockado — roda sem servidor externo e sem Neon. Cobre:
+  - Middleware de auth real (cookie httpOnly + JWT): sem token/token inválido → 401
+  - Soft delete de recibos e clientes: marca `deletado_em`/`deletado_por`, audita, CPF mascarado; recepção → 403
+  - Exportação ZIP: validações (0 ids, >100 ids), caminho síncrono devolve `application/zip`, recepção → 403
+  - Lixeira: 403 não-admin, limite 10, 400/404/409 (conflito de num) e restauração com auditoria
+  - Login: 401 usuário/senha errados, 400 payload não-string, 200 com cookie httpOnly e **sem token no body** (SEC-011)
+- Suite total: **69 testes** (`npm test`, node --test). devDependency nova: `supertest`.
+
+---
+
 ## [2026-07-17] — Performance: gzip, cache de estáticos e boot paralelo
 
 ### Diagnóstico
