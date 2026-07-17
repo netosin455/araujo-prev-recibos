@@ -61,6 +61,7 @@ function criarApp(fakes) {
     registrarAuditoria: (req, acao, id, extra) => fakes.chamadas.auditoria.push({ acao, id, extra }),
     maskCPF: (c) => "***",
     validarCPF: () => true, validarCNPJ: () => true,
+    campoTextoInvalido: require("../web/services/helpers").campoTextoInvalido,
     enriquecerCliente: async (c) => c,
     gerarParcelas: () => [], recalcularResumo: (c) => c,
     inicializarParcelasLegado: (c) => c, numeroSeguro: (n) => Number(n) || 0,
@@ -187,6 +188,31 @@ describe("DELETE /api/recibos/:id (soft delete)", () => {
     const res = await request(ctx.app).delete("/api/recibos/r1")
       .set("Cookie", `token=${tokenPara({ ...FINANCEIRO, role: "recepcao" })}`);
     assert.equal(res.status, 403);
+  });
+});
+
+// ── Validação de payload (tipos) ───────────────────────────
+describe("PUT /api/recibos/:id — validação", () => {
+  let ctx, fakes;
+  beforeEach(() => {
+    fakes = criarFakes();
+    ctx = criarApp(fakes);
+    require("../web/routes/recibos")(ctx.app, ctx.deps);
+  });
+
+  it("campo com objeto no lugar de string retorna 400", async () => {
+    const res = await request(ctx.app).put("/api/recibos/r1")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`)
+      .send({ nome: { $ne: "" }, valor: "100,00" });
+    assert.equal(res.status, 400);
+    assert.match(res.body.erro, /nome/);
+  });
+
+  it("recibo inexistente retorna 404", async () => {
+    const res = await request(ctx.app).put("/api/recibos/nao-existe")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`)
+      .send({ nome: "João", valor: "100,00" });
+    assert.equal(res.status, 404);
   });
 });
 

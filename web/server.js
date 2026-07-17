@@ -54,6 +54,15 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: true } });
+// Conexão OCIOSA que cai (rede/Neon) emite 'error' fora de qualquer rota — sem
+// listener, o processo morre. Loga e segue; o pool cria conexão nova sozinho.
+pgPool.on("error", (err) => logger.error("Pool Postgres (conexão ociosa):", err.message));
+
+// Última linha de defesa: rejeição que escapar de tudo é logada em vez de
+// derrubar o servidor (Node 15+ mata o processo por padrão)
+process.on("unhandledRejection", (reason) => {
+  logger.error("unhandledRejection (não deveria acontecer — investigar):", reason instanceof Error ? reason.message : String(reason));
+});
 
 const db = require("./services/database")(pgPool);
 const { find, findOne, insert, update, remove, count, findLimited } = db;
@@ -217,6 +226,7 @@ const routeDeps = {
   NAO_DELETADO, find, findOne, insert, update, remove, count, findLimited,
   enriquecerCliente: helpers.enriquecerCliente, registrarAuditoria, maskCPF: helpers.maskCPF,
   validarCPF: helpers.validarCPF, validarCNPJ: helpers.validarCNPJ,
+  campoTextoInvalido: helpers.campoTextoInvalido,
   gerarParcelas: helpers.gerarParcelas, recalcularResumo: helpers.recalcularResumo,
   inicializarParcelasLegado: helpers.inicializarParcelasLegado, numeroSeguro: helpers.numeroSeguro,
   getSheetsClient, sincronizarUsuariosParaSheets: startup.sincronizarUsuariosParaSheets, ADMIN_USER,

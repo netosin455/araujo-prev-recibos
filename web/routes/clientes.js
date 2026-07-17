@@ -97,6 +97,9 @@ const logger = require("../services/logger");
    */
   app.post("/api/clientes", deps.auth, deps.semPrecatorios, async (req, res) => {
     try {
+      const campoRuim = deps.campoTextoInvalido(req.body,
+        ["nome","cpf","telefone","endereco","municipio_uf","firma","referencia"]);
+      if (campoRuim) return res.status(400).json({ erro: `Campo inválido: ${campoRuim}.` });
       const {
         nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
         valor_beneficio, num_beneficios, valor_contrato, num_parcelas, valor_entrada,
@@ -149,6 +152,9 @@ const logger = require("../services/logger");
 
   app.put("/api/clientes/:id", deps.auth, deps.semPrecatorios, async (req, res) => {
     try {
+      const campoRuim = deps.campoTextoInvalido(req.body,
+        ["nome","cpf","telefone","endereco","municipio_uf","firma","referencia"]);
+      if (campoRuim) return res.status(400).json({ erro: `Campo inválido: ${campoRuim}.` });
       const {
         nome, cpf, telefone, endereco, municipio_uf, firma, referencia,
         valor_beneficio, num_beneficios, valor_contrato, num_parcelas, parcelas, auto_recibo, valor_entrada,

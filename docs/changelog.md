@@ -2,6 +2,20 @@
 
 ---
 
+## [2026-07-17] — Resiliência do banco + validação de tipos no payload
+
+### Corrigido
+- **Conexão ociosa do Postgres caindo derrubava o processo** — `pg.Pool` sem listener de `error` (evento fora de rota; o async-wrap não alcança). Agora loga e o pool se recupera sozinho. + rede de segurança `unhandledRejection` (loga em vez de matar o servidor).
+- **Validação de tipos no payload** (`campoTextoInvalido` em helpers): POST/PUT de recibos e clientes rejeitam com 400 campo que não seja string/número ou passe de 300 chars (barra objeto/array — dado sujo ou injeção — antes do banco).
+- **PUT /api/recibos/:id retornava 200 pra recibo inexistente** — agora 404.
+- +2 testes (payload com objeto → 400; PUT inexistente → 404) — suite: **85 testes**.
+
+### Nota sobre a re-verificação externa
+- "Async routes sem try/catch: pendente" — **falso**: resolvido globalmente pelo `middleware/async-wrap.js` (a ferramenta procurou try/catch rota a rota e não viu o wrapper). Testes cobrem.
+- "SHEET_ID hardcoded: pendente" — **decisão documentada**: fallback mantido com aviso de boot (ID não é credencial; remover às cegas arriscaria derrubar a integração se a env sumir do EB). Para remover de vez: confirmar no painel do EB que `SHEET_ID`/`DRIVE_FOLDER_ID` existem.
+
+---
+
 ## [2026-07-17] — Varredura própria: backup quebrado, logger 100%, rate limit em rota pública
 
 ### Corrigido

@@ -171,6 +171,9 @@ module.exports = function registerReciboRoutes(app, deps) {
   app.post("/api/recibos", deps.auth, async (req, res) => {
     try {
       if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissão para esta ação." });
+      const campoRuim = deps.campoTextoInvalido(req.body,
+        ["num","nome","cpf","municipio_uf","valor","data","emitido_por","complemento","referencia","forma_pagamento","motivo_pagamento","escritorio"]);
+      if (campoRuim) return res.status(400).json({ erro: `Campo inválido: ${campoRuim}.` });
       const { num, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, motivo_pagamento, link_comprovante, timestamp } = req.body;
       const escritorio = req.user.role === "recepcao"
         ? (req.user.escritorio || "")
@@ -230,11 +233,15 @@ module.exports = function registerReciboRoutes(app, deps) {
   });
 
   app.put("/api/recibos/:id", deps.auth, deps.financeiroOnly, async (req, res) => {
+    const campoRuim = deps.campoTextoInvalido(req.body,
+      ["nome","cpf","municipio_uf","valor","data","emitido_por","complemento","referencia","forma_pagamento","escritorio","motivo_pagamento"]);
+    if (campoRuim) return res.status(400).json({ erro: `Campo inválido: ${campoRuim}.` });
     const { nome, cpf, municipio_uf, valor, data, emitido_por, complemento, referencia, forma_pagamento, escritorio, motivo_pagamento, link_comprovante } = req.body;
     const upd = { nome, cpf, municipio_uf, valor, data, emitido_por: emitido_por||"", complemento: complemento||"", referencia: referencia||"", forma_pagamento: forma_pagamento||"", escritorio: escritorio||"", motivo_pagamento: motivo_pagamento||"" };
     if (link_comprovante) upd.link_comprovante = link_comprovante;
 
     const atual = await deps.findOne(deps.dbRecibos, { _id: req.params.id });
+    if (!atual) return res.status(404).json({ erro: "Recibo não encontrado." });
     const CAMPOS_AUDITADOS = ["nome","cpf","municipio_uf","valor","data","emitido_por","complemento","referencia","forma_pagamento","escritorio","motivo_pagamento","link_comprovante"];
     const campos_alterados = CAMPOS_AUDITADOS
       .filter(c => String(atual?.[c] ?? "") !== String(upd[c] ?? ""))

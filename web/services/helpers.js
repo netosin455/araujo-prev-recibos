@@ -193,9 +193,24 @@ function normalizarFormaPagamento(raw) {
   return raw;
 }
 
+// Validação leve de payload: os campos listados, quando presentes, precisam ser
+// string ou número dentro do tamanho — barra objeto/array (dado sujo ou injeção)
+// antes de chegar no banco. Retorna o nome do primeiro campo inválido, ou null.
+function campoTextoInvalido(body, campos, maxLen = 300) {
+  if (!body || typeof body !== "object") return "(payload)";
+  for (const campo of campos) {
+    const v = body[campo];
+    if (v === undefined || v === null) continue;
+    if (typeof v !== "string" && typeof v !== "number") return campo;
+    if (typeof v === "string" && v.length > maxLen) return campo;
+  }
+  return null;
+}
+
 module.exports = {
   maskCPF,
   parseBRL,
+  campoTextoInvalido,
   numeroSeguro,
   vencimentoParaISO,
   mesDeData,
