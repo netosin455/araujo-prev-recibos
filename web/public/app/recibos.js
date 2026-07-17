@@ -444,6 +444,8 @@ setInterval(atualizarHistoricoAuto, 20000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarHistoricoAuto(); });
 window.addEventListener("focus", atualizarHistoricoAuto);
 
+let _listaFiltradaHistorico = [];
+
 function renderHistorico(maisItens=false){
   if(!maisItens) _historicoVisiveis=50;
   const busca=(document.getElementById("busca-historico").value||"").toLowerCase();
@@ -475,6 +477,7 @@ function renderHistorico(maisItens=false){
     if(maxFiltro>0&&val>maxFiltro) return false;
     return true;
   });
+  _listaFiltradaHistorico = lista;
   const grid=document.getElementById("historico-grid");
   const count=document.getElementById("historico-count");
   count.textContent=`${lista.length} recibo${lista.length!==1?"s":""}`;
@@ -488,8 +491,11 @@ function renderHistorico(maisItens=false){
     grid.innerHTML=`<div class="empty-state"><i class="bi bi-file-earmark empty-state-icon"></i><p>${busca?"Nenhum recibo encontrado.":"Nenhum recibo gerado ainda."}</p><span>${busca?"Tente ajustar sua busca.":"Os recibos aparecer\u00E3o aqui ap\u00F3s serem gerados."}</span></div>`;
     return;
   }
-  _selecionadosZip.clear();
-  document.getElementById("batch-actions").style.display = "none";
+  // A seleção sobrevive a re-renders ("Carregar mais", auto-refresh, filtros) —
+  // só descarta ids que não existem mais no histórico (ex.: recibo excluído)
+  const idsExistentes = new Set(historicoRecibos.map(r => String(r.id || r._id)));
+  for (const id of [..._selecionadosZip]) if (!idsExistentes.has(id)) _selecionadosZip.delete(id);
+  atualizarBarraBatch();
   grid.innerHTML="";
   const listaVis = lista.slice(0, _historicoVisiveis);
   listaVis.forEach(recibo=>{
@@ -541,11 +547,14 @@ function renderHistorico(maisItens=false){
       });
     });
     const chk = item.querySelector(".recibo-check");
-    if (chk) chk.addEventListener("change", () => {
-      if (chk.checked) _selecionadosZip.add(chk.dataset.id);
-      else _selecionadosZip.delete(chk.dataset.id);
-      atualizarBarraBatch();
-    });
+    if (chk) {
+      chk.checked = _selecionadosZip.has(String(rid));
+      chk.addEventListener("change", () => {
+        if (chk.checked) _selecionadosZip.add(chk.dataset.id);
+        else _selecionadosZip.delete(chk.dataset.id);
+        atualizarBarraBatch();
+      });
+    }
     grid.appendChild(item);
   });
   if (lista.length > _historicoVisiveis) {
@@ -558,38 +567,92 @@ function renderHistorico(maisItens=false){
 }
 
 function atualizarBarraBatch() {
-  const batchDiv = document.getElementById("batch-actions");
   const label = document.getElementById("batch-count-label");
   const count = _selecionadosZip.size;
-  if (count > 0) {
-    batchDiv.style.display = "flex";
-    if (label) label.textContent = count + " selecionado(s)";
-  } else {
-    batchDiv.style.display = "none";
-  }
+  if (label) label.textContent = count + " selecionado(s)";
+  const btnZip = document.getElementById("btn-exportar-zip");
+  const btnXls = document.getElementById("btn-exportar-excel-sel");
+  // não sobrescreve o rótulo enquanto o ZIP está sendo gerado ("Gerando...")
+  if (btnZip && !btnZip.innerHTML.includes("hourglass")) btnZip.innerHTML = `<i class="bi bi-file-zip"></i> ZIP${count ? ` (${count})` : ""}`;
+  if (btnXls) btnXls.innerHTML = `<i class="bi bi-file-earmark-spreadsheet"></i> Excel${count ? ` (${count})` : ""}`;
+  ["btn-exportar-zip", "btn-exportar-excel-sel", "btn-batch-email", "btn-batch-delete"].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = count === 0;
+  });
+}
+
+// Marca/desmarca os checkboxes visíveis conforme o estado atual da seleção
+function _sincronizarChecksVisiveis() {
+  document.querySelectorAll(".recibo-check").forEach(c => { c.checked = _selecionadosZip.has(c.dataset.id); });
 }
 
 function selecionarTodosRecibos() {
   const chks = document.querySelectorAll(".recibo-check");
   const someUnchecked = Array.from(chks).some(c => !c.checked);
-  chks.forEach(c => { c.checked = someUnchecked; });
-  _selecionadosZip.clear();
-  if (someUnchecked) {
-    chks.forEach(c => _selecionadosZip.add(c.dataset.id));
+  chks.forEach(c => {
+    c.checked = someUnchecked;
+    if (someUnchecked) _selecionadosZip.add(c.dataset.id);
+    else _selecionadosZip.delete(c.dataset.id);
+  });
+  atualizarBarraBatch();
+}
+
+// Seleção rápida: visíveis | todos os filtrados | deste mês | limpar
+function selecionarPorCriterio(criterio) {
+  if (!criterio) return;
+  if (criterio === "visiveis") { selecionarTodosRecibos(); return; }
+  if (criterio === "limpar") {
+    _selecionadosZip.clear();
+  } else {
+    let alvo = _listaFiltradaHistorico;
+    if (criterio === "mes") {
+      const agora = new Date();
+      const mes = String(agora.getMonth() + 1).padStart(2, "0");
+      const ano = String(agora.getFullYear());
+      alvo = alvo.filter(r => { const p = (r.data || "").split("/"); return p[1] === mes && p[2] === ano; });
+    }
+    if (!alvo.length) { mostrarToast("Nenhum recibo corresponde a esse critério.", null, "error"); return; }
+    alvo.forEach(r => _selecionadosZip.add(String(r.id || r._id)));
   }
+  _sincronizarChecksVisiveis();
   atualizarBarraBatch();
 }
 
 async function excluirSelecionados() {
-  if (_selecionadosZip.size === 0) return;
-  if (!confirm("Excluir " + _selecionadosZip.size + " recibo(s) permanentemente?")) return;
+  const total = _selecionadosZip.size;
+  if (total === 0) return;
+  if (!confirm("Excluir " + total + " recibo(s) permanentemente?")) return;
   for (const id of _selecionadosZip) {
     await api("DELETE", "/api/recibos/" + id);
   }
   _selecionadosZip.clear();
   await carregarRecibos();
   renderHistorico();
-  mostrarToast(_selecionadosZip.size + " recibo(s) excluÃ­dos.", null, "success");
+  mostrarToast(total + " recibo(s) excluídos.", null, "success");
+}
+
+// Excel consolidado dos selecionados — gerado no cliente com a lib XLSX local
+async function exportarExcelSelecionados() {
+  if (_selecionadosZip.size === 0) return;
+  await garantirXLSX();
+  const sel = historicoRecibos.filter(r => _selecionadosZip.has(String(r.id || r._id)));
+  if (!sel.length) { mostrarToast("Nenhum recibo selecionado.", null, "error"); return; }
+  const linhas = sel.map(r => ({
+    "Nº Recibo": r.num, "Cliente": r.nome, "CPF/CNPJ": r.cpf, "Município": r.municipio_uf,
+    "Valor": "R$ " + r.valor, "Data": r.data, "Forma de Pagamento": r.forma_pagamento || "",
+    "Escritório": r.escritorio || "", "Responsável": r.emitido_por || "", "Referência": r.referencia || "",
+  }));
+  const total = sel.reduce((s, r) => s + valorParaNumero(r.valor), 0);
+  linhas.push({
+    "Nº Recibo": "", "Cliente": "TOTAL", "CPF/CNPJ": "", "Município": "",
+    "Valor": "R$ " + formatarValor(total), "Data": "", "Forma de Pagamento": "",
+    "Escritório": "", "Responsável": "", "Referência": `${sel.length} recibo(s)`,
+  });
+  const ws = XLSX.utils.json_to_sheet(linhas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Recibos Selecionados");
+  XLSX.writeFile(wb, `recibos_selecionados_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  mostrarToast(`${sel.length} recibo(s) exportado(s) para Excel!`, null, "success");
 }
 
 async function batchEnviarEmail() {
@@ -603,6 +666,10 @@ async function batchEnviarEmail() {
 
 async function exportarZipSelecionados() {
   if (_selecionadosZip.size === 0) return;
+  if (_selecionadosZip.size > 100) {
+    mostrarToast("Máximo de 100 recibos por ZIP. Refine a seleção.", null, "error");
+    return;
+  }
   const btn = document.getElementById("btn-exportar-zip");
   const orig = btn.innerHTML;
   const total = _selecionadosZip.size;

@@ -851,9 +851,14 @@ function bindStaticHandlers() {
   document.getElementById("filtro-data-fim").addEventListener("input", renderHistorico);
   document.getElementById("btn-limpar-data").addEventListener("click", limparFiltroData);
   document.getElementById("btn-exportar-zip").addEventListener("click", exportarZipSelecionados);
+  document.getElementById("btn-exportar-excel-sel")?.addEventListener("click", exportarExcelSelecionados);
   document.getElementById("btn-select-all").addEventListener("click", selecionarTodosRecibos);
   document.getElementById("btn-batch-delete").addEventListener("click", excluirSelecionados);
   document.getElementById("btn-batch-email").addEventListener("click", batchEnviarEmail);
+  document.getElementById("sel-selecao-rapida")?.addEventListener("change", function () {
+    selecionarPorCriterio(this.value);
+    this.value = ""; // volta ao placeholder "Selecionar…"
+  });
 
   // Filtros avanÃ§ados
   document.getElementById("btn-toggle-filtros-avancados")?.addEventListener("click", toggleFiltrosAvancados);

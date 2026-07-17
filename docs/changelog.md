@@ -2,6 +2,20 @@
 
 ---
 
+## [2026-07-17] — Fase 4: exportação em lote completada
+
+### Adicionado
+- **Excel dos selecionados** — botão "Excel (N)" na barra de ações do Histórico: gera .xlsx no navegador (lib XLSX local) com os recibos marcados + linha de TOTAL (soma dos valores e contagem).
+- **Seleção rápida** — dropdown "Selecionar…" com: Visíveis, Todos os filtrados (respeita busca/datas/filtros avançados — combinado com o filtro de escritório cobre "selecionar deste escritório"), Deste mês, Limpar seleção.
+- **Barra de ações sempre visível** no Histórico (antes só aparecia após marcar o 1º checkbox — o botão "Todos" ficava inacessível). Botões ZIP/Excel/Email/Excluir desabilitados com 0 selecionados; ZIP e Excel mostram a contagem.
+
+### Corrigido
+- **Seleção era perdida** ao clicar "Carregar mais", no auto-refresh (20s) e ao mudar filtros — agora persiste entre re-renders; só descarta ids de recibos que deixaram de existir.
+- **Toast de exclusão em lote** sempre dizia "0 recibo(s) excluídos" (lia o Set depois do `clear()`).
+- **Limite de 100 recibos por ZIP** agora é avisado no frontend antes de chamar a API (o backend já rejeitava com 400).
+
+---
+
 ## [2026-07-17] — Fase 1 da refatoração: server.js vira entry point
 
 ### Refatorado
