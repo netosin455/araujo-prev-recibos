@@ -4,7 +4,8 @@
 // versão reduzida e o "thumb" é a miniatura leve — a grade carrega rápido e o
 // upload gasta pouca banda (bom pro pessoal de campo no celular). Sem sharp.
 const multer = require("multer");
-const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const archiver = require("archiver");
+const { PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 
 const MIME_OK = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]);
 
@@ -112,6 +113,46 @@ module.exports = function registerDocumentoRoutes(app, deps) {
     } catch (e) {
       console.error("Erro ao listar documentos:", e.message);
       res.status(500).json({ erro: "Erro ao listar documentos." });
+    }
+  });
+
+  // ── BAIXAR TODOS os documentos do cliente num ZIP ────────────
+  // Pra montar processo: RG + CPF + comprovantes de uma vez, direto do S3.
+  app.get("/api/clientes/:cpf/documentos/zip", deps.auth, async (req, res) => {
+    try {
+      const cpf = nd(req.params.cpf);
+      if (cpf.length < 11) return res.status(400).json({ erro: "CPF inválido." });
+      const { rows } = await deps.pgPool.query(
+        `SELECT id,tipo,nome,s3_key,content_type FROM documentos
+         WHERE cliente_cpf=$1 AND deletado_em IS NULL ORDER BY tipo, criado_em`,
+        [cpf]
+      );
+      if (rows.length === 0) return res.status(404).json({ erro: "Cliente sem documentos." });
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="documentos_${cpf}.zip"`);
+      const archive = archiver("zip", { zlib: { level: 6 } });
+      archive.on("error", e => { console.error("Erro archiver docs:", e.message); });
+      archive.pipe(res);
+
+      const semAcento = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w.-]+/g, "_");
+      for (let i = 0; i < rows.length; i++) {
+        const d = rows[i];
+        try {
+          const obj = await deps.withTimeout(
+            deps.s3Client.send(new GetObjectCommand({ Bucket: deps.BUCKET_NAME, Key: d.s3_key })), 20000);
+          const ext = deps.path.extname(d.s3_key) || ((d.content_type || "").includes("pdf") ? ".pdf" : ".jpg");
+          const nomeArq = `${String(i + 1).padStart(2, "0")}_${semAcento(d.tipo)}_${semAcento(d.nome).slice(0, 60)}${ext}`;
+          archive.append(obj.Body, { name: nomeArq });
+        } catch (e) {
+          console.error(`Erro ao baixar doc ${d.id} do S3:`, e.message);
+        }
+      }
+      deps.registrarAuditoria(req, "exportar_docs_cliente", cpf, { cpf: deps.maskCPF(cpf), total: rows.length });
+      await archive.finalize();
+    } catch (e) {
+      console.error("Erro no ZIP de documentos:", e.message);
+      if (!res.headersSent) res.status(500).json({ erro: "Erro ao gerar ZIP de documentos." });
     }
   });
 

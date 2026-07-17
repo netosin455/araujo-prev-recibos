@@ -78,18 +78,27 @@ function renderFichario() {
   buscarFichario("");
 }
 
-async function buscarFichario(q) {
+let _ficClientes = []; // acumulado das páginas já carregadas
+
+async function buscarFichario(q, pagina = 0) {
   _ficharioQuery = q;
+  _ficPagina = pagina;
   const grid = document.getElementById("fichario-grid");
   const status = document.getElementById("fichario-status");
   if (!grid) return;
-  grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted)"><i class="bi bi-hourglass-split"></i><p style="margin-top:8px">Buscando...</p></div>`;
+  if (pagina === 0) {
+    _ficClientes = [];
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted)"><i class="bi bi-hourglass-split"></i><p style="margin-top:8px">Buscando...</p></div>`;
+  }
   try {
-    const r = await api("GET", `/api/fichario/busca?q=${encodeURIComponent(q)}`);
+    const r = await api("GET", `/api/fichario/busca?q=${encodeURIComponent(q)}&limit=${_FIC_LIMIT}&offset=${pagina * _FIC_LIMIT}`);
     const j = r ? await r.json() : { clientes: [] };
-    const clientes = j.clientes || [];
-    status.textContent = clientes.length === 0 ? "Nenhum cliente encontrado." : `${clientes.length} cliente(s)`;
-    renderGridFichario(clientes);
+    _ficTemMais = !!j.temMais;
+    _ficClientes = _ficClientes.concat(j.clientes || []);
+    status.textContent = _ficClientes.length === 0
+      ? "Nenhum cliente encontrado."
+      : `${_ficClientes.length} cliente(s)${_ficTemMais ? " — tem mais, role até o fim" : ""}`;
+    renderGridFichario(_ficClientes);
   } catch (e) {
     grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--error)"><i class="bi bi-exclamation-triangle"></i><p style="margin-top:8px">Erro ao buscar.</p></div>`;
     status.textContent = "Erro ao buscar clientes.";
@@ -130,6 +139,18 @@ function renderGridFichario(clientes) {
     card.querySelector(".fic-ver").addEventListener("click", e => { e.stopPropagation(); abrirGaleriaFichario(cpf, nome); });
     card.querySelector(".fic-add").addEventListener("click", e => { e.stopPropagation(); uploadDiretoFichario(cpf, nome); });
   });
+
+  // Paginação: o backend sinaliza que há mais páginas (antes ficava nos 60 primeiros)
+  if (_ficTemMais) {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "grid-column:1/-1;text-align:center;margin-top:6px";
+    wrap.innerHTML = `<button class="btn-secondary" id="fic-carregar-mais" style="min-width:220px;cursor:pointer"><i class="bi bi-arrow-down-circle"></i> Carregar mais clientes</button>`;
+    wrap.querySelector("button").addEventListener("click", function () {
+      this.disabled = true; this.innerHTML = '<i class="bi bi-hourglass-split"></i> Carregando...';
+      buscarFichario(_ficharioQuery, _ficPagina + 1);
+    });
+    grid.appendChild(wrap);
+  }
 }
 
 async function abrirGaleriaFichario(cpf, nome) {
@@ -156,6 +177,7 @@ async function abrirGaleriaFichario(cpf, nome) {
       </select>
       <button class="btn-gold btn-sm" id="fic-gal-cam" style="cursor:pointer"><i class="bi bi-camera"></i> Câmera</button>
       <button class="btn-secondary btn-sm" id="fic-gal-file" style="cursor:pointer"><i class="bi bi-upload"></i> Arquivos</button>
+      <button class="btn-secondary btn-sm" id="fic-gal-zip" style="cursor:pointer;display:none"><i class="bi bi-file-zip"></i> Baixar tudo (ZIP)</button>
       <span style="font-size:11px;color:var(--muted)">pode enviar vários de uma vez</span>
       <span id="fic-gal-status" style="font-size:11.5px;color:var(--gold);font-weight:600;margin-left:auto"></span>
       <input type="file" id="fic-gal-in-cam" accept="image/*" capture="environment" multiple style="display:none">
@@ -169,6 +191,7 @@ async function abrirGaleriaFichario(cpf, nome) {
   document.getElementById("fic-voltar").addEventListener("click", () => fecharGaleriaFichario());
   document.getElementById("fic-gal-cam").addEventListener("click", () => document.getElementById("fic-gal-in-cam").click());
   document.getElementById("fic-gal-file").addEventListener("click", () => document.getElementById("fic-gal-in-file").click());
+  document.getElementById("fic-gal-zip").addEventListener("click", () => baixarZipFichario(cpf, nome));
   const inCam = document.getElementById("fic-gal-in-cam");
   const inFile = document.getElementById("fic-gal-in-file");
   const pick = async (inp) => { if (inp.files && inp.files.length) { await enviarDocumentos(cpf, inp.files); inp.value = ""; } };
@@ -198,6 +221,8 @@ async function carregarDocsGaleria(cpf) {
     _ficDocs = j.documentos || [];
     const qtdEl = document.getElementById("fic-gal-qtd");
     if (qtdEl) qtdEl.textContent = `${_ficDocs.length} documento${_ficDocs.length !== 1 ? "s" : ""}`;
+    const btnZip = document.getElementById("fic-gal-zip");
+    if (btnZip) btnZip.style.display = _ficDocs.length > 0 ? "" : "none";
     if (_ficDocs.length === 0) {
       grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:22px">Nenhum documento ainda. Envie o primeiro! 📷</div>`;
       return;
@@ -347,6 +372,34 @@ async function enviarDocumentos(cpf, fileList, tipoForcado) {
   if (status) status.textContent = ok ? `${ok} enviado${ok !== 1 ? "s" : ""}!` : "";
   await carregarDocsGaleria(cpf);
   setTimeout(() => { if (status) status.textContent = ""; }, 2500);
+}
+
+// ── BAIXAR TUDO (ZIP) — RG+CPF+comprovantes do cliente de uma vez ──
+async function baixarZipFichario(cpf, nome) {
+  const btn = document.getElementById("fic-gal-zip");
+  const orig = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Gerando...'; }
+  try {
+    const res = await api("GET", `/api/clientes/${cpf}/documentos/zip`, null, 120000);
+    if (!res || !res.ok) {
+      let msg = "Erro ao gerar o ZIP.";
+      try { msg = (await res.json()).erro || msg; } catch {}
+      mostrarToast(msg, null, "error");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `documentos_${(nome || cpf).replace(/\s+/g, "_")}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    mostrarToast("ZIP com os documentos baixado!", null, "success");
+  } catch (e) {
+    mostrarToast("Erro ao baixar o ZIP.", null, "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
 }
 
 // "+" no card: abre a galeria e já dispara o seletor de arquivos (multi)

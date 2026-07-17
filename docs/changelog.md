@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-07-17] — Fichário: paginação corrigida, ZIP do cliente, lixeira de documentos, índice
+
+### Corrigido
+- **Só os primeiros 60 clientes apareciam no Fichário** — o backend já paginava, mas o frontend nunca usava (`_ficPagina`/`_ficTemMais` declarados e ignorados). Agora tem botão "Carregar mais clientes" e o contador avisa quando há mais páginas.
+- **Exclusão de documento prometia recuperação que não existia** — o confirm dizia "fica recuperável no sistema", mas não havia tela. Documentos do fichário agora aparecem na **Lixeira do admin** (10 últimos) com restauração (`restaurar_documento` auditado).
+
+### Adicionado
+- **"Baixar tudo (ZIP)"** na galeria do cliente: `GET /api/clientes/:cpf/documentos/zip` — RG, CPF, comprovantes e laudos numa tacada, direto do S3, nomes organizados por tipo (`01_RG_...jpg`). Auditado (`exportar_docs_cliente`, CPF mascarado).
+- **Índice `idx_documentos_cliente_cpf`** (parcial, só não-deletados) — a busca do fichário faz 2 subconsultas por cliente contra essa coluna; evita degradar conforme os documentos acumulam.
+- +1 teste (restauração de documento) — suite: **75 testes**.
+
+---
+
 ## [2026-07-17] — Fase 6: UX (desfazer exclusão, máscara de telefone, badge, skeleton)
 
 ### Adicionado

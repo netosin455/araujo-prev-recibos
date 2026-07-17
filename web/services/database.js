@@ -95,6 +95,8 @@ const INDEXES_SQL = [
   `CREATE INDEX IF NOT EXISTS idx_clientes_deletado_em ON clientes (deletado_em)`,
   `CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria (usuario)`,
   `CREATE INDEX IF NOT EXISTS idx_auditoria_ts ON auditoria (ts DESC)`,
+  // Busca do fichário: 2 subconsultas por cliente contra documentos.cliente_cpf
+  `CREATE INDEX IF NOT EXISTS idx_documentos_cliente_cpf ON documentos (cliente_cpf) WHERE deletado_em IS NULL`,
 ];
 
 module.exports = function createDatabase(pgPool) {

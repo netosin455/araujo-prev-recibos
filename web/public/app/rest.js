@@ -159,13 +159,13 @@ async function carregarLixeira() {
   mostrarSkeleton("lixeira-conteudo", 3);
   const res = await api("GET", "/api/admin/lixeira");
   if (!res || !res.ok) { div.innerHTML = '<span style="color:var(--danger,#ef4444)">Erro ao carregar a lixeira.</span>'; return; }
-  const { recibos, clientes } = await res.json();
-  if (!recibos.length && !clientes.length) { div.innerHTML = '<span style="color:var(--muted)">Lixeira vazia.</span>'; return; }
+  const { recibos, clientes, documentos = [] } = await res.json();
+  if (!recibos.length && !clientes.length && !documentos.length) { div.innerHTML = '<span style="color:var(--muted)">Lixeira vazia.</span>'; return; }
   const linha = (tipo, id, titulo, detalhe, quando, quem) => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600">${esc(titulo)}</div>
-        <div style="font-size:11px;color:var(--muted)">${esc(detalhe)} · excluído em ${esc((quando || "").slice(0, 10))} por ${esc(quem || "?")}</div>
+        <div style="font-size:11px;color:var(--muted)">${esc(detalhe)} · excluído em ${esc(String(quando || "").slice(0, 10))}${quem ? " por " + esc(quem) : ""}</div>
       </div>
       <button class="btn-secondary btn-sm btn-restaurar-lixeira" data-tipo="${tipo}" data-id="${esc(id)}"><i class="bi bi-arrow-counterclockwise"></i> Restaurar</button>
     </div>`;
@@ -177,6 +177,10 @@ async function carregarLixeira() {
   if (clientes.length) {
     html += `<div style="font-weight:700;margin:12px 0 4px">Clientes (${clientes.length})</div>`;
     html += clientes.map(c => linha("clientes", c.id, c.nome, c.cpf, c.deletado_em, c.deletado_por)).join("");
+  }
+  if (documentos.length) {
+    html += `<div style="font-weight:700;margin:12px 0 4px">Documentos do fichário (${documentos.length})</div>`;
+    html += documentos.map(d => linha("documentos", d.id, `${d.tipo || "Documento"} — ${d.nome}`, d.cpf, d.deletado_em, "")).join("");
   }
   div.innerHTML = html;
   div.querySelectorAll(".btn-restaurar-lixeira").forEach(btn => {

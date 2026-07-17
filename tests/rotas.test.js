@@ -21,7 +21,8 @@ function criarFakes() {
   const fakes = {
     chamadas,
     dados,
-    pgPool: { query: async () => ({ rows: [{ id: "u1" }] }) }, // auth middleware: usuário existe
+    // auth middleware consulta users (usuário existe); demais queries devolvem vazio
+    pgPool: { query: async (sql) => ({ rows: /FROM users/.test(String(sql)) ? [{ id: "u1" }] : [] }) },
     find: async () => [],
     findOne: async (tabela) => {
       const fila = dados.findOne[tabela] || [];
@@ -205,8 +206,21 @@ describe("Lixeira /api/admin/lixeira", () => {
     const res = await request(ctx.app).get("/api/admin/lixeira")
       .set("Cookie", `token=${tokenPara(ADMIN)}`);
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { recibos: [], clientes: [] });
+    assert.deepEqual(res.body, { recibos: [], clientes: [], documentos: [] });
     assert.ok(fakes.chamadas.findLimited.every(c => c.limit === 10), "limite deve ser 10");
+  });
+
+  it("restaura documento do fichário (200) e audita", async () => {
+    fakes.pgPool.query = async (sql) => {
+      if (/FROM users/.test(String(sql))) return { rows: [{ id: "u1" }] };
+      if (/UPDATE documentos/.test(String(sql))) return { rows: [{ nome: "rg.jpg", tipo: "RG", cliente_cpf: "52998224725" }] };
+      return { rows: [] };
+    };
+    const res = await request(ctx.app).post("/api/admin/lixeira/documentos/d1/restaurar")
+      .set("Cookie", `token=${tokenPara(ADMIN)}`);
+    assert.equal(res.status, 200);
+    assert.equal(fakes.chamadas.auditoria[0].acao, "restaurar_documento");
+    assert.equal(fakes.chamadas.auditoria[0].extra.cpf, "***", "CPF mascarado na auditoria");
   });
 
   it("restaurar tipo inválido retorna 400", async () => {

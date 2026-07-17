@@ -114,13 +114,18 @@ module.exports = function registerAdminRoutes(app, deps) {
       const DELETADO = { deletado_em: { $exists: true } };
       // Só os 10 mais recentes de cada — a lixeira é pra recuperar exclusão
       // acidental recente, não pra navegar o histórico inteiro (isso é a auditoria)
-      const [recibos, clientes] = await Promise.all([
+      const [recibos, clientes, docsRes] = await Promise.all([
         deps.findLimited(deps.dbRecibos, DELETADO, { deletado_em: -1 }, 10),
         deps.findLimited(deps.dbClientes, DELETADO, { deletado_em: -1 }, 10),
+        deps.pgPool.query(
+          `SELECT id, nome, tipo, cliente_cpf, deletado_em FROM documentos
+           WHERE deletado_em IS NOT NULL ORDER BY deletado_em DESC LIMIT 10`
+        ),
       ]);
       res.json({
         recibos: recibos.map(r => ({ id: r.id, num: r.num, nome: r.nome, valor: r.valor, data: r.data, deletado_em: r.deletado_em, deletado_por: r.deletado_por })),
         clientes: clientes.map(c => ({ id: c.id, nome: c.nome, cpf: deps.maskCPF(c.cpf || ""), deletado_em: c.deletado_em, deletado_por: c.deletado_por })),
+        documentos: docsRes.rows.map(d => ({ id: d.id, nome: d.nome, tipo: d.tipo, cpf: deps.maskCPF(d.cliente_cpf || ""), deletado_em: d.deletado_em })),
       });
     } catch (e) {
       console.error("Erro ao listar lixeira:", e.message);
@@ -131,7 +136,18 @@ module.exports = function registerAdminRoutes(app, deps) {
   app.post("/api/admin/lixeira/:tipo/:id/restaurar", deps.auth, deps.adminOnly, async (req, res) => {
     try {
       const { tipo, id } = req.params;
-      if (tipo !== "recibos" && tipo !== "clientes") return res.status(400).json({ erro: "Tipo inválido." });
+      if (tipo !== "recibos" && tipo !== "clientes" && tipo !== "documentos") return res.status(400).json({ erro: "Tipo inválido." });
+      // Documentos vivem em tabela própria (pgPool direto), sem coluna deletado_por
+      if (tipo === "documentos") {
+        const { rows } = await deps.pgPool.query(
+          `UPDATE documentos SET deletado_em=NULL WHERE id=$1 AND deletado_em IS NOT NULL RETURNING nome, tipo, cliente_cpf`,
+          [id]
+        );
+        if (rows.length === 0) return res.status(404).json({ erro: "Registro não encontrado na lixeira." });
+        deps.registrarAuditoria(req, "restaurar_documento", id,
+          { nome: rows[0].nome, tipo: rows[0].tipo, cpf: deps.maskCPF(rows[0].cliente_cpf || "") });
+        return res.json({ ok: true });
+      }
       const tabela = tipo === "recibos" ? deps.dbRecibos : deps.dbClientes;
       const doc = await deps.findOne(tabela, { _id: id, deletado_em: { $exists: true } });
       if (!doc) return res.status(404).json({ erro: "Registro não encontrado na lixeira." });
