@@ -127,6 +127,8 @@ async function iniciarApp(){
       document.getElementById("nav-usuarios").style.display = "";
       document.getElementById("bn-usuarios").style.display = "";
       document.querySelectorAll(".admin-tab-auditoria").forEach(el => el.style.display = "");
+      const cardLixeira = document.getElementById("card-lixeira");
+      if (cardLixeira) cardLixeira.style.display = "";
     }
     if(roleLogado === "recepcao"){
       document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");

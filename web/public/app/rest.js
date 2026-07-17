@@ -193,6 +193,53 @@ async function restaurarBackup(input){
   input.value="";
 }
 
+// ── LIXEIRA (admin) — listar e restaurar soft-deletados ─────
+async function carregarLixeira() {
+  const div = document.getElementById("lixeira-conteudo");
+  div.innerHTML = '<span style="color:var(--muted)">Carregando...</span>';
+  const res = await api("GET", "/api/admin/lixeira");
+  if (!res || !res.ok) { div.innerHTML = '<span style="color:var(--danger,#ef4444)">Erro ao carregar a lixeira.</span>'; return; }
+  const { recibos, clientes } = await res.json();
+  if (!recibos.length && !clientes.length) { div.innerHTML = '<span style="color:var(--muted)">Lixeira vazia.</span>'; return; }
+  const linha = (tipo, id, titulo, detalhe, quando, quem) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${esc(titulo)}</div>
+        <div style="font-size:11px;color:var(--muted)">${esc(detalhe)} · excluído em ${esc((quando || "").slice(0, 10))} por ${esc(quem || "?")}</div>
+      </div>
+      <button class="btn-secondary btn-sm btn-restaurar-lixeira" data-tipo="${tipo}" data-id="${esc(id)}"><i class="bi bi-arrow-counterclockwise"></i> Restaurar</button>
+    </div>`;
+  let html = "";
+  if (recibos.length) {
+    html += `<div style="font-weight:700;margin:8px 0 4px">Recibos (${recibos.length})</div>`;
+    html += recibos.map(r => linha("recibos", r.id, `${r.num} — ${r.nome}`, `R$ ${r.valor} · ${r.data}`, r.deletado_em, r.deletado_por)).join("");
+  }
+  if (clientes.length) {
+    html += `<div style="font-weight:700;margin:12px 0 4px">Clientes (${clientes.length})</div>`;
+    html += clientes.map(c => linha("clientes", c.id, c.nome, c.cpf, c.deletado_em, c.deletado_por)).join("");
+  }
+  div.innerHTML = html;
+  div.querySelectorAll(".btn-restaurar-lixeira").forEach(btn => {
+    btn.addEventListener("click", () => restaurarDaLixeira(btn.dataset.tipo, btn.dataset.id));
+  });
+}
+
+async function restaurarDaLixeira(tipo, id) {
+  if (!confirm("Restaurar este registro?")) return;
+  const res = await api("POST", `/api/admin/lixeira/${tipo}/${id}/restaurar`);
+  if (!res || !res.ok) {
+    let msg = "Erro ao restaurar.";
+    try { msg = (await res.json()).erro || msg; } catch {}
+    mostrarToast(msg, null, "error");
+    return;
+  }
+  mostrarToast("Registro restaurado!", null, "success");
+  await Promise.all([carregarRecibos(), carregarClientes()]);
+  renderHistorico();
+  if (typeof renderClientes === "function") renderClientes();
+  carregarLixeira();
+}
+
 // â”€â”€ LAZY LOAD LIBS PESADAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function carregarLib(src){
   return new Promise((resolve,reject)=>{
@@ -810,6 +857,7 @@ function bindStaticHandlers() {
   document.getElementById("nav-admin").addEventListener("click", () => navegarPara("admin"));
   document.getElementById("nav-usuarios").addEventListener("click", () => navegarPara("usuarios"));
   document.getElementById("nav-backup").addEventListener("click", fazerBackup);
+  document.getElementById("btn-carregar-lixeira")?.addEventListener("click", carregarLixeira);
   document.getElementById("nav-restaurar").addEventListener("click", () => document.getElementById("input-restaurar").click());
   document.getElementById("input-restaurar").addEventListener("change", function() { restaurarBackup(this); });
   document.getElementById("nav-sair").addEventListener("click", fazerLogout);

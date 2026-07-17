@@ -108,6 +108,46 @@ module.exports = function registerAdminRoutes(app, deps) {
     }
   });
 
+  // ── LIXEIRA (soft delete) — listar e restaurar ─────────────
+  app.get("/api/admin/lixeira", deps.auth, deps.adminOnly, async (req, res) => {
+    try {
+      const DELETADO = { deletado_em: { $exists: true } };
+      const [recibos, clientes] = await Promise.all([
+        deps.findLimited(deps.dbRecibos, DELETADO, { deletado_em: -1 }, 100),
+        deps.findLimited(deps.dbClientes, DELETADO, { deletado_em: -1 }, 100),
+      ]);
+      res.json({
+        recibos: recibos.map(r => ({ id: r.id, num: r.num, nome: r.nome, valor: r.valor, data: r.data, deletado_em: r.deletado_em, deletado_por: r.deletado_por })),
+        clientes: clientes.map(c => ({ id: c.id, nome: c.nome, cpf: deps.maskCPF(c.cpf || ""), deletado_em: c.deletado_em, deletado_por: c.deletado_por })),
+      });
+    } catch (e) {
+      console.error("Erro ao listar lixeira:", e.message);
+      res.status(500).json({ erro: "Erro ao listar lixeira." });
+    }
+  });
+
+  app.post("/api/admin/lixeira/:tipo/:id/restaurar", deps.auth, deps.adminOnly, async (req, res) => {
+    try {
+      const { tipo, id } = req.params;
+      if (tipo !== "recibos" && tipo !== "clientes") return res.status(400).json({ erro: "Tipo inválido." });
+      const tabela = tipo === "recibos" ? deps.dbRecibos : deps.dbClientes;
+      const doc = await deps.findOne(tabela, { _id: id, deletado_em: { $exists: true } });
+      if (!doc) return res.status(404).json({ erro: "Registro não encontrado na lixeira." });
+      // O índice único de num só vale para recibos ativos — evita colisão ao restaurar
+      if (tipo === "recibos" && doc.num) {
+        const conflito = await deps.findOne(deps.dbRecibos, { num: doc.num, ...deps.NAO_DELETADO });
+        if (conflito) return res.status(409).json({ erro: `Já existe um recibo ativo com o número ${doc.num}. Não é possível restaurar.` });
+      }
+      await deps.update(tabela, { _id: id }, { deletado_em: null, deletado_por: null });
+      deps.registrarAuditoria(req, tipo === "recibos" ? "restaurar_recibo" : "restaurar_cliente", id,
+        tipo === "recibos" ? { num: doc.num, nome: doc.nome } : { nome: doc.nome, cpf: deps.maskCPF(doc.cpf || "") });
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("Erro ao restaurar da lixeira:", e.message);
+      res.status(500).json({ erro: "Erro ao restaurar registro." });
+    }
+  });
+
   // ── SYNC FORÇADO: NeDB → Google Sheets ─────────────────────
   app.post("/api/admin/sync-sheets", deps.auth, deps.adminOnly, async (req, res) => {
     const sheets = deps.getSheetsClient();
