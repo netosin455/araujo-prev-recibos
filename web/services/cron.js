@@ -162,7 +162,8 @@ cron.schedule("0 5 * * *", () => {
 }, { timezone: "UTC" });
 
 // â”€â”€ RENOVAÃ‡ÃƒO SEMANAL DE PRESIGNED URLS NO GOOGLE SHEETS â”€â”€
-// Percorre a coluna K da planilha e regera URLs de 30 dias para cada link S3 encontrado.
+// Percorre a coluna K da planilha e regera os links "Ver comprovante" (URLs de 7 dias)
+// para cada comprovante S3 encontrado — sempre antes de qualquer link expirar.
 // Executa todo domingo Ã s 03:00 BRT (06:00 UTC)
 cron.schedule("0 6 * * 0", () => {
   logger.info(`ðŸ•— Cron disparado: renovaÃ§Ã£o de presigned URLs no Sheets...`);
