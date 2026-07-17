@@ -122,18 +122,20 @@ async function iniciarApp(){
     aplicarTema(localStorage.getItem("tema")||"light");
     mostrarSkeleton("historico-grid");
     mostrarSkeleton("clientes-grid");
-    const res = await api("GET", "/api/users");
-    if(res && res.ok) {
-      document.getElementById("nav-usuarios").style.display = "";
-      document.getElementById("bn-usuarios").style.display = "";
-      document.querySelectorAll(".admin-tab-auditoria").forEach(el => el.style.display = "");
-      const cardLixeira = document.getElementById("card-lixeira");
-      if (cardLixeira) cardLixeira.style.display = "";
-      const navLixeira = document.getElementById("nav-lixeira");
-      if (navLixeira) navLixeira.style.display = "";
-      const secSistema = document.getElementById("nav-section-sistema");
-      if (secSistema) secSistema.style.display = "";
-    }
+    // Checagem de admin em paralelo com o carregamento dos dados — não bloqueia o boot
+    api("GET", "/api/users").then(res => {
+      if(res && res.ok) {
+        document.getElementById("nav-usuarios").style.display = "";
+        document.getElementById("bn-usuarios").style.display = "";
+        document.querySelectorAll(".admin-tab-auditoria").forEach(el => el.style.display = "");
+        const cardLixeira = document.getElementById("card-lixeira");
+        if (cardLixeira) cardLixeira.style.display = "";
+        const navLixeira = document.getElementById("nav-lixeira");
+        if (navLixeira) navLixeira.style.display = "";
+        const secSistema = document.getElementById("nav-section-sistema");
+        if (secSistema) secSistema.style.display = "";
+      }
+    }).catch(e => console.error("check admin:", e));
     if(roleLogado === "recepcao"){
       document.querySelectorAll(".somente-financeiro").forEach(el => el.style.display = "none");
       document.getElementById("nav-admin").style.display = "none";
@@ -149,8 +151,7 @@ async function iniciarApp(){
     }
     await Promise.all([carregarRecibos(), carregarClientes()]);
     if(roleLogado !== "recepcao" && typeof renderInicio==="function") renderInicio();
-    await atualizarNumRecibo();
-    await carregarReferenciaPadrao();
+    await Promise.all([atualizarNumRecibo(), carregarReferenciaPadrao()]);
     atualizarSugestoesNomes();
     preencherFiltrosAnos();
     verificarClientesInativos();

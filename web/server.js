@@ -113,6 +113,8 @@ const startup = require("./services/startup")({
 
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.disable("x-powered-by");
+// gzip em tudo (JSON e estáticos) — payloads de texto encolhem ~10x
+app.use(require("compression")());
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
@@ -152,7 +154,14 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.static(path.join(__dirname, "public")));
+// Estáticos com cache de 7 dias — o cache-busting ?v= nos <script> invalida quando
+// o código muda; o index.html continua no-store (setado acima) para pegar o v novo
+app.use(express.static(path.join(__dirname, "public"), {
+  maxAge: "7d",
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith("index.html")) res.setHeader("Cache-Control", "no-store, must-revalidate");
+  },
+}));
 
 const mw = require("./middleware/auth")({ jwt, JWT_SECRET, ADMIN_USER, pgPool });
 const { auth, adminOnly, financeiroOnly, semRecepcao, semPrecatorios } = mw;

@@ -2,6 +2,18 @@
 
 ---
 
+## [2026-07-17] — Performance: gzip, cache de estáticos e boot paralelo
+
+### Diagnóstico
+- Medido: 1.887 recibos = 1,24 MB de JSON sem compressão; libs estáticas 1,4 MB; boot do app fazia 4+ round-trips em série. Banco responde rápido (tabela inteira em ~250ms) — o gargalo era transporte, não o servidor. **Load balancer não resolveria** (EB já tem ELB; não é problema de capacidade).
+
+### Adicionado
+- **Compressão gzip** em todas as respostas (middleware `compression`) — JSON e estáticos encolhem até ~10x (xlsx.min.js: 861 KB → 309 KB na rede).
+- **Cache de 7 dias nos estáticos** (`express.static` com maxAge) — o `?v=` nos scripts invalida quando o código muda; `index.html` permanece `no-store`.
+- **Boot paralelo no frontend**: checagem de admin (`/api/users`) não bloqueia mais o carregamento; `atualizarNumRecibo` e `carregarReferenciaPadrao` rodam em paralelo.
+
+---
+
 ## [2026-07-17] — Fase 3: Lixeira com restauração (admin)
 
 ### Adicionado
