@@ -83,8 +83,22 @@ function sanitizarLinkParaSheets(link) {
   return link;
 }
 
+// Célula do comprovante: fórmula HYPERLINK com texto curto "Ver comprovante"
+// (clicável, sem URL gigante na célula). Separador ";" = locale pt-BR da planilha.
+function formulaComprovante(url) {
+  return `=HYPERLINK("${url}";"Ver comprovante")`;
+}
+
+async function celulaComprovante(link, s3SignerClient) {
+  const sanitizado = sanitizarLinkParaSheets(link);
+  if (!sanitizado || !s3SignerClient) return sanitizado;
+  const url = await linkParaSheets(sanitizado, s3SignerClient);
+  // linkParaSheets devolve o próprio caminho se não conseguir assinar
+  return /^https:\/\//.test(url) ? formulaComprovante(url) : sanitizado;
+}
+
 // s3SignerClient (opcional): quando informado, o link do comprovante já entra na
-// planilha como URL assinada clicável (7 dias) em vez do caminho relativo — o
+// planilha como link clicável "Ver comprovante" (URL assinada de 7 dias) — o
 // cron renovarPresignedUrlsSheets continua renovando semanalmente.
 async function registrarNoSheets(dados, s3SignerClient) {
   const sheets = getSheetsClient();
@@ -100,9 +114,7 @@ async function registrarNoSheets(dados, s3SignerClient) {
       ? MESES[parseInt(mp, 10) - 1] || MESES[mesAtual]
       : MESES[mesAtual];
 
-    const linkCel = s3SignerClient
-      ? await linkParaSheets(sanitizarLinkParaSheets(dados.link_comprovante), s3SignerClient)
-      : sanitizarLinkParaSheets(dados.link_comprovante);
+    const linkCel = await celulaComprovante(dados.link_comprovante, s3SignerClient);
 
     const linha = [
       carimbo,
@@ -155,9 +167,7 @@ async function atualizarNoSheets(num, dados, s3SignerClient) {
     if (idx === -1) return;
     const rowNum = 4 + idx;
     const mes = MESES[new Date().getMonth()];
-    const linkCel = s3SignerClient
-      ? await linkParaSheets(sanitizarLinkParaSheets(dados.link_comprovante), s3SignerClient)
-      : sanitizarLinkParaSheets(dados.link_comprovante);
+    const linkCel = await celulaComprovante(dados.link_comprovante, s3SignerClient);
     const linha = [
       undefined,
       dados.nome || "",
@@ -216,23 +226,26 @@ async function renovarPresignedUrlsSheets(s3SignerClient) {
   const { GetObjectCommand } = require("@aws-sdk/client-s3");
   const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
   try {
+    // FORMULA: enxerga o =HYPERLINK(...) em vez do texto "Ver comprovante"
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!K:K`,
+      valueRenderOption: "FORMULA",
     });
     const linhas = resp.data.values || [];
     const atualizacoes = [];
     for (let i = 0; i < linhas.length; i++) {
-      const celK = (linhas[i][0] || "").trim();
+      const celK = String(linhas[i][0] || "").trim();
       if (!celK) continue;
       const s3PathMatch = celK.match(/^\/api\/comprovante-s3\/(.+)$/);
-      const presignedMatch = celK.match(/amazonaws\.com\/(.+?)(?:\?|$)/);
+      const presignedMatch = celK.match(/amazonaws\.com\/(.+?)(?:\?|")/) || celK.match(/amazonaws\.com\/(.+?)$/);
       const chave = s3PathMatch ? s3PathMatch[1] : presignedMatch ? presignedMatch[1] : null;
       if (!chave) continue;
       try {
         const cmd = new GetObjectCommand({ Bucket: bucket, Key: decodeURIComponent(chave) });
         const novaUrl = await getSignedUrl(s3SignerClient, cmd, { expiresIn: 7 * 24 * 3600 });
-        atualizacoes.push({ range: `${SHEET_NAME}!K${i + 1}`, values: [[novaUrl]] });
+        // regrava como fórmula HYPERLINK — célula fica "Ver comprovante" clicável
+        atualizacoes.push({ range: `${SHEET_NAME}!K${i + 1}`, values: [[formulaComprovante(novaUrl)]] });
       } catch (e) {
         console.warn(`⚠️  Não foi possível renovar URL para chave "${chave}": ${e.message}`);
       }
