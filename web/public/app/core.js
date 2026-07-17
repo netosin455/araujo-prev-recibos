@@ -29,6 +29,14 @@ let usuarioLogado = localStorage.getItem("usuarioLogado") || "";
 let roleLogado = localStorage.getItem("roleLogado") || "financeiro";
 let escritorioLogado = localStorage.getItem("escritorioLogado") || "";
 
+// Toast de erro com anti-spam: várias chamadas falhando juntas geram UM aviso
+let _ultimoToastErroApi = 0;
+function _toastErroApi(msg){
+  if (Date.now() - _ultimoToastErroApi < 5000) return;
+  _ultimoToastErroApi = Date.now();
+  if (typeof mostrarToast === "function") mostrarToast(msg, null, "error");
+}
+
 async function api(method, path, body, timeoutMs = 30000){
   try {
     const opts = { method, headers: { "Content-Type":"application/json" }, credentials: "include" };
@@ -38,10 +46,22 @@ async function api(method, path, body, timeoutMs = 30000){
       new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
     ]);
     if(res.status===401){ fazerLogout(); return null; }
+    if(res.status>=500) _toastErroApi("Erro no servidor. Tente novamente em instantes.");
     return res;
   } catch(e){
+    _toastErroApi("Sem conexão com o servidor. Verifique a internet.");
     return null;
   }
+}
+
+// Padrão novo (Fase 2): devolve { ok, status, data } com JSON já parseado.
+// Use em código novo no lugar de repetir `if(!res||!res.ok)` + res.json().
+async function apiJSON(method, path, body, timeoutMs = 30000){
+  const res = await api(method, path, body, timeoutMs);
+  if(!res) return { ok: false, status: 0, data: null };
+  let data = null;
+  try { data = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, data };
 }
 
 async function fazerLogin(){
@@ -90,7 +110,7 @@ let graficoMultiAno = null;
 let graficoDRE = null;
 let modoEdicao = null;
 let _buscaGlobalIdx = -1;
-const _selecionadosZip = new Set();
+const _selecionadosExport = new Set();
 let idEdicao = null;
 let referenciaPadrao = "";
 let _lastReciboGerado = null;

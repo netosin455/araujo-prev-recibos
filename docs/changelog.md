@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-07-17] — Fase 2: arquitetura frontend
+
+### Refatorado
+- **CSS fora do HTML**: os dois blocos `<style>` do `index.html` (40 KB + tela de assinatura) viraram `public/css/main.css`. O index caiu de 116 KB pra ~74 KB e o CSS agora é cacheável separadamente (7 dias + `?v=`).
+- **`recibos-extra.js` unificado no `recibos.js`** (Gov.br, recorrente, calendário, busca global, auditoria, timeline) — um script a menos pra baixar; sem colisão de declarações (verificado).
+- **`_selecionadosZip` → `_selecionadosExport`** — o Set serve pra ZIP, Excel, e-mail e exclusão em lote; o nome antigo mentia.
+
+### Adicionado
+- **`api()` com erro padronizado**: toast automático (com anti-spam de 5s) pra falha de rede e erro 5xx — falhas deixam de ser silenciosas. Novo helper **`apiJSON()`** devolve `{ ok, status, data }` já parseado, pra código novo não repetir `if(!res||!res.ok)`.
+- **ESLint funcional**: config migrada pro formato flat (`eslint.config.mjs`, ESLint 10) — o script `npm run lint` estava quebrado desde a v9. Backend com `no-undef` ligado; frontend (escopo global compartilhado) com `no-redeclare` pra pegar colisões reais. Estado atual: 0 erros, 106 warnings de limpeza gradual.
+
+---
+
 ## [2026-07-17] — Fase 5: testes de integração das rotas reais
 
 ### Adicionado
