@@ -212,7 +212,7 @@ module.exports = function registerAdminRoutes(app, deps) {
           r.motivo_pagamento || r.complemento || "Honorários Advocatícios",
           r.escritorio || "",
           "",
-          await deps.linkParaSheets(r.link_comprovante || "", deps.s3SignerClient),
+          await require("../services/google-sheets").celulaComprovante(r.link_comprovante || "", deps.s3SignerClient),
           mes,
           r.num || "",
           r.emitido_por || "",
@@ -220,15 +220,22 @@ module.exports = function registerAdminRoutes(app, deps) {
         ];
       }));
 
-      const appendResult = await sheets.spreadsheets.values.append({
+      // NUNCA usar values.append com INSERT_ROWS (lição do CLAUDE.md 2026-05-28:
+      // linha em branco no meio faz a detecção de tabela inserir no topo).
+      // Determinístico: conta as linhas da coluna A e escreve a partir da próxima.
+      const colA = await sheets.spreadsheets.values.get({
         spreadsheetId: deps.SHEET_ID,
-        range: `${deps.SHEET_NAME}!A4:O`,
+        range: `${deps.SHEET_NAME}!A:A`,
+      });
+      const nextRow = (colA.data.values || []).length + 1;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: deps.SHEET_ID,
+        range: `${deps.SHEET_NAME}!A${nextRow}:O${nextRow + linhas.length - 1}`,
         valueInputOption: "USER_ENTERED",
-        insertDataOption: "INSERT_ROWS",
         requestBody: { values: linhas },
       });
 
-      const rangeEscrito = appendResult.data.updates?.updatedRange || "desconhecido";
+      const rangeEscrito = `A${nextRow}:O${nextRow + linhas.length - 1}`;
       logger.info(`✅ Sync forçado: ${linhas.length} recibo(s) escritos no range ${rangeEscrito}.`);
       res.json({
         ok: true,
@@ -507,7 +514,13 @@ app.post("/api/admin/reescrever-planilha", auth, adminOnly, async (req, res) => 
     });
 
     logger.info(`âœ… Planilha reescrita: ${linhas.length} recibo(s) do banco.`);
-    res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco.` });
+    // A reescrita grava caminhos crus na coluna K (rápido) — em segundo plano,
+    // converte tudo pra "Ver comprovante" clicável sem esperar o cron de domingo
+    setImmediate(() => {
+      require("../services/google-sheets").renovarPresignedUrlsSheets(s3SignerClient)
+        .catch(err => logger.warn("Renovação pós-reescrita falhou: " + err.message));
+    });
+    res.json({ ok: true, total: linhas.length, mensagem: `Planilha limpa e reescrita com ${linhas.length} recibo(s) do banco. Links de comprovante serão reativados em instantes.` });
   } catch (e) {
     logger.error("âŒ Erro ao reescrever planilha:", e.message);
     res.status(500).json({ erro: "Erro ao reescrever planilha.", detalhe: e.message });

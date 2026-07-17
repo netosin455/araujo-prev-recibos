@@ -237,6 +237,12 @@ async function renovarPresignedUrlsSheets(s3SignerClient) {
     for (let i = 0; i < linhas.length; i++) {
       const celK = String(linhas[i][0] || "").trim();
       if (!celK) continue;
+      // Link do Drive em texto cru (ex.: após "reescrever do zero") → só envelopa
+      // em "Ver comprovante"; Drive não expira, não precisa renovar
+      if (!celK.startsWith("=") && celK.includes("drive.google.com") && !celK.includes('"')) {
+        atualizacoes.push({ range: `${SHEET_NAME}!K${i + 1}`, values: [[formulaComprovante(celK)]] });
+        continue;
+      }
       const s3PathMatch = celK.match(/^\/api\/comprovante-s3\/(.+)$/);
       const presignedMatch = celK.match(/amazonaws\.com\/(.+?)(?:\?|")/) || celK.match(/amazonaws\.com\/(.+?)$/);
       const chave = s3PathMatch ? s3PathMatch[1] : presignedMatch ? presignedMatch[1] : null;
@@ -269,6 +275,7 @@ module.exports = {
   testarConexaoSheets,
   uploadParaDrive,
   sanitizarLinkParaSheets,
+  celulaComprovante,
   registrarNoSheets,
   atualizarNoSheets,
   linkParaSheets,

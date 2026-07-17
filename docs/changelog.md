@@ -2,6 +2,19 @@
 
 ---
 
+## [2026-07-17] — Planilha: linhas ANTIGAS clicáveis + levantamento de comprovantes perdidos
+
+### Feito na planilha (execução única, já aplicada)
+- **1.649 links do Google Drive** convertidos pra "Ver comprovante" clicável (Drive não expira — conversão definitiva).
+- **74 caminhos legados** (`/api/comprovante/...`) verificados um a um contra o S3: **nenhum existe** — são os comprovantes perdidos da era do disco local. Levantamento completo em `reports/comprovantes_perdidos.md` (linhas 1653–1752 da planilha). Irrecuperáveis pelo sistema; alternativas no relatório.
+
+### Corrigido no código
+- **"Limpar e reescrever do zero"** agora dispara a renovação de links em segundo plano ao terminar — a coluna K volta a ficar clicável em instantes, sem esperar domingo.
+- **"Sincronizar agora"** trocou `values.append INSERT_ROWS` (proibido pela lição de 2026-05-28 do CLAUDE.md — insere no topo com linha em branco no meio) pela escrita determinística (conta coluna A → escreve na próxima linha), e a coluna K já sai como "Ver comprovante".
+- **Cron de renovação** também envelopa links do Drive em texto cru pra "Ver comprovante" (cobre o cenário pós-reescrita).
+
+---
+
 ## [2026-07-17] — Planilha: link do comprovante já nasce clicável
 
 ### Corrigido
