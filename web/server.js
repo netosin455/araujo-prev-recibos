@@ -160,7 +160,10 @@ app.use((req, res, next) => {
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
     "img-src 'self' data: blob: https://*.amazonaws.com; " +
     "connect-src 'self' https://*.amazonaws.com; " +
-    "frame-src https://drive.google.com blob: https://*.amazonaws.com;"
+    "frame-src https://drive.google.com blob: https://*.amazonaws.com; " +
+    // frame-ancestors é a versão moderna do X-Frame-Options — cobre navegadores
+    // que ignoram o header antigo e é a recomendação atual do OWASP
+    "frame-ancestors 'none';"
   );
   next();
 });
