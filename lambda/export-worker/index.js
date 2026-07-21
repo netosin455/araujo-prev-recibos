@@ -16,10 +16,13 @@ const LOGO_PATH = path.join(__dirname, "logo.png");
 
 let _pool;
 function db() {
-  // Neon exige SSL com certificado válido (CA pública) — mantemos a verificação ligada.
+  // Neon exige SSL com certificado válido (CA pública) — mantemos a verificação ligada
+  // por padrão. DB_SSL=false permite apontar pra um Postgres sem certificado público
+  // (ex: instância EC2 própria) sem afetar o Neon em produção.
   // max:1 — cada execução concorrente da Lambda abre seu próprio pool; manter 1 conexão
-  // por execução evita estourar o limite de conexões do Neon em picos de concorrência.
-  if (!_pool) _pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: true }, max: 1 });
+  // por execução evita estourar o limite de conexões do banco em picos de concorrência.
+  const useDbSsl = process.env.DB_SSL !== "false";
+  if (!_pool) _pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: useDbSsl ? { rejectUnauthorized: true } : false, max: 1 });
   return _pool;
 }
 

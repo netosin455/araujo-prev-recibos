@@ -53,7 +53,11 @@ if (!DATABASE_URL) {
   logger.error("❌ ERRO: Defina a variável de ambiente DATABASE_URL (Neon) antes de iniciar.");
   process.exit(1);
 }
-const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: true } });
+// DB_SSL=false permite apontar pra um Postgres local (sem certificado público
+// confiável, ex: mesma instância EC2) sem afetar o Neon em produção, que
+// continua exigindo SSL por padrão.
+const useDbSsl = process.env.DB_SSL !== "false";
+const pgPool = new Pool({ connectionString: DATABASE_URL, ssl: useDbSsl ? { rejectUnauthorized: true } : false });
 // Conexão OCIOSA que cai (rede/Neon) emite 'error' fora de qualquer rota — sem
 // listener, o processo morre. Loga e segue; o pool cria conexão nova sozinho.
 pgPool.on("error", (err) => logger.error("Pool Postgres (conexão ociosa):", err.message));
