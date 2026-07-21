@@ -40,6 +40,42 @@ destravar o dump). Se não for mais usar, avaliar rebaixar pro free tier de
 novo mais pra frente — mas só depois que o backup local/S3 estiver
 confirmado funcionando, senão fica sem rede de segurança nenhuma.
 
+## ✅ Migração concluída — 21/07/2026
+
+Produção migrada do Neon pro PostgreSQL 17.10 rodando na própria instância
+EC2 (`i-0f33593fd0dc87bea`), conforme a decisão de arquitetura acima.
+
+**O que foi feito:**
+- Banco `araujoprev` criado, dump restaurado (3744 recibos, 745 clientes,
+  12 usuários, 8 tabelas), dono de todas as tabelas transferido pra
+  `araujoprev_app` (necessário pra `ALTER TABLE` no startup do app — só
+  `GRANT` não é suficiente).
+- Autenticação por senha habilitada (`pg_hba.conf`: `ident` → `scram-sha-256`
+  nas conexões `host` 127.0.0.1/::1).
+- Código (`web/server.js` e `lambda/export-worker/index.js`) ganhou a env
+  var **`DB_SSL`** — `DB_SSL=false` desliga a exigência de SSL (necessária
+  pro Neon, impossível de validar com certificado confiável num Postgres
+  local em 127.0.0.1). Default preserva o comportamento anterior.
+- `DATABASE_URL` e `DB_SSL=false` atualizados no Elastic Beanstalk. Login
+  e queries confirmados funcionando em produção, sem erros nos logs.
+- Backup diário automático: `/usr/local/bin/backup_db_to_s3.sh` (pg_dump +
+  upload pro `s3://araujo-prev-comprovantes/db-backups/`, retenção local de
+  14 dias) via `/etc/cron.d/araujoprev-backup`, roda todo dia às 5h UTC.
+  Testado manualmente com sucesso.
+- Neon mantido no ar (não desligado) como rede de segurança adicional.
+
+**Incidente durante a migração:** a instância é uma `t3.micro` (916MB RAM).
+Rodar uma segunda cópia completa do app (Express + Google Sheets + etc.)
+pra teste, ao mesmo tempo que produção + Postgres, esgotou a memória e
+derrubou o SSM Agent e o site. Recuperado com `aws ec2 reboot-instances`.
+**Lição:** nesta instância, nunca rodar dois processos Node completos ao
+mesmo tempo — testar conexão de banco com um script Node mínimo (só
+`require("pg")`, sem subir o Express) em vez do app inteiro.
+
+**Credenciais:** senha do usuário `araujoprev_app` foi gerada nesta sessão
+e setada via `ALTER USER` — não registrada aqui (secreta). Está apenas na
+`DATABASE_URL` da configuração do Elastic Beanstalk.
+
 ## Contexto
 
 O sistema Araujo Prev (gerador de recibos, React/Express na AWS Elastic
