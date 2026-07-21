@@ -3,6 +3,43 @@
 > Documento de handoff para outra instância do Claude Code, rodando no
 > servidor físico do escritório. Escrito em 20/07/2026.
 
+## ⚡ Atualização — 20/07/2026, mesma noite
+
+**O incidente foi resolvido sem migração**: fizemos upgrade temporário do
+plano do Neon, o que liberou a cota na hora. Testado (`POST /api/login`
+retornando 401 normal, sem erro de cota) — **site no ar de novo**.
+
+Decisão de arquitetura tomada nesta sessão (caso a migração continue no
+futuro): **Postgres na própria instância EC2** (não no servidor físico do
+escritório), pra evitar o risco de rede/disponibilidade descrito abaixo.
+
+**O que já foi feito, e pode ser reaproveitado:**
+- Usuário IAM `adm_banco_local` criado com permissão ampla (`AdministratorAccess`)
+  pra tarefas de migração — **existe separado do `backup-local-readonly`**,
+  não misturar os dois. Profile local: `aws --profile admin`.
+- PostgreSQL **17.10** instalado na instância EC2 (`i-0f33593fd0dc87bea`),
+  client + server (`postgresql17`, `postgresql17-server`) — versão escolhida
+  para bater exatamente com o Neon (17.10), evitando erro de
+  "server version mismatch" no pg_dump/pg_restore.
+- Dump completo do Neon extraído com sucesso (só funcionou **depois** do
+  upgrade do plano — antes disso até o `pg_dump` era bloqueado pela cota,
+  não só as queries do app) e salvo em:
+  `s3://araujo-prev-comprovantes/db-migration-backups/araujo_prev_dump_2026-07-20.bak`
+  (1.3 MB).
+
+**O que falta, se decidir continuar a migração depois (sem pressa agora):**
+1. `initdb` + criar usuário/banco dedicado no Postgres 17 da EC2 (ver Passo 2
+   original abaixo, ajustando os nomes de pacote pra `postgresql17*`)
+2. Restaurar o dump do S3 nesse banco novo (`pg_restore`)
+3. Testar app apontando pro banco novo **antes** de trocar em produção
+4. Configurar backup automático pro S3 (cron + pg_dump)
+5. Trocar `DATABASE_URL` no Elastic Beanstalk só depois de validar tudo
+
+**Não esquecer:** o Neon está no plano pago agora (upgrade temporário pra
+destravar o dump). Se não for mais usar, avaliar rebaixar pro free tier de
+novo mais pra frente — mas só depois que o backup local/S3 estiver
+confirmado funcionando, senão fica sem rede de segurança nenhuma.
+
 ## Contexto
 
 O sistema Araujo Prev (gerador de recibos, React/Express na AWS Elastic
