@@ -5,6 +5,22 @@
 
 ---
 
+## Estado de segurança AWS — 2026-07-22
+
+O usuário confirmou região `us-east-1`; Security Hub ainda não foi ativado e Trusted Advisor está limitado ao plano Basic. Próximo passo manual sugerido: habilitar Security Hub com AWS Foundational Security Best Practices, revisar os achados antes de remediar e incluir Security Hub/GuardDuty/CloudTrail/Access Analyzer no escopo Terraform após confirmação de custo. Não interpretar "sem dados" como postura segura.
+
+## Próximo passo com o usuário — 2026-07-22
+
+O usuário está autenticado na própria conta AWS e quer executar os pré-requisitos manualmente, com orientação. Não solicitar senhas ou access keys. Antes de provisionar: confirmar domínio, Hosted Zone/registrador, ambiente EB atual, orçamento e método de execução (CloudShell ou CLI local autenticada). Evitar criar ALB, WAF, CloudFront ou recursos duplicados no console; estes serão declarados em Terraform após a revisão.
+
+## Solicitação de arquitetura AWS — 2026-07-22
+
+O usuário quer implementar uma arquitetura AWS resiliente para evitar gargalos. Proposta inicial: domínio + ACM/HTTPS, WAF, CloudFront com `/api/*` sem cache, ALB, Elastic Beanstalk em duas AZs com Auto Scaling, S3 privado, SQS/Lambda/DLQ para tarefas assíncronas e observabilidade no CloudWatch. Manter Neon no primeiro ciclo; avaliar RDS/Aurora somente com métricas que comprovem gargalo. Claude: revisar a proposta e sinalizar riscos, custo e pré-requisitos de deploy. Não provisionar recursos sem credenciais AWS, domínio e autorização explícita de custo.
+
+## Política de coordenação — Codex ↔ Claude
+
+Antes de iniciar qualquer edição ou planejamento, registrar neste arquivo o objetivo, os arquivos em escopo, decisões e riscos. Ao concluir, atualizar o resultado e os testes executados. Se houver uma decisão que altere contrato de API, segurança, infraestrutura ou dados, aguardar alinhamento antes de implementar.
+
 ## Comunicação Codex → Claude — Auditoria de segurança (2026-07-21)
 
 O usuário solicitou uma auditoria de SQL injection, tokens/perfil e fronteira backend–frontend. A revisão não alterou código de produção; os achados foram registrados em `reports/security_report.md`.
