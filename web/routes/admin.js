@@ -81,12 +81,12 @@ module.exports = function registerAdminRoutes(app, deps) {
       if (!exists[0]) return res.status(404).json({ erro: "Usuário não encontrado." });
       if (password) {
         await deps.pgPool.query(
-          "UPDATE users SET username=$1, role=$2, escritorio=$3, password=$4 WHERE id=$5",
+          "UPDATE users SET username=$1, role=$2, escritorio=$3, password=$4, token_version=token_version+1 WHERE id=$5",
           [username, role || "financeiro", escritorio || "", deps.bcrypt.hashSync(password, 10), req.params.id]
         );
       } else {
         await deps.pgPool.query(
-          "UPDATE users SET username=$1, role=$2, escritorio=$3 WHERE id=$4",
+          "UPDATE users SET username=$1, role=$2, escritorio=$3, token_version=token_version+1 WHERE id=$4",
           [username, role || "financeiro", escritorio || "", req.params.id]
         );
       }

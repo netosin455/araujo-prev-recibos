@@ -5,6 +5,40 @@
 
 ---
 
+## Comunicação Codex → Claude — Auditoria de segurança (2026-07-21)
+
+O usuário solicitou uma auditoria de SQL injection, tokens/perfil e fronteira backend–frontend. A revisão não alterou código de produção; os achados foram registrados em `reports/security_report.md`.
+
+### Prioridade para correção
+
+1. **SEC-020 (crítica):** aplicar `financeiroOnly` e checagem de escopo nas rotas de assinatura local e Gov.br (`web/routes/recibos.js:303`, `web/routes/govbr.js:28,140`).
+2. **SEC-021 (alta):** corrigir o filtro de escritório no cursor de `GET /api/recibos`; `$regex` é ignorado por `web/services/database.js`, então recepção enxerga todos os escritórios com `?cursor=`.
+3. **SEC-022 (alta):** retirar o proxy genérico `/api/comprovante-s3/*`; ele aceita qualquer chave S3 para todo usuário autenticado.
+4. **SEC-019 (alta):** ao editar usuário, invalidar sessões existentes (`token_version`) e não confiar no papel/escritório obsoletos do JWT por 30 dias.
+5. **SEC-008-R (média):** restaurar limite de login seguro; está temporariamente em 1000/15 min.
+
+### Constatações que não exigem alteração
+
+- Não há SQL injection ativa identificada: valores externos usam parâmetros PostgreSQL.
+- O JWT não é exposto ao frontend; fica em cookie `httpOnly`. `localStorage` contém apenas estado visual.
+- O token público de assinatura não concede acesso a perfil ou sessão; é restrito ao recibo e expira.
+
+Antes de corrigir, leia o relatório e acrescente testes de autorização negativos para cada rota corrigida. Não altere o contrato de resposta existente sem atualizar todos os consumidores.
+
+---
+
+## Implementação Codex — 2026-07-21
+
+- ✅ **SEC-019:** edição de usuário agora incrementa `token_version`; tokens anteriores são invalidados.
+- ✅ **SEC-021:** o filtro de escritório do cursor agora é convertido para regex PostgreSQL parametrizada.
+- ✅ **SEC-008-R:** limitador de login restaurado para 10 tentativas por IP a cada 15 minutos.
+- 🟡 **SEC-020 e SEC-022:** usuário aceitou manter assinatura para recepção e proxy S3 genérico; não alterar sem nova solicitação.
+- 🟡 **SEC-023:** matriz de acesso para clientes/fichário continua pendente de regra de negócio explícita.
+
+Validação: `npm.cmd test` (87 testes), `node --check` e `npm.cmd run lint -- --quiet` aprovados.
+
+---
+
 ## 🎯 Instruções para o Claude
 
 Sempre que você (Claude) for iniciar uma sessão neste projeto:
@@ -70,6 +104,7 @@ O Claude executou as 6 tarefas do `opencode.md`. **opencheck verificou e aprovou
 
 | # | Tarefa | Verificação |
 |---|---|---|
+| 2026-07-21 | Codex | Refinamento visual do frontend: resumo de contrato, prévia local de recibo, estados do fichário e filtro por tipo. Não altera API nem regras de servidor. |
 | 1 | Módulo PDF compartilhado | ✅ `web/services/pdf-generator.js` criado (fonte única, 55 linhas). `web/routes/recibos.js` agora importa e passa `logoPath`. Lambda usa `require("./pdf-generator")`. `package.json` da Lambda tem script `build` que copia o arquivo. `.gitignore` exclui `pdf-generator.js`. |
 | 2 | SSL rejectUnauthorized | ✅ Lambda (`index.js:22`): `rejectUnauthorized: true`. ⚠️ `web/server.js:58` **ainda** tem `rejectUnauthorized: false` — fora do escopo, mas registrado como pendência opcional. |
 | 3 | ZIP vazio | ✅ `index.js:63`: guard `arquivos.length === 0` throw — job vai pra DLQ em vez de subir ZIP vazio marcado `pronto`. |

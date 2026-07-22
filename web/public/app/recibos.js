@@ -1,5 +1,49 @@
 ﻿// web/public/app/recibos.js — extracted from app.js
 // â”€â”€ GERAR RECIBO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function _campoPreviaRecibo(id) {
+  return (document.getElementById(id)?.value || "").trim();
+}
+
+function abrirPreviaRecibo() {
+  const valor = _campoPreviaRecibo("valor");
+  const valorNumero = valorParaNumero(valor);
+  const dia = _campoPreviaRecibo("dia").padStart(2, "0");
+  const mes = _campoPreviaRecibo("mes");
+  const ano = _campoPreviaRecibo("ano");
+  const data = dia && mes && ano ? `${dia}/${mes}/${ano}` : "Preencha a data";
+  const nome = _campoPreviaRecibo("nome") || "Nome do cliente";
+  const municipio = _campoPreviaRecibo("municipio_uf") || "Município / UF";
+  const cpf = _campoPreviaRecibo("cpf") || "CPF / CNPJ";
+  const emitidoPor = _campoPreviaRecibo("emitido_por") || "Responsável pela emissão";
+  const detalhes = [
+    _campoPreviaRecibo("motivo_pagamento"),
+    _campoPreviaRecibo("forma_pagamento"),
+    _campoPreviaRecibo("referencia") && `Ref. ${_campoPreviaRecibo("referencia").toUpperCase()}`,
+  ].filter(Boolean).join(" · ") || "Detalhes do pagamento";
+  const complemento = _campoPreviaRecibo("complemento");
+  const conteudo = document.getElementById("modal-previa-recibo-body");
+  if (!conteudo) return;
+
+  conteudo.innerHTML = `
+    <article class="recibo-previa" aria-label="Prévia do recibo">
+      <div class="recibo-previa-faixa"><span>ARAUJO PREV</span><span>CONFERÊNCIA ANTES DE GERAR</span></div>
+      <div class="recibo-previa-corpo">
+        <p class="recibo-previa-tipo">RECIBO</p>
+        <p class="recibo-previa-valor">${valorNumero > 0 ? `R$ ${formatarValor(valorNumero)}` : "R$ —"}</p>
+        <p class="recibo-previa-texto">Recebi de <strong>${esc(nome.toUpperCase())}</strong>, inscrito(a) sob <strong>${esc(cpf)}</strong>, o valor acima referente a <strong>${esc(detalhes)}</strong>.</p>
+        ${complemento ? `<p class="recibo-previa-complemento">${esc(complemento)}</p>` : ""}
+        <div class="recibo-previa-linha"></div>
+        <div class="recibo-previa-assinatura">
+          <span>${esc(municipio.toUpperCase())}, ${esc(data)}</span>
+          <strong>${esc(emitidoPor.toUpperCase())}</strong>
+          <small>Emitido por</small>
+        </div>
+      </div>
+    </article>
+    <p class="recibo-previa-aviso"><i class="bi bi-info-circle"></i> Esta é uma conferência visual. Nenhum recibo foi criado ainda.</p>`;
+  document.getElementById("modal-previa-recibo")?.classList.add("active");
+}
+
 async function gerarRecibo(){
   const campos=["nome","cpf","municipio_uf","valor","emitido_por","escritorio"];
   const dados={};
@@ -1293,4 +1337,3 @@ function _buildTimeline(cadastro, recibos) {
     </div>`;
   }).join("")}</div>`;
 }
-

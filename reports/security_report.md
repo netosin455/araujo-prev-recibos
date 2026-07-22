@@ -1,7 +1,81 @@
 # Security Report — Araujo Prev Recibos
 
-**Última atualização:** 2026-05-27 — Agente 1 (Backend) — Rodada 2
+**Última atualização:** 2026-07-21 — Agente 1/4 (Backend + QA) — Correções de autorização
 **Arquivos analisados:** `web/server.js`, `web/public/app.js`, `web/public/index.html`
+
+---
+
+## Auditoria independente — 2026-07-21
+
+**Escopo:** injeção SQL, fronteira backend–frontend, tokens, perfil e autorização. Revisados `web/server.js`, `web/services/database.js`, middlewares, todas as rotas HTTP e o cliente em `web/public/app/`.
+
+### Resultado sobre SQL injection
+
+**Não foi encontrada uma rota explorável de SQL injection no estado atual.** As consultas que recebem `params`, `query` ou `body` usam placeholders do PostgreSQL (`$1`, `$2`, ...). Os identificadores interpolados pelo helper de banco vêm hoje de constantes controladas pelo servidor.
+
+Há uma medida preventiva pendente: `web/services/database.js` ainda interpola nomes de tabelas e colunas. Antes que o helper seja reutilizado com dados externos, ele deve passar a aceitar somente uma allowlist de tabelas e colunas; a validação atual por regex não substitui uma allowlist.
+
+### Controles confirmados
+
+- O JWT da sessão não é devolvido no JSON do login nem fica em `localStorage`; ele é um cookie `httpOnly`, `SameSite=Strict` e `Secure` em HTTPS.
+- O `localStorage` guarda apenas nome, papel e escritório para a interface. Alterá-lo no DevTools não altera a autorização do servidor.
+- `GET /api/me` busca o usuário por `req.user.id`; não aceita ID de perfil fornecido pelo frontend.
+- Não há CORS permissivo. A CSP bloqueia scripts externos e inline.
+- O token público de assinatura remota tem 48 caracteres hexadecimais (192 bits), expira em sete dias e dá acesso somente ao recibo correspondente — não ao perfil ou à sessão do sistema.
+
+### Vulnerabilidades abertas encontradas nesta rodada
+
+#### SEC-019 — Papel/senha alterados não revogam a sessão já emitida
+- **Severidade:** ALTA
+- **Arquivos:** `web/middleware/auth.js:14-24`, `web/routes/admin.js:73-91`
+- **Evidência:** o middleware consulta apenas `id` e `token_version` do banco, mas a autorização usa `role`, `username` e `escritorio` carregados do JWT. A edição de usuário não incrementa `token_version`.
+- **Impacto:** após ser rebaixado de financeiro para recepção, ou após ter a senha redefinida, um token emitido anteriormente mantém os privilégios antigos por até 30 dias.
+- **Correção sugerida:** carregar os atributos de autorização atuais do banco em cada `auth` (ou invalidar a versão) e incrementar `token_version` em qualquer troca de senha, papel, nome ou escritório.
+- **Status:** ✅ CORRIGIDO em 2026-07-21 — edição de usuário incrementa `token_version`, invalidando na próxima requisição todos os JWTs emitidos antes da alteração.
+
+#### SEC-020 — Rotas de assinatura aceitam papéis que não são financeiros
+- **Severidade:** CRÍTICA
+- **Arquivos:** `web/routes/recibos.js:303`, `web/routes/govbr.js:28,140`
+- **Evidência:** `PUT /api/recibos/:id/assinatura` e `GET /api/govbr/iniciar` exigem somente autenticação; não usam `financeiroOnly` nem verificam se o recibo pertence ao escritório do usuário.
+- **Impacto:** uma conta de recepção ou precatórios pode assinar, ou iniciar a assinatura Gov.br de, um recibo que não deveria administrar.
+- **Correção sugerida:** aplicar `financeiroOnly` e uma checagem central de escopo do recibo antes de gerar state, consultar status ou salvar assinatura.
+- **Status:** ACEITO PELO USUÁRIO em 2026-07-21 — permanece permitido para recepção.
+
+#### SEC-021 — Paginação por cursor ignora o filtro de escritório da recepção
+- **Severidade:** ALTA
+- **Arquivos:** `web/routes/recibos.js:124-142`, `web/services/database.js:42-61`
+- **Evidência:** a rota monta `query.escritorio = { $regex: ... }`, porém `_buildWhere()` não implementa `$regex`; a condição é descartada e a consulta retorna recibos de todos os escritórios.
+- **Impacto:** uma conta de recepção pode chamar `GET /api/recibos?cursor=<timestamp>` e receber dados financeiros e pessoais de outros escritórios.
+- **Correção sugerida:** usar comparação exata parametrizada no PostgreSQL (normalizando o escritório) e criar teste de autorização específico para a paginação por cursor.
+- **Status:** ✅ CORRIGIDO em 2026-07-21 — o helper converte o `RegExp` controlado pelo servidor em operador PostgreSQL parametrizado (`~*`); teste de regressão adicionado.
+
+#### SEC-022 — Proxy de comprovantes aceita chave S3 arbitrária
+- **Severidade:** ALTA
+- **Arquivo:** `web/routes/misc.js:65-76`
+- **Evidência:** `GET /api/comprovante-s3/*` recebe a chave inteira do path e a repassa ao S3 após apenas `auth`; não restringe o prefixo nem relaciona o objeto a um recibo/documento que o usuário pode acessar.
+- **Impacto:** qualquer usuário autenticado que conheça ou consiga adivinhar uma chave pode ler objetos privados que o IAM da aplicação consiga ler, inclusive fora de `comprovantes/`.
+- **Correção sugerida:** remover o proxy genérico; para cada tipo de arquivo, buscar o metadado no banco, aplicar a ACL/escopo do usuário e usar uma chave de prefixo fixo.
+- **Status:** ACEITO PELO USUÁRIO em 2026-07-21 — permanece permitido para qualquer usuário autenticado.
+
+#### SEC-023 — Controle de acesso a clientes e fichário não é uniforme por papel/escritório
+- **Severidade:** ALTA (condicionada à política de acesso esperada)
+- **Arquivos:** `web/routes/clientes.js`, `web/routes/documentos.js`
+- **Evidência:** as rotas de clientes, documentos e fichário exigem apenas `auth`; não filtram por `req.user.escritorio` e não bloqueiam o papel `precatorios`.
+- **Impacto:** se recepção/precatórios devem operar somente seu escritório ou não devem consultar documentos, qualquer conta autenticada pode enumerar CPF, contrato e documentos de todos os clientes.
+- **Correção sugerida:** confirmar a matriz de permissões e centralizar a regra de escopo antes de cada leitura/escrita de cliente, recibo e documento.
+- **Status:** ABERTO — requer confirmação da regra de negócio
+
+#### SEC-008-R — Regressão temporária no limite de tentativas de login
+- **Severidade:** MÉDIA
+- **Arquivo:** `web/server.js:174-181`
+- **Evidência:** o limitador foi temporariamente elevado a `1000` tentativas por IP a cada 15 minutos.
+- **Impacto:** facilita brute force e password spraying enquanto a configuração temporária estiver ativa.
+- **Correção sugerida:** retornar ao limite baixo (por exemplo, 10–20) e, em produção com múltiplas instâncias, usar store compartilhado para rate limit.
+- **Status:** ✅ CORRIGIDO em 2026-07-21 — limite restaurado para 10 tentativas por IP a cada 15 minutos.
+
+### Lacunas de teste
+
+Os 87 testes existentes passaram. Foram adicionados testes para invalidação de sessão em edição de usuário e para a conversão segura do filtro por cursor. Permanecem pendentes os testes de decisão de negócio para assinatura, S3 e matriz de acesso ao fichário.
 
 ---
 

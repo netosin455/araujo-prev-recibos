@@ -6,6 +6,7 @@ let _ficharioAberto = null;
 let _ficharioTimer = null;
 let _ficharioQuery = "";
 let _ficDocs = [];          // documentos da galeria aberta (pro lightbox navegar)
+let _ficFiltroTipo = "";   // tipo selecionado para a galeria aberta
 let _lbIndex = 0;           // índice atual no lightbox
 let _lbKeyHandler = null;
 let _ficPagina = 0;         // página atual da grade de clientes (paginação)
@@ -34,7 +35,7 @@ function renderFichario() {
       </div>
       <div id="fichario-status" style="font-size:12px;color:var(--muted);margin-top:6px">Digite para buscar ou deixe vazio para ver todos</div>
     </div>
-    <div id="fichario-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(184px,1fr));gap:14px"></div>
+    <div id="fichario-grid" class="fic-grid-clientes"></div>
     <div id="fichario-galeria" style="display:none"></div>
   `;
   const input = document.getElementById("fichario-busca");
@@ -55,7 +56,7 @@ async function buscarFichario(q, pagina = 0) {
   if (!grid) return;
   if (pagina === 0) {
     _ficClientes = [];
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted)"><i class="bi bi-hourglass-split"></i><p style="margin-top:8px">Buscando...</p></div>`;
+    grid.innerHTML = `<div class="fic-state fic-state-loading"><i class="bi bi-hourglass-split"></i><p>Buscando clientes...</p></div>`;
   }
   try {
     const r = await api("GET", `/api/fichario/busca?q=${encodeURIComponent(q)}&limit=${_FIC_LIMIT}&offset=${pagina * _FIC_LIMIT}`);
@@ -67,7 +68,7 @@ async function buscarFichario(q, pagina = 0) {
       : `${_ficClientes.length} cliente(s)${_ficTemMais ? " — tem mais, role até o fim" : ""}`;
     renderGridFichario(_ficClientes);
   } catch (e) {
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--error)"><i class="bi bi-exclamation-triangle"></i><p style="margin-top:8px">Erro ao buscar.</p></div>`;
+    grid.innerHTML = `<div class="fic-state fic-state-error"><i class="bi bi-exclamation-triangle"></i><p>Não foi possível buscar clientes.</p></div>`;
     status.textContent = "Erro ao buscar clientes.";
   }
 }
@@ -76,7 +77,7 @@ function renderGridFichario(clientes) {
   const grid = document.getElementById("fichario-grid");
   if (!grid) return;
   if (clientes.length === 0) {
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:36px;color:var(--muted)"><i class="bi bi-folder2-open" style="font-size:30px;opacity:.5"></i><p style="margin-top:8px;font-size:13px">Nenhum cliente encontrado.</p></div>`;
+    grid.innerHTML = `<div class="fic-state"><i class="bi bi-folder2-open"></i><p>Nenhum cliente encontrado.</p><span>Tente outro nome ou CPF.</span></div>`;
     return;
   }
   grid.innerHTML = clientes.map(c => {
@@ -122,6 +123,7 @@ function renderGridFichario(clientes) {
 
 async function abrirGaleriaFichario(cpf, nome) {
   _ficharioAberto = { cpf, nome };
+  _ficFiltroTipo = "";
   const galeria = document.getElementById("fichario-galeria");
   const grid = document.getElementById("fichario-grid");
   const busca = document.getElementById("fichario-busca");
@@ -138,20 +140,23 @@ async function abrirGaleriaFichario(cpf, nome) {
         <div style="font-size:12px;color:var(--muted)">${esc(cpf)} · <span id="fic-gal-qtd">…</span></div>
       </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:linear-gradient(180deg,#fffdf6,#fdf8ec);border:1px solid var(--gold-pale);border-radius:11px">
+    <div class="fic-gal-toolbar">
       <select id="fic-gal-tipo" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;background:#fff;color:var(--dark)">
         ${FIC_TIPOS.map(t => `<option value="${t}">${t}</option>`).join("")}
       </select>
       <button class="btn-gold btn-sm" id="fic-gal-cam" style="cursor:pointer"><i class="bi bi-camera"></i> Câmera</button>
       <button class="btn-secondary btn-sm" id="fic-gal-file" style="cursor:pointer"><i class="bi bi-upload"></i> Arquivos</button>
+      <label class="fic-filtro-label" for="fic-gal-filtro">Exibir
+        <select id="fic-gal-filtro" disabled><option value="">Todos os tipos</option></select>
+      </label>
       <button class="btn-secondary btn-sm" id="fic-gal-zip" style="cursor:pointer;display:none"><i class="bi bi-file-zip"></i> Baixar tudo (ZIP)</button>
       <span style="font-size:11px;color:var(--muted)">pode enviar vários de uma vez</span>
       <span id="fic-gal-status" style="font-size:11.5px;color:var(--gold);font-weight:600;margin-left:auto"></span>
       <input type="file" id="fic-gal-in-cam" accept="image/*" capture="environment" multiple style="display:none">
       <input type="file" id="fic-gal-in-file" accept="image/*,application/pdf" multiple style="display:none">
     </div>
-    <div id="fic-gal-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;min-height:100px">
-      <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted)"><i class="bi bi-hourglass-split"></i><p style="margin-top:8px">Carregando...</p></div>
+    <div id="fic-gal-grid" class="fic-gal-grid">
+      <div class="fic-state fic-state-loading"><i class="bi bi-hourglass-split"></i><p>Carregando documentos...</p></div>
     </div>
   `;
 
@@ -159,6 +164,10 @@ async function abrirGaleriaFichario(cpf, nome) {
   document.getElementById("fic-gal-cam").addEventListener("click", () => document.getElementById("fic-gal-in-cam").click());
   document.getElementById("fic-gal-file").addEventListener("click", () => document.getElementById("fic-gal-in-file").click());
   document.getElementById("fic-gal-zip").addEventListener("click", () => baixarZipFichario(cpf, nome));
+  document.getElementById("fic-gal-filtro").addEventListener("change", event => {
+    _ficFiltroTipo = event.target.value;
+    renderDocsGaleria();
+  });
   const inCam = document.getElementById("fic-gal-in-cam");
   const inFile = document.getElementById("fic-gal-in-file");
   const pick = async (inp) => { if (inp.files && inp.files.length) { await enviarDocumentos(cpf, inp.files); inp.value = ""; } };
@@ -190,31 +199,62 @@ async function carregarDocsGaleria(cpf) {
     if (qtdEl) qtdEl.textContent = `${_ficDocs.length} documento${_ficDocs.length !== 1 ? "s" : ""}`;
     const btnZip = document.getElementById("fic-gal-zip");
     if (btnZip) btnZip.style.display = _ficDocs.length > 0 ? "" : "none";
-    if (_ficDocs.length === 0) {
-      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:22px">Nenhum documento ainda. Envie o primeiro! 📷</div>`;
-      return;
-    }
-    // Agrupa por tipo, preservando o índice global (pro lightbox)
-    const grupos = {};
-    _ficDocs.forEach((d, i) => { const t = d.tipo || "Outro"; (grupos[t] = grupos[t] || []).push(i); });
-    grid.innerHTML = Object.keys(grupos).map(tipo => {
-      const cards = grupos[tipo].map(i => _cardDocGaleria(_ficDocs[i], i)).join("");
-      return `<div class="fic-grupo-tit">${esc(tipo)} <span style="color:var(--muted);font-weight:600;letter-spacing:0">(${grupos[tipo].length})</span></div>${cards}`;
-    }).join("");
-
-    grid.querySelectorAll("[data-lb-idx]").forEach(b => b.addEventListener("click", () => abrirLightbox(parseInt(b.dataset.lbIdx, 10))));
-    grid.querySelectorAll(".fic-gal-del").forEach(b => b.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      if (!confirm("Excluir este documento? (fica recuperável no sistema)")) return;
-      try {
-        const rr = await api("DELETE", `/api/documentos/${b.dataset.docId}`);
-        if (rr && rr.ok) { await carregarDocsGaleria(cpf); }
-        else mostrarToast("Erro ao excluir.", null, "error");
-      } catch (e2) { mostrarToast("Erro ao excluir.", null, "error"); }
-    }));
+    _atualizarFiltroDocsGaleria();
+    renderDocsGaleria();
   } catch (e) {
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--error)">Erro ao carregar documentos.</div>`;
+    grid.innerHTML = `<div class="fic-state fic-state-error"><i class="bi bi-exclamation-triangle"></i><p>Erro ao carregar documentos.</p></div>`;
   }
+}
+
+function _atualizarFiltroDocsGaleria() {
+  const filtro = document.getElementById("fic-gal-filtro");
+  if (!filtro) return;
+  const tipos = [...new Set(_ficDocs.map(d => d.tipo || "Outro"))];
+  if (!tipos.includes(_ficFiltroTipo)) _ficFiltroTipo = "";
+  filtro.disabled = tipos.length === 0;
+  filtro.innerHTML = `<option value="">Todos os tipos (${_ficDocs.length})</option>${tipos.map(tipo => `<option value="${esc(tipo)}">${esc(tipo)}</option>`).join("")}`;
+  filtro.value = _ficFiltroTipo;
+}
+
+function renderDocsGaleria() {
+  const grid = document.getElementById("fic-gal-grid");
+  if (!grid) return;
+  const documentos = _ficDocs
+    .map((doc, indice) => ({ doc, indice }))
+    .filter(({ doc }) => !_ficFiltroTipo || (doc.tipo || "Outro") === _ficFiltroTipo);
+  const qtdEl = document.getElementById("fic-gal-qtd");
+  if (qtdEl) qtdEl.textContent = _ficFiltroTipo
+    ? `${documentos.length} de ${_ficDocs.length} documento${_ficDocs.length !== 1 ? "s" : ""}`
+    : `${_ficDocs.length} documento${_ficDocs.length !== 1 ? "s" : ""}`;
+  if (_ficDocs.length === 0) {
+    grid.innerHTML = `<div class="fic-state"><i class="bi bi-camera"></i><p>Nenhum documento ainda.</p><span>Envie o primeiro documento acima.</span></div>`;
+    return;
+  }
+  if (documentos.length === 0) {
+    grid.innerHTML = `<div class="fic-state"><i class="bi bi-funnel"></i><p>Nenhum documento deste tipo.</p><span>Escolha outro filtro para ver os demais.</span></div>`;
+    return;
+  }
+  const grupos = {};
+  documentos.forEach(({ doc, indice }) => { const tipo = doc.tipo || "Outro"; (grupos[tipo] = grupos[tipo] || []).push(indice); });
+  grid.innerHTML = Object.keys(grupos).map(tipo => {
+    const cards = grupos[tipo].map(indice => _cardDocGaleria(_ficDocs[indice], indice)).join("");
+    return `<div class="fic-grupo-tit">${esc(tipo)} <span>(${grupos[tipo].length})</span></div>${cards}`;
+  }).join("");
+  _vincularAcoesDocsGaleria(grid);
+}
+
+function _vincularAcoesDocsGaleria(grid) {
+  grid.querySelectorAll("[data-lb-idx]").forEach(botao => botao.addEventListener("click", () => abrirLightbox(parseInt(botao.dataset.lbIdx, 10))));
+  grid.querySelectorAll(".fic-gal-del").forEach(botao => botao.addEventListener("click", async event => {
+    event.stopPropagation();
+    if (!confirm("Excluir este documento? (fica recuperável no sistema)")) return;
+    try {
+      const resposta = await api("DELETE", `/api/documentos/${botao.dataset.docId}`);
+      const cpf = _ficharioAberto?.cpf;
+      if (resposta?.ok && cpf) await carregarDocsGaleria(cpf);
+      else mostrarToast("Erro ao excluir.", null, "error");
+    } catch (erro) { mostrarToast("Erro ao excluir.", null, "error"); }
+  }));
 }
 
 function _cardDocGaleria(d, idx) {

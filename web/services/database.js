@@ -53,6 +53,11 @@ function _buildWhere(query) {
     if (val && typeof val === "object" && "$exists" in val) {
       parts.push(val.$exists ? `${col} IS NOT NULL` : `${col} IS NULL`);
     } else if (val && typeof val === "object") {
+      if ("$regex" in val && val.$regex instanceof RegExp) {
+        params.push(val.$regex.source);
+        const operador = val.$regex.ignoreCase ? "~*" : "~";
+        parts.push(`${col} ${operador} $${params.length}`);
+      }
       if ("$lt"  in val) { params.push(val.$lt);  parts.push(`${col} < $${params.length}`); }
       if ("$lte" in val) { params.push(val.$lte); parts.push(`${col} <= $${params.length}`); }
       if ("$gte" in val) { params.push(val.$gte); parts.push(`${col} >= $${params.length}`); }

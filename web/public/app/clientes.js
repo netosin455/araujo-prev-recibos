@@ -46,28 +46,46 @@ function _btnWhatsApp(telefone, nomeCliente, p) {
 
 function _buildBlocoContrato(cadastro) {
   if (!cadastro || cadastro.num_parcelas <= 0) return "";
-  // Progresso e "quitado" por VALOR (dinheiro pago), não por contar parcelas —
-  // o cliente pode pagar parcial, então o que vale é quanto entrou vs o contrato.
   const contratoV = Number(cadastro.valor_contrato) || 0;
   const pagoV     = Number(cadastro.valor_pago) || 0;
-  const pct      = contratoV > 0 ? Math.min(100, Math.round((pagoV / contratoV) * 100)) : 0;
+  const restanteV = Math.max(0, contratoV - pagoV);
+  const pct       = contratoV > 0 ? Math.min(100, Math.round((pagoV / contratoV) * 100)) : 0;
   const quitado  = contratoV > 0 ? (pagoV >= contratoV - 0.005) : (cadastro.parcelas_restantes === 0);
-  const vencidas = Array.isArray(cadastro.parcelas) ? cadastro.parcelas.filter(p => p.status === "atrasado").length : 0;
-  const corBarra = quitado ? "var(--success)" : "linear-gradient(90deg,var(--gold-light),var(--gold))";
-  const rodape = quitado
-    ? `<b style="color:var(--success);font-weight:700">✓ Contrato quitado</b>`
-    : `Faltam <b style="color:var(--dark)">R$ ${formatarValor(cadastro.valor_restante)}</b> · ${cadastro.parcelas_restantes} parcela${cadastro.parcelas_restantes !== 1 ? "s" : ""}${vencidas > 0 ? ` · <b style="color:var(--error)">${vencidas} vencida${vencidas !== 1 ? "s" : ""}</b>` : ""}`;
+  const parcelas = Array.isArray(cadastro.parcelas) ? cadastro.parcelas : [];
+  const vencidas = parcelas.filter(p => p.status === "atrasado").length;
+  const proxima  = parcelas.find(p => p.status !== "pago");
+  const proximaTitulo = quitado ? "Situação" : proxima ? `Parcela ${esc(proxima.num)}` : "Próxima parcela";
+  const proximaTexto = quitado
+    ? "Contrato quitado"
+    : proxima?.data_vencimento ? `Vence ${esc(proxima.data_vencimento)}` : "Aguardando vencimento";
+  const situacao = quitado ? "Quitado" : vencidas > 0 ? `${vencidas} vencida${vencidas !== 1 ? "s" : ""}` : "Em dia";
   return `
-    <div style="margin-top:13px;padding-top:12px;border-top:1px solid var(--border)">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:6px">
-        <span style="color:var(--mid);font-weight:600">${cadastro.parcelas_pagas} de ${cadastro.num_parcelas} parcelas</span>
-        <span style="color:var(--muted);font-variant-numeric:tabular-nums"><b style="color:var(--dark)">R$ ${formatarValor(cadastro.valor_pago)}</b> / R$ ${formatarValor(cadastro.valor_contrato)}</span>
+    <section class="contrato-resumo" aria-label="Resumo do contrato">
+      <div class="contrato-resumo-topo">
+        <span>Andamento do contrato</span>
+        <strong>${pct}% concluído</strong>
       </div>
-      <div style="background:var(--gold100);border-radius:5px;height:7px;overflow:hidden">
-        <div style="width:${pct}%;background:${corBarra};height:100%;border-radius:5px;transition:width .3s"></div>
+      <div class="contrato-progresso" role="progressbar" aria-label="${pct}% do contrato pago" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+        <div class="contrato-progresso-fill${quitado ? " is-quitado" : ""}" style="width:${pct}%"></div>
       </div>
-      <div style="font-size:11.5px;color:var(--muted);margin-top:7px">${rodape}</div>
-    </div>`;
+      <div class="contrato-metricas">
+        <div class="contrato-metrica">
+          <span>Pago</span>
+          <strong>R$ ${formatarValor(pagoV)}</strong>
+          <small>${cadastro.parcelas_pagas} de ${cadastro.num_parcelas} parcelas</small>
+        </div>
+        <div class="contrato-metrica">
+          <span>Em aberto</span>
+          <strong>R$ ${formatarValor(restanteV)}</strong>
+          <small>${cadastro.parcelas_restantes} parcela${cadastro.parcelas_restantes !== 1 ? "s" : ""} restante${cadastro.parcelas_restantes !== 1 ? "s" : ""}</small>
+        </div>
+        <div class="contrato-metrica${vencidas > 0 ? " is-alerta" : quitado ? " is-quitado" : ""}">
+          <span>${proximaTitulo}</span>
+          <strong>${situacao}</strong>
+          <small>${proximaTexto}</small>
+        </div>
+      </div>
+    </section>`;
 }
 
 function _buildTabelaRecibos(c) {

@@ -208,12 +208,10 @@ async function registrarAuditoria(req, acao, entidade_id, dados) {
 }
 
 // ── RATE LIMITERS ─────────────────────────────────────────────
-// TEMPORÁRIO (20/07/2026) — limite alto durante testes de migração do banco
-// (Carlo pediu pra não travar em 15min enquanto testa login repetidamente).
-// REVERTER pra max: 10 assim que os testes terminarem.
+// Limite baixo reduz brute force e password spraying; o bloqueio é por IP.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { erro: "Muitas tentativas de login. Aguarde 15 minutos." },

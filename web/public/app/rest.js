@@ -856,6 +856,7 @@ function bindStaticHandlers() {
 
   // FormulÃ¡rio de recibo
   document.getElementById("btn-gerar").addEventListener("click", gerarRecibo);
+  document.getElementById("btn-previa-recibo").addEventListener("click", abrirPreviaRecibo);
   document.getElementById("btn-limpar-recibo").addEventListener("click", limparCampos);
   document.getElementById("referencia").addEventListener("input", onReferenciaInput);
   document.getElementById("btn-ref-padrao-recibo").addEventListener("click", salvarReferenciaPadraoRecibo);
@@ -988,6 +989,8 @@ function bindStaticHandlers() {
 
   // Modal detalhe
   document.getElementById("btn-fechar-modal-detalhe").addEventListener("click", () => fecharModal("modal-detalhe"));
+  document.getElementById("btn-fechar-modal-previa-recibo").addEventListener("click", () => fecharModal("modal-previa-recibo"));
+  document.getElementById("btn-fechar-previa-recibo").addEventListener("click", () => fecharModal("modal-previa-recibo"));
 
   // Modal Gov.br
   document.getElementById("btn-fechar-modal-govbr").addEventListener("click", () => fecharModal("modal-govbr"));

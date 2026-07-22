@@ -1,7 +1,18 @@
 # Bugs Found — Araujo Prev Recibos
 
-**Última atualização:** 2026-05-27 — Agente 1 (Backend) — Rodada 2 — Rodada 2
+**Última atualização:** 2026-07-21 — Agente 1/4 (Backend + QA) — Correção de autorização
 **Arquivos analisados:** `web/server.js`, `web/public/app.js`, `web/public/index.html`
+
+---
+
+## Auditoria QA — 2026-07-21
+
+### BUG-017 — Cursor de recibos não aplica o escopo do escritório
+- **Arquivo:** `web/routes/recibos.js:124-142`; `web/services/database.js:42-61`
+- **Impacto:** ALTO — além de expor dados de outros escritórios, a paginação por cursor produz resultado diferente da paginação normal para o mesmo usuário.
+- **Descrição:** a rota usa `{ $regex: ... }` para filtrar `escritorio`, mas o helper PostgreSQL não implementa esse operador e descarta a condição.
+- **Correção sugerida:** substituir a condição por filtro SQL parametrizado e testar que recepção só recebe recibos do próprio escritório com `?cursor=`.
+- **Status:** ✅ Corrigido em 2026-07-21 — `RegExp` de escritório é convertido para `~* $n` com parâmetro PostgreSQL; teste de regressão incluído.
 
 ---
 

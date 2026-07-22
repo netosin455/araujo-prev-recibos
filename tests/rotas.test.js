@@ -162,6 +162,32 @@ describe("POST /api/logout", () => {
   });
 });
 
+// ── Edição de usuário invalida sessões anteriores ───────────
+describe("PUT /api/users/:id", () => {
+  it("incrementa token_version ao trocar perfil", async () => {
+    const fakes = criarFakes();
+    const updates = [];
+    fakes.pgPool.query = async (sql, params) => {
+      if (/UPDATE users SET/.test(String(sql))) {
+        updates.push({ sql, params });
+        return { rows: [] };
+      }
+      if (/FROM users/.test(String(sql))) return { rows: [{ id: "u2", token_version: 0 }] };
+      return { rows: [] };
+    };
+    const ctx = criarApp(fakes);
+    require("../web/routes/admin")(ctx.app, ctx.deps);
+
+    const res = await request(ctx.app).put("/api/users/u2")
+      .set("Cookie", `token=${tokenPara({ ...ADMIN, token_version: 0 })}`)
+      .send({ username: "joana", role: "recepcao", escritorio: "Centro" });
+
+    assert.equal(res.status, 200);
+    assert.equal(updates.length, 1);
+    assert.match(updates[0].sql, /token_version=token_version\+1/);
+  });
+});
+
 // ── Soft delete de recibos ─────────────────────────────────
 describe("DELETE /api/recibos/:id (soft delete)", () => {
   it("marca deletado_em/deletado_por em vez de apagar e registra auditoria", async () => {

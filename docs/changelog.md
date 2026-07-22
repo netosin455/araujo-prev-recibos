@@ -2,6 +2,37 @@
 
 ---
 
+## [2026-07-21] — Refinamentos visuais de clientes, recibos e fichário
+
+### Adicionado
+- Resumo de contrato mais legível nos cartões de clientes: percentual visual, valores pago/em aberto e situação da próxima parcela.
+- Botão **Conferir** no formulário de recibo: abre uma prévia local antes da geração, sem reservar número nem gravar dados.
+- Filtro por tipo no fichário, com contagem contextual e miniaturas maiores para documentos.
+
+### Melhorado
+- Estados de carregamento, vazio e erro do fichário agora têm estrutura e feedback visual consistentes.
+
+## [2026-07-21] — Correções de sessão, escopo e proteção de login
+
+### Corrigido
+- Edição de usuário agora incrementa `token_version`, encerrando sessões emitidas antes da troca de senha, papel, nome ou escritório.
+- Paginação de recibos por cursor voltou a aplicar corretamente o filtro de escritório de recepção com regex parametrizada no PostgreSQL.
+- Limite de login restaurado para 10 tentativas por IP a cada 15 minutos.
+
+### Testado
+- Adicionados testes de regressão para invalidação de sessão e filtro de escritório; suíte com 87 testes aprovada.
+
+---
+
+## [2026-07-21] — Auditoria de segurança e autorização
+
+### Documentado
+- Revisão de SQL injection, autenticação por cookie, exposição de token e fronteira backend–frontend.
+- Registradas correções prioritárias para revogação de sessão após mudança de perfil, rotas de assinatura, escopo por escritório na paginação e proxy S3 genérico.
+- Comunicação de handoff adicionada ao `opencode.md` para o Claude Code. Nenhum código de produção foi alterado nesta rodada.
+
+---
+
 ## [2026-07-17] — Resiliência do banco + validação de tipos no payload
 
 ### Corrigido
