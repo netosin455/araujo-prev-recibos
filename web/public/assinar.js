@@ -28,16 +28,30 @@
   var desenhando = false, temTraco = false, ultimoX = 0, ultimoY = 0;
 
   function ajustarCanvas() {
+    var desenhoAnterior = null;
+    if (temTraco && canvas.width && canvas.height) {
+      desenhoAnterior = document.createElement("canvas");
+      desenhoAnterior.width = canvas.width;
+      desenhoAnterior.height = canvas.height;
+      desenhoAnterior.getContext("2d").drawImage(canvas, 0, 0);
+    }
     var r = canvas.parentElement.getBoundingClientRect();
     var dpr = window.devicePixelRatio || 1;
-    canvas.width = r.width * dpr;
-    canvas.height = r.height * dpr;
+    canvas.width = Math.max(1, Math.round(r.width * dpr));
+    canvas.height = Math.max(1, Math.round(r.height * dpr));
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
     ctx.strokeStyle = "#1a1a1a";
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    if (desenhoAnterior) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(desenhoAnterior, 0, 0, desenhoAnterior.width, desenhoAnterior.height, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+    desenhando = false;
   }
 
   function pos(e) {
@@ -74,7 +88,13 @@
   canvas.addEventListener("touchstart", iniciar, { passive: false });
   canvas.addEventListener("touchmove", mover, { passive: false });
   canvas.addEventListener("touchend", parar, { passive: false });
-  window.addEventListener("resize", ajustarCanvas);
+  var redimTimer = null;
+  function reagendarAjuste() {
+    window.clearTimeout(redimTimer);
+    redimTimer = window.setTimeout(ajustarCanvas, 120);
+  }
+  window.addEventListener("resize", reagendarAjuste);
+  window.addEventListener("orientationchange", reagendarAjuste);
 
   el("btn-limpar").addEventListener("click", function () {
     ctx.clearRect(0, 0, canvas.width, canvas.height);

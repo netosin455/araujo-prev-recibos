@@ -2,6 +2,17 @@
 
 ---
 
+## [2026-07-22] - Assinatura no celular em modo paisagem
+
+### Corrigido
+- Girar o celular durante a assinatura nao apaga mais o traco do cliente, tanto na tela interna quanto no link publico.
+- A tela de assinatura ficou compacta em telefones deitados, mantendo quadro, botoes e aceite acessiveis por rolagem.
+- O campo de nome usa 16 px em celular, evitando o zoom automatico do iOS ao preencher a assinatura.
+
+### Testado
+- Sintaxe validada com `node --check` nos dois scripts de assinatura.
+- A validacao visual em navegador local ficou pendente porque o servidor de desenvolvimento nao ficou acessivel nesta sessao; confirmar em um celular real antes do proximo deploy.
+
 ## [2026-07-21] — Refinamentos visuais de clientes, recibos e fichário
 
 ### Adicionado

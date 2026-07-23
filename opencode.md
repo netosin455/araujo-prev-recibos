@@ -5,6 +5,46 @@
 
 ---
 
+## Araujo Prev - assinatura em celular deitado (2026-07-22)
+
+O usuario relatou falhas visuais frequentes ao abrir a tela de assinatura no celular e virar o aparelho para paisagem. Escopo autorizado: somente frontend de assinatura, sem alterar rotas, regras de recibo, dados ou deploy.
+
+Implementacao Codex: `web/public/app/assinatura.js` e `web/public/assinar.js` agora preservam o bitmap ja desenhado quando `resize`/`orientationchange` redimensiona o canvas; ambos os layouts (`web/public/css/main.css` e `web/public/assinar.html`) recebem modo compacto e rolavel em paisagem, com campo de texto de 16 px para evitar zoom automatico no iOS. Risco residual: a assinatura e redimensionada proporcionalmente ao quadro novo, portanto deve ser conferida em aparelho fisico apos a rotacao. Validacao executada: `node --check` nos dois scripts. A tentativa de teste visual com servidor local nao ficou acessivel nesta sessao; nao considerar isso como validacao visual final.
+
+Claude: revisar o comportamento em Safari iOS e Chrome Android, sobretudo desenhar uma assinatura, girar retrato -> paisagem -> retrato e confirmar que o botao de confirmar e o aceite continuam acessiveis. Nao alterar contrato de assinatura nem backend sem nova aprovacao.
+
+## AutoGestor — vitrine pública de estoque (2026-07-22)
+
+Novo projeto recebido em `autogestor.zip`, separado do Araujo Prev. Requisito inicial: catálogo público de veículos em estoque e CTA por veículo que abre WhatsApp do Abunai com mensagem pré-preenchida de interesse. Nunca importar o `.env` ou arquivos `memory/` do ZIP para o repositório/workspace.
+
+Implementação realizada na pasta isolada `C:\Users\carlo\OneDrive\Área de Trabalho\AutoGestor`: página pública `/estoque`, rota pública limitada a uma projeção comercial (`public_inventory`) e publicação protegida por senha de servidor + sessão HTTP assinada. A vitrine exclui placa, custos, FIPE, despesas e observações internas; foto deve ser HTTPS; WhatsApp fica em `NEXT_PUBLIC_ABUNAI_WHATSAPP`. Claude: revisar especialmente rate limit da rota de login em ambiente multi-instância e a configuração das variáveis de produção. Nenhum arquivo funcional do Araujo Prev foi alterado.
+
+Atualização de infraestrutura: a decisão é manter MongoDB (não migrar para Neon/Postgres). O deploy será no Vercel com MongoDB Atlas via Marketplace, caso a conta Vercel permita provisionamento; usar variáveis de servidor para a URI e o banco, sem levar `.env` ao Git.
+
+### Solicitação para Claude Code — AutoGestor (2026-07-22)
+
+Revise a estratégia de deploy Vercel + MongoDB Atlas do AutoGestor, em especial: nomes de variáveis injetados pela integração, permissões mínimas do usuário do banco, índices recomendados para `public_inventory` e proteção da rota de login contra brute force em ambiente serverless. Não altere arquivos do Araujo Prev; registre apenas achados e sugestões neste canal.
+
+### Execução delegada ao Claude Code — AutoGestor (2026-07-22)
+
+O usuário autorizou a execução completa do lançamento do projeto isolado `C:\Users\carlo\OneDrive\Área de Trabalho\AutoGestor`:
+
+1. Criar repositório **privado** no GitHub, iniciar Git no AutoGestor e fazer o primeiro commit/push.
+2. Conferir antes do commit que `.env`, `.env.local`, `memory/`, `node_modules/` e `.next/` não serão versionados.
+3. Criar/conectar o projeto no Vercel e integrar MongoDB Atlas (não usar Neon/Postgres).
+4. Configurar somente no Vercel: `MONGODB_URI`, `MONGODB_DB_NAME`, `AUTOGESTOR_ADMIN_PASSWORD`, `AUTOGESTOR_SESSION_SECRET` e `NEXT_PUBLIC_ABUNAI_WHATSAPP`. Nunca registrar os valores em logs, commits ou nesta nota.
+5. Executar o deploy de produção, publicar a URL, verificar `/estoque` e `GET /api/public/vehicles`, e informar qualquer bloqueio de login/termos/billing que precise da ação do usuário.
+
+Não alterar o Araujo Prev nem reutilizar suas variáveis de ambiente. Ao terminar, registrar URL pública, repositório, hash do commit e resultado da checagem, sempre sem segredos.
+
+## Hospedagem do novo SaaS — decisão em análise (2026-07-22)
+
+O usuário perguntou se o SaaS novo precisa usar AWS. Direção recomendada para o MVP: Vercel para aplicação Next.js e deploy por Git, com banco Postgres gerenciado e armazenamento de arquivos separado. AWS só entra depois, caso haja uma necessidade específica de S3/SQS, processamento pesado ou requisito corporativo; quando entrar, preferir credenciais temporárias via OIDC. Claude: considerar custos, LGPD e limites de serverless antes da decisão final.
+
+## Novo produto SaaS isolado — planejamento inicial (2026-07-22)
+
+O usuário autorizou iniciar um SaaS novo, em diretório e repositório separados do Araujo Prev vitalício. Não reutilizar banco, deploy, variáveis de ambiente, credenciais ou código de produção diretamente; apenas aproveitar ideias e lições de arquitetura, segurança e UX. Direção proposta: SaaS multi-tenant para gestão e emissão de documentos/recibos, com isolamento obrigatório por organização, RBAC, auditoria e armazenamento privado por tenant. Claude: revisar a arquitetura proposta e apontar riscos de multi-tenancy, LGPD, custos e migração antes do scaffold. A criação física do novo repositório depende da definição de escopo/MVP e de autorização para escrever fora deste workspace.
+
 ## Estado de segurança AWS — 2026-07-22
 
 O usuário confirmou região `us-east-1`; Security Hub ainda não foi ativado e Trusted Advisor está limitado ao plano Basic. Próximo passo manual sugerido: habilitar Security Hub com AWS Foundational Security Best Practices, revisar os achados antes de remediar e incluir Security Hub/GuardDuty/CloudTrail/Access Analyzer no escopo Terraform após confirmação de custo. Não interpretar "sem dados" como postura segura.

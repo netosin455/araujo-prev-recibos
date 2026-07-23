@@ -1,6 +1,7 @@
 // web/public/app/assinatura.js — assinatura digital no celular (mesma cara do link remoto)
 let _assinaturaResolve = null;
 let _assTemTraco = false;
+let _redimensionarAssinaturaCanvas = null;
 
 // Recorta a assinatura no traço real (remove o espaço vazio em volta),
 // mantém a proporção natural e o fundo transparente. Retorna PNG base64.
@@ -48,17 +49,42 @@ function initAssinaturaCanvas() {
   let desenhando = false, ultimoX = 0, ultimoY = 0;
 
   function redim() {
+    const desenhoAnterior = _assTemTraco && canvas.width && canvas.height
+      ? (() => {
+          const copia = document.createElement("canvas");
+          copia.width = canvas.width;
+          copia.height = canvas.height;
+          copia.getContext("2d").drawImage(canvas, 0, 0);
+          return copia;
+        })()
+      : null;
     const r = wrap.getBoundingClientRect();
-    canvas.width = r.width * devicePixelRatio;
-    canvas.height = r.height * devicePixelRatio;
-    ctx.scale(devicePixelRatio, devicePixelRatio);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(r.width * dpr));
+    canvas.height = Math.max(1, Math.round(r.height * dpr));
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
     ctx.strokeStyle = "#1a1a1a";
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    if (desenhoAnterior) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(desenhoAnterior, 0, 0, desenhoAnterior.width, desenhoAnterior.height, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+    desenhando = false;
   }
   redim();
-  window.addEventListener("resize", redim);
+  _redimensionarAssinaturaCanvas = redim;
+  let redimTimer = null;
+  function reagendarRedim() {
+    window.clearTimeout(redimTimer);
+    redimTimer = window.setTimeout(redim, 120);
+  }
+  window.addEventListener("resize", reagendarRedim);
+  window.addEventListener("orientationchange", reagendarRedim);
 
   function getPos(e) {
     const r = canvas.getBoundingClientRect();
@@ -165,18 +191,7 @@ async function mostrarTelaAssinatura(info) {
     tela.style.display = "flex";
     tela.classList.add("active");
     setTimeout(() => {
-      const canvas = document.getElementById("assinatura-canvas");
-      if (canvas) {
-        const r = canvas.parentElement.getBoundingClientRect();
-        canvas.width = r.width * devicePixelRatio;
-        canvas.height = r.height * devicePixelRatio;
-        const cx = canvas.getContext("2d");
-        cx.scale(devicePixelRatio, devicePixelRatio);
-        cx.strokeStyle = "#1a1a1a";
-        cx.lineWidth = 3;
-        cx.lineCap = "round";
-        cx.lineJoin = "round";
-      }
+      if (_redimensionarAssinaturaCanvas) _redimensionarAssinaturaCanvas();
     }, 100);
   });
 }

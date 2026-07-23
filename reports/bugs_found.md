@@ -5,6 +5,15 @@
 
 ---
 
+## Auditoria QA - 2026-07-22
+
+### BUG-018 - Rotacionar o telefone apagava ou desorganizava a assinatura
+- **Arquivos:** `web/public/app/assinatura.js`; `web/public/assinar.js`; estilos de assinatura em `web/public/css/main.css` e `web/public/assinar.html`
+- **Impacto:** MEDIO - o cliente podia perder o traco ja desenhado ao virar o aparelho e, em telas baixas, os controles ficavam apertados.
+- **Causa:** redimensionar um `<canvas>` limpa seu bitmap; o listener de `resize` recriava o canvas sem preservar a assinatura. O layout nao tinha regra para a altura curta do modo paisagem.
+- **Correcao aplicada:** copia temporaria do bitmap antes de cada redimensionamento, restauracao proporcional do desenho, debounce de `resize`/`orientationchange` e layout compacto com rolagem para paisagem.
+- **Status:** corrigido em 2026-07-22 - `node --check` aprovado; confirmar em dispositivo fisico antes do deploy.
+
 ## Auditoria QA — 2026-07-21
 
 ### BUG-017 — Cursor de recibos não aplica o escopo do escritório

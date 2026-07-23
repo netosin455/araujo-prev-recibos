@@ -511,6 +511,27 @@
     #tela-assinatura .ass-erro{color:var(--error);font-size:12px;margin-top:8px;min-height:16px}
     #tela-assinatura .ass-pular{width:100%;margin-top:6px}
 
+    /* Assinatura em telefone deitado: preserva espaÃ§o para assinar e confirmaÃ§Ã£o. */
+    @media(max-width:768px){
+      #tela-assinatura .ass-input{font-size:16px}
+    }
+    @media(max-height:520px) and (orientation:landscape){
+      #tela-assinatura{align-items:flex-start;overflow-y:scroll;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+      #tela-assinatura .ass-wrap{max-width:760px;margin:0 auto;padding-bottom:4px}
+      #tela-assinatura .ass-card{border-radius:10px;padding:10px 12px}
+      #tela-assinatura .ass-titulo{font-size:15px;margin-bottom:2px}
+      #tela-assinatura .ass-sub{font-size:11px;margin-bottom:7px}
+      #tela-assinatura .ass-linha{padding:4px 0;font-size:12px}
+      #tela-assinatura .ass-label{margin:8px 0 4px}
+      #tela-assinatura .ass-input{padding:9px 10px}
+      .assinatura-canvas-wrap{height:clamp(96px,30vh,132px);margin-top:3px}
+      .assinatura-footer{gap:8px;padding-top:9px}
+      .assinatura-footer button{min-height:38px;padding:9px 10px;font-size:12px}
+      #tela-assinatura .ass-check{gap:8px;margin-top:10px;font-size:12px}
+      #tela-assinatura .ass-check input{width:18px;height:18px}
+      #tela-assinatura .ass-erro{margin-top:5px;min-height:14px}
+    }
+
 
 /* ── Fichário (movido de fichario.js — CSP Falha #3) ── */
 .fic-titulo{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--dark);margin:0 0 2px}
