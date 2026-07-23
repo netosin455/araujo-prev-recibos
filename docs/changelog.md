@@ -2,6 +2,18 @@
 
 ---
 
+## [2026-07-23] - Estabilidade do login em celular
+
+### Corrigido
+- O login nao usa mais `body` fixado nem viewport dinamico durante a abertura do teclado, evitando o reposicionamento visual da tela.
+- Campos de usuario e senha usam 16 px em celular, impedindo o zoom automatico do iOS ao receber foco.
+- A tela de login ganhou rolagem segura, espacamento de area segura e layout proprio para retrato e paisagem baixa, inclusive quando a largura em paisagem passa de 768 px.
+- Restaurar uma sessao por cookie agora remove corretamente o estado visual de login do `body`.
+
+### Validado
+- `node --check web/public/app/core.js` e `git diff --check` executados sem erros.
+- A validacao visual em dispositivo fisico continua recomendada antes do proximo deploy.
+
 ## [2026-07-22] - Assinatura no celular em modo paisagem
 
 ### Corrigido

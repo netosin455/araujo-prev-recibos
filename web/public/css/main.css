@@ -36,15 +36,18 @@
       --shadow-lg:0 12px 40px rgba(26,22,15,.14);
       --radius:12px;--radius-sm:8px;--ease:cubic-bezier(.4,0,.2,1);
     }
-    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--dark);min-height:100vh;display:flex;font-size:13px}
-    body.login-open{overflow:hidden;position:fixed;width:100%;height:100%;}
+    html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--dark);min-height:100vh;min-height:100dvh;display:flex;font-size:13px}
+    body.login-open{overflow:hidden;width:100%;}
 
     /* ── LOGIN ── */
     #tela-login{
-      position:fixed;top:0;left:0;width:100%;height:100dvh;
+      position:fixed;inset:0;width:auto;height:100vh;height:100svh;min-height:100svh;
       background:linear-gradient(-45deg,#0f0f0f,#1a1510,#0d0d0d,#1a1510);
       background-size:400% 400%;animation:gradientShift 12s ease infinite;
       display:flex;align-items:center;justify-content:center;z-index:9999;
+      overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;
+      padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
     }
     #tela-login::before{
       content:'';position:absolute;inset:0;
@@ -57,18 +60,36 @@
       background:rgba(255,255,255,.92);backdrop-filter:blur(16px);
       border-radius:var(--radius);padding:40px 44px;width:380px;
       box-shadow:var(--shadow-lg),0 0 0 1px rgba(184,151,58,.12);
-      text-align:center;border:1px solid rgba(184,151,58,.15);
+      text-align:center;border:1px solid rgba(184,151,58,.15);flex:0 0 auto;
     }
     .login-box img{width:130px;margin-bottom:22px;filter:drop-shadow(0 2px 8px rgba(184,151,58,.2))}
     .login-box h1{font-family:'Cormorant Garamond',serif;font-size:23px;color:var(--dark);margin-bottom:4px;letter-spacing:.5px}
     .login-box p{font-size:11px;color:var(--muted);margin-bottom:28px}
     .login-box .form-group{margin-bottom:16px;text-align:left}
     .login-box label{display:block;font-size:10px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.6px}
-    .login-box input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'Inter',sans-serif;outline:none;transition:all .2s var(--ease);background:rgba(255,255,255,.7)}
+    .login-box input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s var(--ease),box-shadow .2s var(--ease);background:rgba(255,255,255,.7)}
     .login-box input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(184,151,58,.15),0 0 20px rgba(184,151,58,.08)}
     .login-box button{width:100%;padding:13px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a1a1a;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;font-family:'Inter',sans-serif;transition:all .25s var(--ease);letter-spacing:.3px}
     .login-box button:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(184,151,58,.35)}
     #login-erro{color:var(--error);font-size:12px;margin-top:12px;display:none}
+
+    /* Login mobile: viewport estavel quando o teclado abre e sem zoom automatico no iOS. */
+    @media(max-width:768px){
+      #tela-login{align-items:flex-start;justify-content:flex-start}
+      #tela-login .login-box{width:min(100%,380px);margin:max(8px,3svh) auto 20px;padding:28px 20px;background:#fffdf8;backdrop-filter:none;-webkit-backdrop-filter:none}
+      #tela-login .login-box input{min-height:46px;font-size:16px;-webkit-appearance:none}
+    }
+    @media(max-height:520px) and (orientation:landscape){
+      #tela-login{padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left))}
+      #tela-login .login-box{width:min(100%,540px);margin:0 auto;padding:14px 18px}
+      #tela-login .login-box img{width:82px;margin-bottom:5px}
+      #tela-login .login-box h1{font-size:19px;margin-bottom:1px}
+      #tela-login .login-box p{margin-bottom:12px}
+      #tela-login .login-box .form-group{margin-bottom:8px}
+      #tela-login .login-box input{min-height:42px;padding:9px 12px;font-size:16px}
+      #tela-login .login-box button{min-height:42px;padding:10px;margin-top:2px}
+      #login-erro{margin-top:7px}
+    }
 
     /* ── SIDEBAR ── */
     .sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,#141414 0%,#0f0f0f 100%);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;border-right:1px solid rgba(184,151,58,.08)}

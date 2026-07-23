@@ -5,6 +5,15 @@
 
 ---
 
+## Auditoria QA - 2026-07-23
+
+### BUG-019 - Tela de login se movia ao focar campo no celular
+- **Arquivos:** `web/public/css/main.css`; `web/public/app/core.js`; `web/public/index.html`
+- **Impacto:** MEDIO - ao abrir o teclado, o login podia reposicionar repetidamente e dificultar a digitacao.
+- **Causa:** inputs de 13 px ativavam zoom automatico em iOS; `100dvh`, centralizacao flexivel e `body` fixado recalculavam a posicao do login durante a animacao do teclado.
+- **Correcao aplicada:** fonte minima de 16 px nos campos mobile, viewport estavel (`svh`), overlay rolavel com area segura, layout compacto para qualquer viewport baixo em paisagem e remocao do estado fixado apos restaurar sessao.
+- **Status:** corrigido em 2026-07-23 - sintaxe JavaScript e whitespace do diff validados; teste em aparelho fisico recomendado.
+
 ## Auditoria QA - 2026-07-22
 
 ### BUG-018 - Rotacionar o telefone apagava ou desorganizava a assinatura
