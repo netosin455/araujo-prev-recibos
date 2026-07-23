@@ -2,6 +2,13 @@
 
 ---
 
+## [2026-07-23] - Recepcao: anexar comprovantes
+
+### Alterado
+- Contas de recepcao podem anexar ou substituir comprovantes quantas vezes forem necessarias nos recibos ativos do proprio escritorio.
+- A permissao nao concede edicao, exclusao, relatorios ou acesso a recibos de outros escritorios; o perfil de precatorios continua sem acesso.
+- Cada vinculo de comprovante fica registrado na auditoria, sem salvar a URL do arquivo no log de auditoria.
+
 ## [2026-07-23] - Estabilidade do login em celular
 
 ### Corrigido
@@ -9,6 +16,7 @@
 - Campos de usuario e senha usam 16 px em celular, impedindo o zoom automatico do iOS ao receber foco.
 - A tela de login ganhou rolagem segura, espacamento de area segura e layout proprio para retrato e paisagem baixa, inclusive quando a largura em paisagem passa de 768 px.
 - Restaurar uma sessao por cookie agora remove corretamente o estado visual de login do `body`.
+- Em celular, login e tela inicial usam altura de viewport estavel e desativam a animacao do fundo, blur da barra e animacao de tela que podiam piscar em preto ao abrir o teclado.
 
 ### Validado
 - `node --check web/public/app/core.js` e `git diff --check` executados sem erros.

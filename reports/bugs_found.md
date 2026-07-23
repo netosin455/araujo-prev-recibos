@@ -7,6 +7,13 @@
 
 ## Auditoria QA - 2026-07-23
 
+### BUG-020 - Fundo preto piscava ao focar campos no celular
+- **Arquivos:** `web/public/css/main.css`
+- **Impacto:** MEDIO - ao abrir o teclado, o login ou a tela inicial podiam piscar e aparentar uma troca de tela.
+- **Causa:** viewport dinamico e efeitos de composicao (gradiente animado, `backdrop-filter` e animacao de tela) eram recalculados durante a abertura do teclado em navegadores mobile.
+- **Correcao aplicada:** `body` e area principal usam `svh` em celular; efeitos de composicao instaveis foram removidos somente no mobile, preservando o visual e animacoes no desktop.
+- **Status:** corrigido em 2026-07-23 - confirmar em aparelho fisico antes do proximo deploy.
+
 ### BUG-019 - Tela de login se movia ao focar campo no celular
 - **Arquivos:** `web/public/css/main.css`; `web/public/app/core.js`; `web/public/index.html`
 - **Impacto:** MEDIO - ao abrir o teclado, o login podia reposicionar repetidamente e dificultar a digitacao.

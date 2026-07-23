@@ -321,18 +321,34 @@ module.exports = function registerReciboRoutes(app, deps) {
   
 
   // ---- ATUALIZAR COMPROVANTE --------------------------------------
-  app.patch("/api/recibos/:id/comprovante", deps.auth, deps.financeiroOnly, async (req, res) => {
+  app.patch("/api/recibos/:id/comprovante", deps.auth, async (req, res) => {
     try {
       const { link_comprovante } = req.body;
-      if (!link_comprovante) return res.status(400).json({ erro: "link_comprovante eh obrigatorio." });
-      await deps.update(deps.dbRecibos, { _id: req.params.id }, { link_comprovante });
-      const verificado = await deps.findOne(deps.dbRecibos, { _id: req.params.id });
+      if (typeof link_comprovante !== "string" || !link_comprovante.trim()) {
+        return res.status(400).json({ erro: "link_comprovante eh obrigatorio." });
+      }
+
+      const recibo = await deps.findOne(deps.dbRecibos, { _id: req.params.id, ...deps.NAO_DELETADO });
+      if (!recibo) return res.status(404).json({ erro: "Recibo nao encontrado." });
+      if (req.user.role === "precatorios") return res.status(403).json({ erro: "Sem permissao para esta acao." });
+
+      if (req.user.role === "recepcao") {
+        const escritorioUsuario = String(req.user.escritorio || "").trim().toLocaleLowerCase("pt-BR");
+        const escritorioRecibo = String(recibo.escritorio || "").trim().toLocaleLowerCase("pt-BR");
+        if (!escritorioUsuario || escritorioUsuario !== escritorioRecibo) {
+          return res.status(403).json({ erro: "A recepcao so pode anexar comprovantes do proprio escritorio." });
+        }
+      }
+
+      const link = link_comprovante.trim();
+      await deps.update(deps.dbRecibos, { _id: req.params.id }, { link_comprovante: link });
+      deps.registrarAuditoria(req, "anexar_comprovante", req.params.id, { escritorio: recibo.escritorio || "" });
       // Reflete o comprovante na planilha (link já clicável) — falha não bloqueia
-      if (verificado?.num) {
-        atualizarNoSheets(verificado.num, verificado, deps.s3SignerClient)
+      if (recibo.num) {
+        atualizarNoSheets(recibo.num, { ...recibo, link_comprovante: link }, deps.s3SignerClient)
           .catch(e => logger.warn("Sheets ignorado no comprovante: " + e.message));
       }
-      res.json({ ok: true, link: verificado?.link_comprovante || "" });
+      res.json({ ok: true, link });
     } catch (err) {
       logger.error("Erro ao atualizar comprovante:", err);
       res.status(500).json({ erro: "Erro ao atualizar comprovante." });

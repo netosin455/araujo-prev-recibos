@@ -654,3 +654,15 @@
     .dash-pill.v{background:#f6e7e4;color:var(--error)}
     .dash-empty{text-align:center;color:var(--muted);font-size:12px;padding:16px}
     @media(max-width:720px){.dash-stats{grid-template-columns:repeat(2,1fr)}.dash-cols{grid-template-columns:1fr}}
+
+    /* Teclado mobile: evita repaints do viewport e efeitos de GPU que piscam no iOS/Android. */
+    @media(max-width:768px){
+      html,body{min-height:100vh;min-height:100svh;background:var(--bg)}
+      body{overflow-x:hidden}
+      .main{min-height:100vh;min-height:100svh}
+      .screen{animation:none}
+      .topbar,[data-theme="dark"] .topbar{backdrop-filter:none;-webkit-backdrop-filter:none}
+      input,select{transition:border-color .18s var(--ease),box-shadow .18s var(--ease)}
+      #tela-login{background:#17120e;background-image:linear-gradient(135deg,#17120e,#21190f);background-size:auto;animation:none;contain:paint}
+      #tela-login::before{display:none}
+    }

@@ -81,6 +81,67 @@ function criarApp(fakes) {
 
 const FINANCEIRO = { id: "u1", username: "maria", role: "financeiro", escritorio: "" };
 const ADMIN = { id: "u1", username: ADMIN_USER, role: "admin", escritorio: "" };
+const RECEPCAO = { id: "u1", username: "ana", role: "recepcao", escritorio: "Centro" };
+
+describe("PATCH /api/recibos/:id/comprovante", () => {
+  let ctx, fakes;
+
+  beforeEach(() => {
+    fakes = criarFakes();
+    ctx = criarApp(fakes);
+    require("../web/routes/recibos")(ctx.app, ctx.deps);
+  });
+
+  it("recepcao anexa comprovante do proprio escritorio e audita", async () => {
+    fakes.dados.findOne.recibos = [{ _id: "r1", num: "0001/2026", escritorio: "CENTRO" }];
+    const res = await request(ctx.app).patch("/api/recibos/r1/comprovante")
+      .set("Cookie", `token=${tokenPara(RECEPCAO)}`)
+      .send({ link_comprovante: "/api/comprovante-s3/comprovantes/r1.pdf" });
+
+    assert.equal(res.status, 200);
+    assert.equal(fakes.chamadas.update[0].upd.link_comprovante, "/api/comprovante-s3/comprovantes/r1.pdf");
+    assert.equal(fakes.chamadas.auditoria[0].acao, "anexar_comprovante");
+  });
+
+  it("recepcao nao anexa comprovante de outro escritorio", async () => {
+    fakes.dados.findOne.recibos = [{ _id: "r1", num: "0001/2026", escritorio: "Matriz" }];
+    const res = await request(ctx.app).patch("/api/recibos/r1/comprovante")
+      .set("Cookie", `token=${tokenPara(RECEPCAO)}`)
+      .send({ link_comprovante: "/api/comprovante-s3/comprovantes/r1.pdf" });
+
+    assert.equal(res.status, 403);
+    assert.equal(fakes.chamadas.update.length, 0);
+  });
+
+  it("recepcao sem escritorio nao recebe permissao ampla", async () => {
+    fakes.dados.findOne.recibos = [{ _id: "r1", num: "0001/2026", escritorio: "Centro" }];
+    const res = await request(ctx.app).patch("/api/recibos/r1/comprovante")
+      .set("Cookie", `token=${tokenPara({ ...RECEPCAO, escritorio: "" })}`)
+      .send({ link_comprovante: "/api/comprovante-s3/comprovantes/r1.pdf" });
+
+    assert.equal(res.status, 403);
+    assert.equal(fakes.chamadas.update.length, 0);
+  });
+
+  it("financeiro preserva permissao para qualquer escritorio", async () => {
+    fakes.dados.findOne.recibos = [{ _id: "r1", num: "0001/2026", escritorio: "Matriz" }];
+    const res = await request(ctx.app).patch("/api/recibos/r1/comprovante")
+      .set("Cookie", `token=${tokenPara(FINANCEIRO)}`)
+      .send({ link_comprovante: "/api/comprovante-s3/comprovantes/r1.pdf" });
+
+    assert.equal(res.status, 200);
+  });
+
+  it("precatorios continua sem permissao", async () => {
+    fakes.dados.findOne.recibos = [{ _id: "r1", num: "0001/2026", escritorio: "Centro" }];
+    const res = await request(ctx.app).patch("/api/recibos/r1/comprovante")
+      .set("Cookie", `token=${tokenPara({ id: "u1", username: "paulo", role: "precatorios", escritorio: "Centro" })}`)
+      .send({ link_comprovante: "/api/comprovante-s3/comprovantes/r1.pdf" });
+
+    assert.equal(res.status, 403);
+    assert.equal(fakes.chamadas.update.length, 0);
+  });
+});
 
 // ── async-wrap: erro async não derruba o servidor ──────────
 describe("async-wrap (Express 4 + handlers async)", () => {

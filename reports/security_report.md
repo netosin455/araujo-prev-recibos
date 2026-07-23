@@ -23,6 +23,8 @@ Há uma medida preventiva pendente: `web/services/database.js` ainda interpola n
 - Não há CORS permissivo. A CSP bloqueia scripts externos e inline.
 - O token público de assinatura remota tem 48 caracteres hexadecimais (192 bits), expira em sete dias e dá acesso somente ao recibo correspondente — não ao perfil ou à sessão do sistema.
 
+- **Comprovantes (2026-07-23):** recepcao pode anexar ou substituir comprovantes sem limite de quantidade, mas somente em recibos ativos do proprio escritorio. A rota bloqueia precatorios, preserva as demais restricoes de recepcao e registra a acao em auditoria sem expor a URL do arquivo.
+
 ### Vulnerabilidades abertas encontradas nesta rodada
 
 #### SEC-019 — Papel/senha alterados não revogam a sessão já emitida
